@@ -283,7 +283,8 @@ A browser-based 3D first-person story shooter.
   any existing `onBeforeCompile` patch (keep custom patches on `onBeforeCompile` before the
   first render, or store them in `userData.baseOnBeforeCompile`). Mark unlit/special meshes
   `userData.noCSM`.
-- KTX2 needs the Basis transcoder in `public/basis/`. Normal maps are UASTC (ETC1S artifacts
+- KTX2: three's `KTX2Loader` loads its Basis transcoder from three's own folder (Vite bundles
+  it); don't set a transcoder path. Normal maps are UASTC (ETC1S artifacts
   show badly in lighting); color and ORM are ETC1S. Textures ship at 1024 px.
 - A baked AO map with too much contrast reads as black speckle on the shaded wall; keep AO
   soft (`generate.mjs` `aoFromHeight`).

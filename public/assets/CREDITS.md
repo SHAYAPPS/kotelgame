@@ -26,6 +26,6 @@ Each set is `<id>_color.ktx2`, `<id>_normal.ktx2` and `<id>_orm.ktx2` (Basis Uni
 
 | File | Source | License |
 | --- | --- | --- |
-| `public/basis/basis_transcoder.{js,wasm}` | Basis Universal transcoder, copied from three.js (`examples/jsm/libs/basis/`) | Apache-2.0 |
+| Basis Universal transcoder (`basis_transcoder.{js,wasm}`, bundled from three.js `examples/jsm/libs/basis/` at build time) | Binomial LLC, via three.js | Apache-2.0 |
 | Leaf cards, prayer notes, bullet holes, scorch marks, dust | Drawn at runtime on canvases / in shaders by the game code | CC0 (this project) |
 | All sounds | Synthesized at runtime with Web Audio (`src/weapons/WeaponAudio.js`, `src/story/AmbientAudio.js`) | CC0 (this project) |

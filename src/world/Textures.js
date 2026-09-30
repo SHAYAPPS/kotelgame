@@ -8,9 +8,10 @@ import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
  * shows immediately and textures stream in.
  */
 export class TextureLibrary {
-  constructor(renderer, { base = 'assets/textures/', transcoder = 'basis/' } = {}) {
+  constructor(renderer, { base = 'assets/textures/' } = {}) {
     this.base = base;
-    this.loader = new KTX2Loader().setTranscoderPath(transcoder).detectSupport(renderer);
+    // The Basis transcoder ships with three (Vite bundles it via import.meta.url).
+    this.loader = new KTX2Loader().detectSupport(renderer);
     this.sets = new Map(); // id -> Promise<set>
     this.anisotropy = 4;
     this.textures = [];

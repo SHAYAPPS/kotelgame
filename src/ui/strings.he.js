@@ -2,7 +2,7 @@
 
 export const HE = {
   gameTitle: 'משחק הכותל',
-  buildLabel: 'אב־טיפוס · שלב 4: אויב ראשון',
+  buildLabel: 'אב־טיפוס · משימה 1 · מעבר ריאליזם, חלק 1',
   start: 'לחצו כדי להתחיל',
   chaptersTitle: 'או התחילו מחלק מסוים',
   weapons: { rifle: 'M4', launcher: 'מטול רקטות' },
