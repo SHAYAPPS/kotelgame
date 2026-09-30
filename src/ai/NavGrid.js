@@ -91,6 +91,7 @@ export class NavGrid {
     this._g = new Float32Array(n);
     this._from = new Int32Array(n);
     this._seen = new Uint32Array(n);
+    this._closed = new Uint32Array(n);
     this._stamp = 0;
     return this;
   }
@@ -228,7 +229,7 @@ export class NavGrid {
           const col = iz * this.nx + ix;
           for (let j = this.colStart[col]; j < this.colStart[col + 1]; j++) {
             if (!this.active[j]) continue;
-            const dy = Math.abs(this.y[j] - y);
+            const dy = y >= 100 ? 0 : Math.abs(this.y[j] - y);
             if (dy > 1.5) continue;
             const d = Math.hypot(this.nodeX(j) - x, this.nodeZ(j) - z) + dy * 2;
             if (d < bestD) {
@@ -274,11 +275,13 @@ export class NavGrid {
     let expanded = 0;
     while (open.size > 0) {
       const i = open.pop();
+      if (this._closed[i] === stamp) continue; // stale duplicate entry
+      this._closed[i] = stamp;
       if (i === t) break;
       if (++expanded > maxNodes) return null;
       for (let k = 0; k < 8; k++) {
         const j = this.neighbors[i * 8 + k];
-        if (j < 0 || !this.active[j]) continue;
+        if (j < 0 || !this.active[j] || this._closed[j] === stamp) continue;
         const step = (k % 2 ? SQRT2 : 1) * this.cell * (1 + this.wallPenalty[j] * 0.5) + Math.abs(this.y[j] - this.y[i]);
         const g = this._g[i] + step;
         if (this._seen[j] === stamp && g >= this._g[j]) continue;
@@ -339,6 +342,19 @@ export class NavGrid {
       anchor = far;
     }
     return out;
+  }
+
+  /** Highest active node in the column at (x, z) (the walkable floor there), or -1. */
+  nodeAt(x, z) {
+    const ix = Math.floor((x - this.minX) / this.cell);
+    const iz = Math.floor((z - this.minZ) / this.cell);
+    if (ix < 0 || iz < 0 || ix >= this.nx || iz >= this.nz) return -1;
+    const col = iz * this.nx + ix;
+    let best = -1;
+    for (let j = this.colStart[col]; j < this.colStart[col + 1]; j++) {
+      if (this.active[j] && (best < 0 || this.y[j] > this.y[best])) best = j;
+    }
+    return best >= 0 ? best : this.nearestNode(x, 100, z, 3);
   }
 
   /** Random active node, optionally filtered. */

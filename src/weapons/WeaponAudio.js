@@ -179,6 +179,15 @@ export class WeaponAudio {
     this._tone(t, { type: 'square', freq: freq * 0.5, freqEnd: freq * 0.3, gain: gain * 0.25, decay: 0.035 });
   }
 
+  /** Magazine check: release click, then the magazine seats again. */
+  magCheck() {
+    if (!this.ready) return;
+    const t = this.ctx.currentTime;
+    this._click(t + 0.3, 1800, 0.45);
+    this._noise(t + 0.35, { type: 'lowpass', freq: 900, gain: 0.3, decay: 0.06 });
+    this._click(t + 0.85, 1400, 0.7);
+  }
+
   dryFire() {
     if (!this.ready) return;
     this._click(this.ctx.currentTime, 3200, 0.7);

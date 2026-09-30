@@ -44,6 +44,13 @@ export class Rifle {
     this.targets = null;
     /** Called for every shot fired: (origin) => void (enemies hear it). */
     this.onShot = null;
+    /** 'ready' or 'lowered' (safe carry: no firing or aiming; R checks the magazine). */
+    this.mode = 'ready';
+    this.checkTime = 0; // magazine check progress in seconds (0 = not checking)
+    this.checkDuration = 1.3;
+    /** Called when a magazine check completes: () => void. */
+    this.onMagCheck = null;
+    this._lowInput = { trigger: false, aim: false, reload: false, blocked: true };
 
     // The muzzle flash briefly lights the surroundings too. The light always exists
     // (intensity 0 when idle) so toggling it never recompiles shaders.
@@ -57,6 +64,7 @@ export class Rifle {
     this.state = new WeaponState(this.cfg);
     this.recoil = new Recoil(this.cfg);
     this.flashTimer = 0;
+    this.checkTime = 0;
   }
 
   /** Eased 0..1 aim-down-sights amount. */
@@ -80,8 +88,31 @@ export class Rifle {
    * @param {{ trigger: boolean, aim: boolean, reload: boolean, blocked: boolean }} input
    * @param {import('../player/PlayerController.js').PlayerController} player
    */
+  get lowered() {
+    return this.mode === 'lowered';
+  }
+
+  /** 0..1 progress of a magazine check. */
+  get checkProgress() {
+    return this.checkTime > 0 ? this.checkTime / this.checkDuration : 0;
+  }
+
   fixedUpdate(dt, input, player) {
     const state = this.state;
+    if (this.lowered) {
+      if (input.reload && this.checkTime === 0) {
+        this.checkTime = 1e-6;
+        this.audio.magCheck?.();
+      }
+      input = this._lowInput;
+    }
+    if (this.checkTime > 0) {
+      this.checkTime += dt;
+      if (this.checkTime >= this.checkDuration) {
+        this.checkTime = 0;
+        if (this.onMagCheck) this.onMagCheck();
+      }
+    }
     const shots = state.update(dt, input);
     if (state.dryFire) this.audio.dryFire();
     if (state.reloadStarted) this.audio.reload(this.cfg.reloadTime);

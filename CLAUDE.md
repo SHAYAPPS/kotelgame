@@ -29,7 +29,9 @@ A browser-based 3D first-person story shooter.
 2. [x] Gun: hitscan rifle with ADS, recoil, impacts, reload, procedural sound
 3. [x] Greybox Kotel: 1:1 plaza layout (reference: `docs/kotel-reference.md`)
 4. [x] First enemy: perception, cover AI, navmesh, hitscan + tracers; player health
-5. [ ] Opening story beat  <- next
+5. [ ] Opening story beat  <- in progress
+   - [x] Part 1: mission system + the calm shift (ends on the radio chatter, before the sirens)
+   - [ ] Part 2: sirens and the attack
 6. [ ] Realism pass
 
 ## Commands
@@ -112,15 +114,38 @@ A browser-based 3D first-person story shooter.
   - `EnemyView.js`: placeholder soldier (capsule body + separate head), crouch, muzzle flash,
     death fall; `Tracers`.
   - `DebugDraw.js`: F1 overlay (navmesh points, cover points, vision cones, paths, state labels).
+- `src/story/`: the mission system (pure logic except the views/audio) and Mission 1.
+  - `Mission.js`: a script is a list of steps; each step runs `do` actions on entry and waits for
+    its `until` trigger (`reach`, `talk`, `timer`, `enemiesDead`, `dialogueDone`, `arrived`,
+    `action`, `all`/`any`). Actions: objective, hint, dialogue, npc (spawn/route/place/face/
+    talkable), populate, weapon, sound, ambience, fade, title, endCard, checkpoint.
+    `jumpTo(i)` replays the earlier steps' state actions in fast mode (no dialogue, NPCs placed at
+    their route ends) and enters step i; checkpoints restart this way. `fail()` freezes it.
+  - `mission1.js`: Mission 1's steps, squad routes, checkpoints and crowd groups
+    (worshipers, crossers, tour group). `text.he.js`: **all** dialogue, speakers, objectives,
+    hints and cards (placeholder Hebrew; edit text there only).
+  - `Dialogue.js`: queued subtitle lines with reading-time durations.
+  - `Npc.js`: NPCs on `PlayerController` bodies walking navmesh routes; a `leash` makes the
+    squad wait (looking back) only when the player lags behind; tour members follow a leader;
+    `NpcManager` spawns, separates bodies, finds the E talk target, ray-tests friendly fire.
+  - `NpcView.js`: placeholder figures (one merged vertex-colored mesh per kind), pray/walk/idle loops.
+  - `AmbientAudio.js`: generated crowd murmur, birds, radio squelch, objective chime.
+  - `StoryDirector.js`: the mission context; tutorial events (move/sprint/crouch/mag check),
+    E to talk, friendly fire -> fail -> restart at the last checkpoint, F2 jumps.
+- `src/ui/StoryHud.js`: objective, waypoint with distance, subtitles, key hints, talk prompt,
+  title/end cards, fade, mission-failed screen, checkpoint toast, the F2 step menu.
+- Weapon modes: `rifle.mode = 'lowered'` (can't fire; R checks the magazine and fires
+  `onMagCheck`) or `'ready'`. Game hides the crosshair/ammo while lowered.
 - `src/player/PlayerHealth.js`: CoD-style regenerating health + hit direction records (pure).
 - `src/ui/DamageOverlay.js`: red edges, hit flash, direction arcs, hit marker, death fade.
-- Game loop order per fixed step: player -> camera -> rifle (shots hit enemies first, then the
-  world; shots are heard) -> enemies -> health. Death: fade out, `Game.restart()` after 3.2 s.
+- Game loop order per fixed step: player -> camera -> rifle (shots hit enemies, then NPCs
+  (friendly fire), then the world; shots are heard) -> enemies -> story -> health. Death: fade out, `Game.restart()` after 3.2 s.
 - `src/ui/`: Hebrew strings (`strings.he.js`), start/pause overlay (mouse sensitivity, saved in
   localStorage), HUD (spread-sized crosshair, ammo counter, debug readout; toggle the readout
   with the backquote key, shown by default in dev).
 - `tests/`: `node:test` suites for the controller, collision world, weapon logic and the Kotel
-  level's walkable routes / out-of-bounds (`tests/kotel.test.js`) (`tests/helpers.js` builds
+  level's walkable routes / out-of-bounds (`tests/kotel.test.js`), the mission runner and a scripted
+  Mission 1 playthrough (`tests/mission.test.js`) (`tests/helpers.js` builds
   test worlds and simulates input).
 
 ## Conventions

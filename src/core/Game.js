@@ -21,6 +21,9 @@ import { PlayerHealth } from '../player/PlayerHealth.js';
 import { DamageOverlay } from '../ui/DamageOverlay.js';
 import { HE } from '../ui/strings.he.js';
 import { Hud, num } from '../ui/Hud.js';
+import { StoryHud } from '../ui/StoryHud.js';
+import { StoryDirector } from '../story/StoryDirector.js';
+import { MISSION1 } from '../story/mission1.js';
 import { Overlay, loadSensitivity } from '../ui/Overlay.js';
 
 // Physics runs at a fixed rate; rendering interpolates between steps, so movement
@@ -104,15 +107,37 @@ export class Game {
       alive: true,
       hitTest: playerHitTest(this.player),
     };
+    // Bullets: enemies and NPCs (friendly fire), whichever is closer.
     this.rifle.targets = {
-      raycast: (o, d, max) => this.enemies.raycast(o, d, max),
-      hit: (t, d) => this.enemies.hit(t, d, this._playerInfo),
+      raycast: (o, d, max) => {
+        const e = this.enemies.raycast(o, d, max);
+        const n = this.story ? this.story.raycast(o, d, e ? e.distance : max) : null;
+        return n ? { ...n, zone: 'body', friendly: true } : e;
+      },
+      hit: (t, d) => (t.friendly ? this.story.friendlyFire(t.npc) : this.enemies.hit(t, d, this._playerInfo)),
     };
     this.rifle.onShot = (origin) => {
       this._playerInfo.firing = true;
       this.enemies.playerShot(origin);
     };
     this.debugDraw = new DebugDraw(this.scene, this.camera, this.enemies);
+
+    // Story: the mission on the Kotel level (the test range has none).
+    this.storyHud = new StoryHud(document.body);
+    this.story = range
+      ? null
+      : new StoryDirector({
+          script: MISSION1,
+          scene: this.scene,
+          world: this.collision,
+          nav: this.nav,
+          player: this.player,
+          rifle: this.rifle,
+          enemies: this.enemies,
+          audio: this.audio,
+          hud: this.storyHud,
+        });
+    this.storyHud.setVisible(false);
     this.deathTime = -1;
     this._forward = new Vector3();
 
@@ -132,6 +157,9 @@ export class Game {
         this.hud.showDebug(this.debugDraw.visible);
       } else if (e.code === 'KeyK' && this.active && !e.repeat) {
         this.enemies.spawnNear(this.view.eye);
+      } else if (e.code === 'F2' && this.story) {
+        e.preventDefault();
+        if (!e.repeat) this._toggleStepMenu();
       }
     });
     this.hud = new Hud(document.body, { showDebug: import.meta.env.DEV });
@@ -168,6 +196,8 @@ export class Game {
     this.active = active;
     this.input.setEnabled(active);
     this.hud.setPlaying(active);
+    this.storyHud.setVisible(active);
+    if (active && this.story) this.story.start();
     if (active) this.overlay.hide();
     else this.overlay.show({ paused: true });
   }
@@ -205,6 +235,8 @@ export class Game {
       aim: this.rifle.state.aim,
       reload: this.rifle.state.reloadProgress,
       sprinting: this.player.sprinting,
+      lowered: this.rifle.lowered,
+      check: this.rifle.checkProgress,
       lookX: m.x,
       lookY: m.y,
       bobPhase: this.view.bobPhase,
@@ -216,6 +248,7 @@ export class Game {
     this.enemies.frameUpdate(dt);
     this.debugDraw.update();
     this.audio.setListener(this.camera, this.view.getAimDirection(this._forward));
+    if (this.story) this.story.frameUpdate(dt, this.camera, this.view.eye, this._forward);
     const fade = this.deathTime < 0 ? 0 : MathUtils.clamp((this.deathTime - 0.4) / 1.2, 0, 1);
     this.damage.update(dt, this.health, this.player.position, this.view.viewYaw, this._fadeIn ?? fade);
     this._updateHud(dt);
@@ -238,6 +271,9 @@ export class Game {
     this.player.update(dt, dead ? this._noControls() : this._readControls());
     this.view.fixedUpdate(dt);
     this.rifle.fixedUpdate(dt, dead ? this._noWeapon() : this._readWeaponInput(), this.player);
+    if (this.story && !dead && this.input.consumePress('KeyE')) {
+      this.story.interact(this.view.eye, this.view.getAimDirection(this._forward));
+    }
 
     const p = this.player;
     info.speed = p.horizontalSpeed;
@@ -246,6 +282,7 @@ export class Game {
     info.head.set(p.position.x, p.position.y + p.height - 0.15, p.position.z);
     info.chest.set(p.position.x, p.position.y + p.height * 0.72, p.position.z);
     this.enemies.update(dt, info, p);
+    if (this.story) this.story.update(dt, info);
     this.health.update(dt);
   }
 
@@ -269,19 +306,44 @@ export class Game {
       this._fadeIn = Math.max(0, this._fadeIn - dt / 0.8);
       if (this._fadeIn === 0) this._fadeIn = undefined;
     }
-    if (!this.health.dead) return;
+    const failed = this.story && this.story.failed;
+    if (!this.health.dead && !failed) return;
     if (this.deathTime < 0) this.deathTime = 0;
     this.deathTime += dt;
     if (this.deathTime >= DEATH_RESTART) this.restart();
   }
 
+  /** Death or a failed mission: back to the last checkpoint (or the level start). */
   restart() {
     this.deathTime = -1;
     this._fadeIn = 1;
     this.health.reset();
-    this.player.respawn();
     this.rifle.reset();
     this.enemies.reset();
+    if (this.story) this.story.restartFromCheckpoint();
+    else this.player.respawn();
+    this.view.snap();
+  }
+
+  /** F2: jump to any mission step (dev tool). Frees the mouse while the menu is open. */
+  _toggleStepMenu() {
+    const open = this.storyHud.toggleMenu(this.story.steps, this.story.stepIndex, {
+      onJump: (i) => {
+        this.deathTime = -1;
+        this.health.reset();
+        this.rifle.reset();
+        this.enemies.reset();
+        this.story.jumpTo(i);
+        this.view.snap();
+        this.input.requestLock();
+      },
+      onWeapon: () => {
+        this.rifle.mode = this.rifle.lowered ? 'ready' : 'lowered';
+        this.input.requestLock();
+      },
+      onClose: () => this.input.requestLock(),
+    });
+    if (open) this.input.exitLock();
   }
 
   _updateHud(dt) {
@@ -290,7 +352,12 @@ export class Game {
     // Crosshair gap = the spread cone projected to pixels; hidden when aiming or sprinting.
     const halfFov = MathUtils.degToRad(this.camera.fov) / 2;
     const gap = (Math.tan(this.rifle.spread(this.player)) / Math.tan(halfFov)) * (window.innerHeight / 2);
-    hud.setCrosshair(gap + 4, this.player.sprinting ? 0 : MathUtils.clamp(1 - aim * 2.5, 0, 1));
+    const lowered = this.rifle.lowered;
+    hud.setCrosshair(gap + 4, this.player.sprinting || lowered ? 0 : MathUtils.clamp(1 - aim * 2.5, 0, 1));
+    // With the weapon lowered the ammo counter only shows while checking the magazine.
+    if (this.rifle.checkTime > 0) this._ammoShowTime = 2.5;
+    this._ammoShowTime = Math.max(0, (this._ammoShowTime ?? 0) - dt);
+    hud.ammo.hidden = lowered && this._ammoShowTime <= 0;
     hud.setAmmo(this.rifle.state);
     hud.update(dt, {
       player: this.player,

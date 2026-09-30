@@ -24,6 +24,8 @@ import {
 const HIP = { x: 0.1, y: -0.06, z: -0.24, rx: 0.02, ry: 0.06, rz: -0.06 };
 const ADS = { x: 0, y: 0, z: -0.19, rx: 0, ry: 0, rz: 0 };
 const SPRINT = { x: 0.06, y: -0.13, z: -0.2, rx: -0.3, ry: 0.55, rz: 0.35 };
+// Low ready: muzzle down and across the body (weapon safe during the shift).
+const LOWERED = { x: 0.07, y: -0.2, z: -0.22, rx: -0.62, ry: 0.4, rz: 0.3 };
 const MUZZLE_Z = -0.62;
 const SIGHT_DROP = 0.022;
 const BORE_Y = -0.07 - SIGHT_DROP;
@@ -194,6 +196,7 @@ export class Viewmodel {
     this.swayX = 0;
     this.swayY = 0;
     this.sprint = 0;
+    this.lowered = 0;
   }
 
   setAspect(aspect) {
@@ -221,6 +224,11 @@ export class Viewmodel {
   update(dt, s) {
     const aim = smoothstep(0, 1, s.aim);
     this.sprint = damp(this.sprint, s.sprinting ? 1 : 0, 10, dt);
+    this.lowered = damp(this.lowered, s.lowered ? 1 : 0, 6, dt);
+    // Magazine check: tilt the rifle toward you and slide the magazine halfway out.
+    const ck = s.check ?? 0;
+    const checkPose = ck > 0 ? smoothstep(0, 0.2, ck) * (1 - smoothstep(0.8, 1, ck)) : 0;
+    const checkMag = ck > 0 ? smoothstep(0.25, 0.4, ck) * (1 - smoothstep(0.6, 0.75, ck)) : 0;
 
     // Sway: the rifle lags a little behind mouse movement.
     const swayScale = 1 - 0.8 * aim;
@@ -240,20 +248,22 @@ export class Viewmodel {
     const t = s.reload;
     const reloadPose = t > 0 ? smoothstep(0, 0.15, t) * (1 - smoothstep(0.85, 1, t)) : 0;
     const magOut = t > 0 ? smoothstep(0.18, 0.32, t) * (1 - smoothstep(0.52, 0.7, t)) : 0;
-    this.mag.position.y = MAG_Y - magOut * 0.28;
+    this.mag.position.y = MAG_Y - magOut * 0.28 - checkMag * 0.07;
     this.mag.visible = magOut < 0.98;
 
     const spr = this.sprint * (1 - aim);
+    const low = this.lowered;
+    const base = (key) => MathUtils.lerp(MathUtils.lerp(pose(key, aim), SPRINT[key], spr), LOWERED[key], low);
     const r = this.root;
     r.position.set(
-      MathUtils.lerp(pose('x', aim), SPRINT.x, spr) + this.swayX * swayScale + bobX,
-      MathUtils.lerp(pose('y', aim), SPRINT.y, spr) + this.swayY * swayScale + bobY + s.dip * 0.4 - reloadPose * 0.04,
-      MathUtils.lerp(pose('z', aim), SPRINT.z, spr) + this.kickZ,
+      base('x') - checkPose * 0.05 + this.swayX * swayScale + bobX,
+      base('y') + checkPose * 0.08 + this.swayY * swayScale + bobY + s.dip * 0.4 - reloadPose * 0.04,
+      base('z') + checkPose * 0.04 + this.kickZ,
     );
     r.rotation.set(
-      MathUtils.lerp(pose('rx', aim), SPRINT.rx, spr) + this.kickRot - reloadPose * 0.35 + this.swayY * 1.5 * swayScale,
-      MathUtils.lerp(pose('ry', aim), SPRINT.ry, spr) + this.swayX * 1.5 * swayScale,
-      MathUtils.lerp(pose('rz', aim), SPRINT.rz, spr) + reloadPose * 0.6 + this.swayX * 2 * swayScale,
+      base('rx') + checkPose * 0.5 + this.kickRot - reloadPose * 0.35 + this.swayY * 1.5 * swayScale,
+      base('ry') - checkPose * 0.3 + this.swayX * 1.5 * swayScale,
+      base('rz') + checkPose * 0.9 + reloadPose * 0.6 + this.swayX * 2 * swayScale,
     );
 
     // A slightly narrower viewmodel FOV while aiming makes the sights read bigger.
