@@ -2,7 +2,7 @@
 // UVs into it (glTF convention: v down) and builds the color and normal images.
 import sharp from 'sharp';
 
-const GUTTER = 6; // pixels of edge padding around each cell (mip bleeding)
+export const GUTTER = 6; // pixels of edge padding around each cell (mip bleeding)
 
 /**
  * Rectangle packer: largest first into a growing power-of-two canvas.

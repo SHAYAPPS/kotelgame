@@ -43,7 +43,7 @@ function packSkin(srcJ, srcW, boneCount) {
  * One character: skeleton, one mesh whose primitives are the LODs (sharing the vertex
  * accessors), one material (color + normal atlas).
  */
-export async function writeCharacter({ name, bones, ibm, geo, lods, colorKTX2, normalKTX2, extras, alphaTest = 0, roughness = 0.8 }) {
+export async function writeCharacter({ name, bones, ibm, geo, lods, colorKTX2, normalKTX2, extras, alphaTest = 0, roughness = 0.8, morphs = [] }) {
   const doc = new Document();
   const buf = doc.createBuffer();
   doc.createExtension(KHRTextureBasisu).setRequired(true);
@@ -80,6 +80,10 @@ export async function writeCharacter({ name, bones, ibm, geo, lods, colorKTX2, n
   const wgt = acc('VEC4', skinData.weights).setNormalized(true);
   const part = acc('SCALAR', geo.part);
   const mesh = doc.createMesh(name);
+  // Morph targets (face: mouthOpen, blink): position deltas, shared by every LOD primitive
+  // (glTF wants the same targets on all primitives of a mesh).
+  const targets = morphs.map((m) => ({ name: m.name, acc: acc('VEC3', m.delta).setSparse(true) }));
+  if (targets.length) mesh.setWeights(targets.map(() => 0)).setExtras({ targetNames: targets.map((t) => t.name) });
   for (const index of lods) {
     const prim = doc
       .createPrimitive()
@@ -91,6 +95,7 @@ export async function writeCharacter({ name, bones, ibm, geo, lods, colorKTX2, n
       .setAttribute('_PART', part)
       .setIndices(acc('SCALAR', geo.count < 65536 ? Uint16Array.from(index) : index))
       .setMaterial(mat);
+    for (const t of targets) prim.addTarget(doc.createPrimitiveTarget(t.name).setAttribute('POSITION', t.acc));
     mesh.addPrimitive(prim);
   }
   root.addChild(doc.createNode('body').setMesh(mesh).setSkin(skin));

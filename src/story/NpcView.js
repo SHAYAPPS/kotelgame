@@ -19,6 +19,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { NPC } from './Npc.js';
 import { characters } from '../characters/registry.js';
 import { dressPerson } from '../characters/wardrobe.js';
+import { LipSync } from '../characters/LipSync.js';
 import { soldierState } from '../ai/EnemyView.js';
 
 const SKIN = [0xc79a78, 0xa87b5a, 0xe0b596, 0x8d6246, 0xd2a282];
@@ -233,6 +234,9 @@ export class NpcView {
       aimAt: null, eyeY: 1.62, shotsFired: 0, health: 100, throws: 0, deathDir: null, hitZone: null, position: null,
     };
     this.civ = { speed: 0, pray: false, frozen: false, fleeing: false, sheltered: false, panicking: false, speaking: false, crouched: false };
+    this.state.speaking = false;
+    this.lip = new LipSync(rand);
+    this._speech = null;
     if (!this._build()) this.placeholder = new PlaceholderFigure(npc, this.root, rand);
   }
 
@@ -288,6 +292,7 @@ export class NpcView {
         s.aimAt = null;
         s.position = n.position;
       }
+      this.state.speaking = n.speaking && !b;
       this.animator.update(dt, this.state);
     } else {
       const c = this.civ;
@@ -302,6 +307,17 @@ export class NpcView {
       this.model.root.rotation.y = n.facing;
       this.animator.update(dt, c);
     }
+    // Talking: the mouth follows the line (its recording, else its text); heads turn toward
+    // whoever is being talked to / talking (StoryDirector sets npc.lookAt).
+    const sp = n.speaking ? n.speech : null;
+    if (sp !== this._speech) {
+      this._speech = sp;
+      if (!sp) this.lip.stop();
+      else if (sp.level) this.lip.speakLevel(sp.level);
+      else this.lip.speak(sp.text, sp.duration);
+    }
+    this.model.face.mouth = this.lip.update(dt);
+    this.model.lookTarget = n.lookAt;
     this.model.update(dt, characters);
     if (n.brain) {
       // The combat AI on this body is what enemies shoot at: same zones, same muzzle.

@@ -38,12 +38,15 @@ import { Screenshot } from '../ui/Screenshot.js';
 import { StoryHud } from '../ui/StoryHud.js';
 import { StoryDirector } from '../story/StoryDirector.js';
 import { MISSION1 } from '../story/mission1.js';
+import { VoicePlayer, voiceFiles } from '../story/Voice.js';
 import { Overlay, loadSensitivity } from '../ui/Overlay.js';
 
 // Physics runs at a fixed rate; rendering interpolates between steps, so movement
 // feels identical at 60, 144 or 240 Hz.
 const FIXED_DT = 1 / 120;
 const MAX_FRAME_DT = 0.1; // after a hitch, slow down instead of spiraling
+// Recorded dialogue, if any: src/assets/voice/<lineId>.ogg|mp3|wav|m4a (see story/Voice.js).
+const VOICE_FILES = voiceFiles(import.meta.glob('../assets/voice/*.{ogg,mp3,wav,m4a}', { eager: true, query: '?url', import: 'default' }));
 const DEATH_RESTART = 3.2; // seconds from death to restart
 const _up = new Vector3(0, 1, 0);
 const _o = new Vector3();
@@ -216,6 +219,7 @@ export class Game {
           view: this.view,
           grenades: this.thrower,
           launcher: this.launcher,
+          voices: new VoicePlayer(this.audio, VOICE_FILES),
           stats: () => ({
             shots: this.stats.shots,
             hits: this.stats.hits,
@@ -258,6 +262,7 @@ export class Game {
       sensitivity: this.view.sensitivity,
       onStart: () => {
         this.audio.unlock(); // audio may only start from a user gesture
+        this.story?.voices?.preload();
         this.input.requestLock();
       },
       onSensitivity: (v) => {

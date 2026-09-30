@@ -11,9 +11,10 @@ import { fileURLToPath } from 'node:url';
 import * as THREE from 'three';
 import { loadFBX } from './lib/fbx.mjs';
 import { extractSkeleton, mergeMeshes, inverseBinds, wrapUVs } from './lib/rig.mjs';
-import { buildAtlas, rasterize, dilate, isSkin } from './lib/atlas.mjs';
+import { GUTTER, buildAtlas, rasterize, dilate, isSkin } from './lib/atlas.mjs';
 import { removeHidden } from './lib/hidden.mjs';
 import { addSkirt, fabricTile, skinParts } from './lib/clothes.mjs';
+import { appendMouthStrip, faceRig, mouthTile } from './lib/face.mjs';
 import { buildLods } from './lib/lod.mjs';
 import { writeCharacter } from './lib/glb.mjs';
 import { encodeLibrary } from './lib/animbin.mjs';
@@ -310,6 +311,14 @@ async function buildCharacter(id, cfg) {
     skinInfo += `  skirt ${tris.length / 3} tris (waist ${top.toFixed(2)} hem ${(ankle + 0.045).toFixed(2)})`;
   }
 
+  // Talking faces: a tile for the inside of the mouth (the strip is added after the LODs).
+  const talks = !cfg.faceCover && !cfg.noFace && cfg.role !== 'enemy';
+  let mouthTex = -1;
+  if (talks) {
+    const tile = await mouthTile();
+    mouthTex = textures.push({ key: 'mouth', color: tile.color, normal: tile.normal, size: 32 }) - 1;
+  }
+
   const atlas = await buildAtlas(textures, geo, matTexture, { normalScale: cfg.normalScale ?? 0.5 });
   geo.uvAtlas = atlas.uv;
   const { W, H } = atlas;
@@ -347,7 +356,46 @@ async function buildCharacter(id, cfg) {
   }
 
   const lodTargets = cfg.lods ?? [10000, 3200, 1100];
-  const { geo: final, lods } = buildLods(geo, index, lodTargets);
+  // The face stays as modeled in LOD0 (lips and eyelids for the face rig; a busy hairdo could
+  // otherwise take the triangle budget and the face collapse).
+  let lock = null;
+  if (talks && head) {
+    const hb = skeleton.bones.findIndex((b) => b.name === 'Head');
+    const tb = skeleton.bones.findIndex((b) => b.name === 'HeadTop_End');
+    const inv = skeleton.bones[hb].world.clone().invert();
+    const v = new THREE.Vector3();
+    lock = new Uint8Array(geo.count);
+    for (let i = 0; i < geo.count; i++) {
+      if (geo.part[i] !== PART.fixed) continue;
+      let best = 0;
+      for (let k = 1; k < 4; k++) if (geo.weights[i * 4 + k] > geo.weights[i * 4 + best]) best = k;
+      const b = geo.joints[i * 4 + best];
+      if ((b !== hb && b !== tb) || geo.weights[i * 4 + best] < 0.5) continue;
+      v.fromArray(geo.position, i * 3).applyMatrix4(inv);
+      if (v.z > head.ring.cz && v.y < head.ring.y + 0.01) lock[i] = 1; // the face, not the scalp
+    }
+  }
+  const { geo: final, lods } = buildLods(geo, index, lodTargets, { lock });
+
+  // Face rig: jaw / blink morphs and the mouth strip (LOD0 only).
+  let morphs = [];
+  let face = null;
+  if (talks && head) {
+    const rig = faceRig(final, lods[0], skeleton, head, { color: atlas.color, W, H }, PART.fixed, cfg.face ?? {});
+    if (rig) {
+      const add = appendMouthStrip(final, rig, atlas.cells[mouthTex], W, H, GUTTER, PART.fixed);
+      const l0 = new Uint32Array(lods[0].length + add.length);
+      l0.set(lods[0]);
+      l0.set(add, lods[0].length);
+      lods[0] = l0;
+      morphs = rig.morphs;
+      face = { lipY: rig.lipY, mouthHalfWidth: rig.mouthHalfWidth, eyes: rig.eyes };
+      if (process.env.FACE_ONLY) {
+        console.log(`${id.padEnd(15)} lip ${rig.lipY} (${rig.how}) eyes ${rig.eyes.length}`);
+        return null;
+      }
+    }
+  }
 
   // Chest box (vests).
   const chest = boneBox(final, lods[0], skeleton, ['Spine2', 'Spine1']);
@@ -370,6 +418,7 @@ async function buildCharacter(id, cfg) {
     tris: lods.map((l) => l.length / 3),
     alpha: hasAlpha,
     vest: !!cfg.addVest,
+    face,
   };
   const glb = await writeCharacter({
     name: id,
@@ -381,10 +430,11 @@ async function buildCharacter(id, cfg) {
     normalKTX2,
     extras: info,
     alphaTest: hasAlpha ? 0.5 : 0,
+    morphs,
   });
   await writeFile(new URL(`${id}.glb`, OUT), glb);
   console.log(
-    `${id.padEnd(15)} ${(glb.length / 1024).toFixed(0).padStart(5)} KB  tris ${geo.index.length / 3} -> ${info.tris.join('/')} (hidden ${removed})  atlas ${W}x${H} (${(colorKTX2.length / 1024).toFixed(0)} KB) normal ${atlas.nW}x${atlas.nH} (${(normalKTX2.length / 1024).toFixed(0)} KB)${hasAlpha ? ' +alpha' : ''}${wrappedTris ? ` wrapped ${wrappedTris} tris` : ''}${skinInfo}  verts ${final.count}  h ${info.height}${skeleton.aliases ? `  aliased ${skeleton.aliases} bones (drift ${skeleton.aliasDrift.toFixed(4)})` : ''}  bindDrift ${geo.bindDrift.toExponential(1)}${atlas.wrapped ? `  WRAPPED UVs ${atlas.wrapped}` : ''}  ${((Date.now() - t0) / 1000).toFixed(1)}s`,
+    `${id.padEnd(15)} ${(glb.length / 1024).toFixed(0).padStart(5)} KB  tris ${geo.index.length / 3} -> ${info.tris.join('/')} (hidden ${removed})  atlas ${W}x${H} (${(colorKTX2.length / 1024).toFixed(0)} KB) normal ${atlas.nW}x${atlas.nH} (${(normalKTX2.length / 1024).toFixed(0)} KB)${hasAlpha ? ' +alpha' : ''}${wrappedTris ? ` wrapped ${wrappedTris} tris` : ''}${skinInfo}${face ? `  face: lip ${face.lipY} eyes ${face.eyes.length}` : ''}  verts ${final.count}  h ${info.height}${skeleton.aliases ? `  aliased ${skeleton.aliases} bones (drift ${skeleton.aliasDrift.toFixed(4)})` : ''}  bindDrift ${geo.bindDrift.toExponential(1)}${atlas.wrapped ? `  WRAPPED UVs ${atlas.wrapped}` : ''}  ${((Date.now() - t0) / 1000).toFixed(1)}s`,
   );
   return info;
 }
@@ -479,7 +529,9 @@ const manifest = JSON.parse(await readFile(manifestUrl, 'utf8').catch(() => '{"c
 manifest.version = 1;
 for (const [id, cfg] of Object.entries(CHARACTERS)) {
   if (only.length && !only.includes(id)) continue;
-  manifest.characters[id] = { file: `${id}.glb`, source: cfg.mixamo ?? cfg.src, credit: cfg.credit ?? 'clothes recolored per person in game', ...(await buildCharacter(id, cfg)) };
+  const built = await buildCharacter(id, cfg);
+  if (!built) continue; // FACE_ONLY dry run
+  manifest.characters[id] = { file: `${id}.glb`, source: cfg.mixamo ?? cfg.src, credit: cfg.credit ?? 'clothes recolored per person in game', ...built };
 }
 if (!only.length || only.includes('anims')) manifest.anims = await buildAnimations();
 await writeFile(manifestUrl, JSON.stringify(manifest, null, 1));

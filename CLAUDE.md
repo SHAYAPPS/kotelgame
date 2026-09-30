@@ -271,12 +271,29 @@ A browser-based 3D first-person story shooter.
     the shot, avoiding walls; the fall ends on its last frame (`model.finish()`, even when
     throttled updates lagged), then the body freezes and stays down).
   - `CivilianAnimator.js`: idles by kind, praying (desynchronized), walk / run (scared upper
-    body while fleeing), frozen cowering, panic, nervous waiting in the shelter, talking.
+    body while fleeing), frozen cowering, panic, nervous waiting in the shelter, talking
+    (standing: the talk clip; walking: its upper body over the walk).
+  - Faces: the converter's face rig (`lib/face.mjs`) gives each talking character two morph
+    targets on LOD0, `mouthOpen` (the jaw turns about a hinge, the lips part in a lens shape)
+    and `blink` (upper lids slide over the eyes, found by the whites of the eyes in the
+    atlas), plus a mouth strip on the lip line (teeth / dark mouth tile; behind the lips when
+    the mesh has a lip slit, else in front with zero height). CharacterModel drives them:
+    `face.mouth` (set by the views) and random blinks; `lookTarget` turns neck + head toward a
+    point (limits, smoothed). `LipSync.js` (pure): a line's text -> syllable rhythm (Hebrew:
+    ~1 syllable / 2 letters, pauses at punctuation, fitted to the subtitle time), or a
+    recording's loudness. Soldiers talk with the left hand (`talk_question_left`, mode
+    `leftArm`, the left-hand IK released: `ikLeft`), civilians with `talk_general`.
+  - Talking in the story: `Dialogue` -> StoryDirector `onLine` sets `npc.speech` (text,
+    duration, recording level) on the speaker; `_updateLooks` sets `npc.lookAt` (the speaker
+    at the one addressed: the line's `to`, else the player when near; people within 7 m at
+    the speaker). Recorded lines: `src/assets/voice/<lineId>.ogg|mp3|wav|m4a` (see the README
+    there, `story/Voice.js`): played from the speaker, the mouth follows the loudness.
   - `wardrobe.js` (pure): the civilians' looks. Men: Kotel visitors (white shirts, dark
     trousers or jeans; bare legs dressed as trousers), haredim (black suit, white shirt, black
     hat), suits, tourists' t-shirts; every man has a black hat or a kippah (black velvet,
     white, or knitted with a patterned band). Women: long skirts, long sleeves over bare arms,
-    tights; worshipers mostly in a headscarf. `CAST` = which models play each NPC kind,
+    tights; worshipers mostly in a headscarf; the tour guide is a woman in bright yellow.
+    `CAST` = which models play each NPC kind,
     `dressPerson(kind, neighbors)` picks a model and outfit unlike the people nearby
     (`likeness`). `outfits.js` applies an outfit (and arms squad / enemies);
     `attachments.js`: kippah (a cap laid on the skull ellipsoid scaled to the hair), black
@@ -298,13 +315,18 @@ A browser-based 3D first-person story shooter.
   skirt: rings sized from the body, skinned to the hips / thighs / shins, own fabric tile;
   a shirt under a suit is its own part) -> texture atlas + recolors (olive /
   dark / "SWAT" lettering removed / painted balaclava or face wrap) (`lib/atlas.mjs`) ->
-  LODs with meshoptimizer (`lib/lod.mjs`) -> GLB (`lib/glb.mjs`). Clips (`lib/anim.mjs`):
+  LODs with meshoptimizer (`lib/lod.mjs`; the face is locked in LOD0) -> face rig
+  (`lib/face.mjs`: lip line from an open lip slit crossing the face's middle, else the groove
+  between the lips below the nose tip, or `face.lipY` set in the config when measured with
+  the preview's `?lip=`) -> GLB (`lib/glb.mjs`, morph targets shared by the LOD primitives). Clips (`lib/anim.mjs`):
   sampled at 30 fps (slow idles 15 fps, long ones cut to crossfaded 8 s loops), root motion
   measured then removed for locomotion (speed in the manifest), cycles shifted so the left
   foot plants at phase 0, IK hand targets baked from the source skeleton; packed by
   `lib/animbin.mjs` (meshopt codec, quaternion / exponential filters).
 - `dev/characters.html`: the character preview (dev only, not in the build); `outfit=none`
-  shows a model as converted, `cam=face` / `faces` close-ups.
+  shows a model as converted, `cam=face` / `faces` close-ups, `lip=<y>|auto` draws a lip
+  line on the face (check / measure `face.lipY`), `ruler=1` height marks.
+  `window.__preview.models[i].face.mouth = 0.7` opens a mouth.
 - Start screen: chapter buttons (`MISSION1.chapters`) start the mission at a part (`story.startAt`).
 - Weapons: 1 = rifle, 2 = launcher (once owned), or the mouse wheel (`Game._updateWeapons`: lower,
   swap the viewmodel, raise). `src/weapons/Launcher.js` (pure: one loaded, auto reload, ADS) +

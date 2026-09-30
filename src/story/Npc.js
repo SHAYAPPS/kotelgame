@@ -62,6 +62,9 @@ export class Npc {
 
     // Emergency behaviour
     this.brain = null; // combat AI (ai/Enemy.js, friendly faction) driving this body
+    this.speech = null; // the line being said: { text, duration, level?, to } (StoryDirector)
+    this.lookAt = null; // Vector3 to turn the head toward (someone talking / listening), or null
+    this.headPoint = new Vector3(); // where others look at this one (StoryDirector)
     this.freezes = false; // a bystander who freezes when the sirens start
     this.frozen = false; // standing frozen: the player presses E to send them off
     this.fleeing = false;

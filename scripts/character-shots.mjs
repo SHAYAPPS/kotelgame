@@ -39,6 +39,11 @@ export const GAME_SHOTS = [
   { name: 'game-6-combat-line', step: 'wave1', at: [-25.3, 0, -1.2], look: [-60, 1.4, 0], wait: 9000, god: true },
   { name: 'game-7-enemies-close', step: 'defense_orders', at: [-40, 0, 4], look: [-49, 1.3, 2], wait: 2500, god: true,
     run: 'const g = window.__game; const V = g.player.position.constructor; for (const [x, z] of [[-49, -1], [-49.5, 2.5], [-50.5, 5.5]]) g.enemies.spawnAttacker(new V(x, 0, z), -Math.PI / 2, g.player.position.clone());' },
+  // Talking: the commander mid-briefing up close (he looks at the player), the tour guide
+  // talking to her group (they turn to her). `front`: the camera in front of an NPC; `until`:
+  // wait for this (page expression) before the shot.
+  { name: 'game-9-cmd-talking', step: 'briefing', front: { npc: 'cmd', dist: 0.72, look: 1.6 }, wait: 300, until: "mouth('cmd') > 0.36" },
+  { name: 'game-10-guide-talking', step: 'patrol_terraces_guide', front: { npc: 'guide', dist: 1.6, side: -0.8, look: 1.5 }, wait: 300, until: "mouth('guide') > 0.5" },
   { name: 'game-8-bodies', step: 'defense_orders', at: [-41, 0, 4], look: [-49, 0.2, 3], wait: 3000, god: true,
     // Kill four enemies from different sides, then play their falls through (SwiftShader runs
     // too slowly for game time to get there on its own).
@@ -85,6 +90,15 @@ if (game.length) {
       const p = g.player;
       let at = s.at;
       let look = s.look;
+      if (s.front) {
+        // In front of an NPC (its facing), looking at its face.
+        const n = g.story.npcs.get(s.front.npc);
+        const f = n.facing;
+        const d = s.front.dist;
+        const side = s.front.side ?? 0;
+        at = [n.position.x - Math.sin(f) * d + Math.cos(f) * side, n.position.y, n.position.z - Math.cos(f) * d - Math.sin(f) * side];
+        look = [n.position.x, n.position.y + s.front.look, n.position.z];
+      }
       if (s.follow) {
         const n = g.story.npcs.get(s.follow).position;
         at = [n.x + s.offset[0], n.y, n.z + s.offset[2]];
@@ -100,6 +114,28 @@ if (game.length) {
       g.view.snap();
     }, s);
     await page.waitForTimeout(s.wait ?? 2000);
+    if (s.until) {
+      await page.evaluate(() => {
+        window.mouth = (id) => {
+          const st = window.__game.story;
+          const v = st.views.get(st.npcs.get(id));
+          return v?.model?.face.mouth ?? 0;
+        };
+      });
+      await page.waitForFunction(s.until, null, { timeout: s.untilTimeout ?? 60000, polling: 50 }).catch(() => console.warn(`${s.name}: gave up waiting for ${s.until}`));
+      // Hold every mouth (and the eyes open) where it is: SwiftShader draws a frame in about
+      // a second, the lips move faster than that.
+      await page.evaluate(() => {
+        for (const v of window.__game.story.views.values()) {
+          if (!v.lip || !v.model) continue;
+          const open = v.model.face.mouth;
+          v.lip.update = () => open;
+          v.model._blinkWait = 1e9;
+          v.model._blinkT = -1;
+        }
+      });
+      await page.waitForTimeout(2500);
+    }
     await page.screenshot({ path: `${out}/${s.name}.png` });
     const note = await page.evaluate(() => {
       // How many people are in view and what the nearest few are doing (for the log).

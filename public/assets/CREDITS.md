@@ -112,6 +112,7 @@ free/CC0-only rule, made for the characters.
 | `idle_lookaround` | Looking Around (Idle Stand Looking Around) |
 | `idle_nervous` | Nervously Look Around (Nervously Looking Around Left To Right - Loop) |
 | `talk_general` | Talking (General Conversation) |
+| `talk_question_left` | Talking (Asking A Question With One Hand), mirrored |
 | `talk_phone_female` | Talking On Phone (Female Standing Talking On Phone) |
 | `talk_phone_male` | Talking On A Cell Phone (Male Standing While Talking On A Cell Phone) |
 | `texting` | Texting (Standing Texting On Phone) |

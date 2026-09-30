@@ -4,6 +4,8 @@
 // outfit=worshipper|worshipperWoman|tourist|guide (civilians)  deaths=1 (a different death each)
 import {
   ACESFilmicToneMapping,
+  BoxGeometry,
+  MeshBasicMaterial,
   Color,
   DirectionalLight,
   HemisphereLight,
@@ -155,4 +157,34 @@ addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
 });
+// ?lip=<y>: a red line across the first model's face at that height (Head-bone frame), with
+// marks 5 mm above and below: to check the converter's lip line (manifest face.lipY).
+if (params.get('lip')) {
+  const head = models[0].bones.get('Head');
+  const y0 = params.get('lip') === 'auto' ? models[0].info.face?.lipY ?? 0 : +params.get('lip');
+  const front = (models[0].info.head?.front ?? 0.12) + 0.004;
+  for (const [dy, color, w] of [[0, 0xff0000, 0.075], [0.005, 0x00ffff, 0.018], [-0.005, 0x00ffff, 0.018]]) {
+    for (const side of dy ? [-1, 1] : [0]) {
+      const bar = new Mesh(new BoxGeometry(w, 0.0005, 0.0005), new MeshBasicMaterial({ color, depthTest: false }));
+      bar.position.set(side * 0.05, y0 + dy, front);
+      bar.renderOrder = 10;
+      head.add(bar);
+    }
+  }
+}
+// ?ruler=1: height marks on the first model's face (Head-bone frame, every 5 mm; the thick
+// ones every 1 cm are labeled by index from y = 0): to measure face landmarks (lipY).
+if (params.get('ruler')) {
+  const head = models[0].bones.get('Head');
+  const front = (models[0].info.head?.front ?? 0.12) + 0.012;
+  for (let k = -4; k <= 16; k++) {
+    const y = k * 0.005;
+    const thick = k % 2 === 0;
+    const bar = new Mesh(new BoxGeometry(thick ? 0.07 : 0.04, thick ? 0.0012 : 0.0006, 0.0006), new MeshBasicMaterial({ color: k === 0 ? 0xff0000 : thick ? 0x00ffff : 0xffff00, depthTest: false }));
+    bar.position.set(thick ? 0.06 : 0.055, y, front);
+    bar.renderOrder = 10;
+    head.add(bar);
+  }
+}
+
 window.__preview = { lib, models, setClip, setCam, faceCam, scene, camera, controls, renderer, ready: true };

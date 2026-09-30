@@ -26,7 +26,7 @@ export class StoryDirector {
    *   hud: StoryHud; player: PlayerController; enemies: EnemyManager;
    *   sky: SkyFx (interceptions, optional); view: PlayerCamera (camera shake, optional)
    */
-  constructor({ script, scene, world, nav, player, rifle, enemies, audio, hud, sky = null, view = null, grenades = null, launcher = null, stats = null, difficulty = DIFFICULTY }) {
+  constructor({ script, scene, world, nav, player, rifle, enemies, audio, hud, sky = null, view = null, grenades = null, launcher = null, stats = null, difficulty = DIFFICULTY, voices = null }) {
     this.script = script;
     this.scene = scene;
     this.nav = nav;
@@ -37,6 +37,7 @@ export class StoryDirector {
     this.audio = audio;
     this.sky = sky;
     this.view = view;
+    this.voices = voices; // VoicePlayer: recorded lines (optional, see Voice.js)
     this.grenades = grenades; // the player's GrenadeThrower (refilled at crates)
     this.launcher = launcher; // the player's Launcher (handed out by a crate in the final push)
     this.stats = stats; // () => { shots, hits, headshots, kills } for the mission-complete screen
@@ -92,7 +93,13 @@ export class StoryDirector {
     });
     this.dialogue = new Dialogue({
       onLine: (line) => {
-        if (line.radio) this.ambient.radioLine(line.duration);
+        // A recording if the line has one (the subtitle stays up as long as it plays), else
+        // the generated radio voice for radio lines. The speaker's mouth follows either.
+        const npc = line.radio ? null : this.npcs.list.find((n) => n.speaker === line.speaker) ?? null;
+        const rec = this.voices?.play(line.id, npc ? npc.position : null, { radio: line.radio }) ?? null;
+        if (rec) line.duration = Math.max(line.duration, rec.duration + 0.3);
+        else if (line.radio) this.ambient.radioLine(line.duration);
+        if (npc) npc.speech = { text: line.text, duration: line.duration, level: rec ? rec.level : null, to: line.to };
       },
     });
 
@@ -605,8 +612,45 @@ export class StoryDirector {
     for (const c of this.crates.values()) c.pushOut(p.position, p.cfg.radius);
     this.dialogue.update(dt);
     const line = this.dialogue.current;
-    for (const n of this.npcs.list) n.speaking = !!(line && n.speaker && line.speaker === n.speaker && !line.radio);
+    for (const n of this.npcs.list) {
+      n.speaking = !!(line && n.speaker && line.speaker === n.speaker && !line.radio);
+      if (!n.speaking) n.speech = null;
+    }
     this.mission.update(dt);
+  }
+
+  /**
+   * Who looks at whom while someone talks: the speaker at the one addressed (the line's `to`,
+   * else the player when near, else the nearest person), people near the speaker at him.
+   * Nobody busy looks: fighting, praying, frozen, fleeing.
+   */
+  _updateLooks(eye) {
+    const list = this.npcs.list;
+    let speaker = null;
+    for (const n of list) {
+      n.headPoint.set(n.position.x, n.position.y + (n.body.crouched ? 1.1 : 1.6), n.position.z);
+      if (n.speaking) speaker = n;
+    }
+    const line = this.dialogue.current;
+    for (const n of list) {
+      n.lookAt = null;
+      if (n.brain || n.pray || n.frozen || n.fleeing || n.panicking) continue;
+      if (n === speaker) {
+        const to = line?.to ? this.npcs.get(line.to) : null;
+        if (to) n.lookAt = to.headPoint;
+        else if (eye && n.position.distanceTo(eye) < 14) n.lookAt = eye;
+        else {
+          let best = 8;
+          for (const o of list) {
+            const d = o === n || o.pray ? Infinity : o.position.distanceTo(n.position);
+            if (d < best) {
+              best = d;
+              n.lookAt = o.headPoint;
+            }
+          }
+        }
+      } else if (speaker && n.position.distanceTo(speaker.position) < 7) n.lookAt = speaker.headPoint;
+    }
   }
 
   /** The objective marker's world position, or null. */
@@ -629,6 +673,7 @@ export class StoryDirector {
 
   /** Per rendered frame. */
   frameUpdate(dt, camera, eye, dir) {
+    this._updateLooks(eye);
     for (const v of this.views.values()) v.update(dt);
     this.ambient.update(dt);
     // Slow motion: hold the slow scale, then ease back to normal over the last 0.5 s (real time).

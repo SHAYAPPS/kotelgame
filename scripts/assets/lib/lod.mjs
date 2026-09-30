@@ -5,7 +5,7 @@ import { MeshoptEncoder, MeshoptSimplifier } from 'meshoptimizer';
 await MeshoptSimplifier.ready;
 await MeshoptEncoder.ready;
 
-function simplifyTo(geo, index, targetTris, lockBorder) {
+function simplifyTo(geo, index, targetTris, lockBorder, lock = null) {
   if (index.length / 3 <= targetTris) return index;
   // Normals and UVs matter for shading/texture seams; positions dominate.
   const n = geo.count;
@@ -18,7 +18,7 @@ function simplifyTo(geo, index, targetTris, lockBorder) {
     attrs[i * 5 + 4] = geo.uvAtlas[i * 2 + 1];
   }
   const flags = lockBorder ? ['LockBorder'] : [];
-  const [out] = MeshoptSimplifier.simplifyWithAttributes(index, geo.position, 3, attrs, 5, [0.5, 0.5, 0.5, 1, 1], null, targetTris * 3, 0.2, flags);
+  const [out] = MeshoptSimplifier.simplifyWithAttributes(index, geo.position, 3, attrs, 5, [0.5, 0.5, 0.5, 1, 1], lock, targetTris * 3, 0.2, flags);
   return out;
 }
 
@@ -26,15 +26,17 @@ function simplifyTo(geo, index, targetTris, lockBorder) {
  * @param {object} geo merged geometry with `uvAtlas`
  * @param {Uint32Array} index LOD0 source triangles
  * @param {number[]} targets max triangles per LOD, e.g. [12000, 4000, 1300]
+ * @param {{ lock?: Uint8Array }} opts lock: 1 per vertex LOD0 must keep
  * @returns {{ geo: object, lods: Uint32Array[] }} geometry compacted to the used vertices,
  *   LOD0 in vertex-cache order
  */
-export function buildLods(geo, index, targets) {
+export function buildLods(geo, index, targets, { lock = null } = {}) {
   const lods = [];
   let src = index;
   targets.forEach((t, i) => {
-    // LOD0 keeps part borders (collars, cuffs); lower LODs may move them.
-    src = simplifyTo(geo, src, t, i === 0);
+    // LOD0 keeps part borders (collars, cuffs) and the locked vertices (the face: talking,
+    // blinking); lower LODs may move them.
+    src = simplifyTo(geo, src, t, i === 0, i === 0 ? lock : null);
     lods.push(Uint32Array.from(src));
   });
   // Vertex cache / fetch order for LOD0; the remap moves every vertex attribute.

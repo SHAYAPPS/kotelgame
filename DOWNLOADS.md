@@ -83,6 +83,7 @@ Squad and enemies (rifle). "Pro Rifle Pack" clips were exported one by one from 
 | `hit_rifle_crouch.fbx` | Hit Reaction (Hit Reaction From Rifle Crouched) | Hit reaction, crouched |
 | `cover_wall_idle.fbx` | Taking Cover Idle (Cover Idle Against A Wall With Rifle) | Hiding behind high cover |
 | `cover_wall_enter.fbx` | Taking Cover (Taking Cover Against A Wall With Rifle) | Not used (the body turns into the cover idle instead) |
+| `talk_question_left.fbx` | Talking (Asking A Question With One Hand), exported with **Mirror** on | Soldiers talking: the left hand gestures, the right keeps the rifle |
 
 Civilians.
 
@@ -111,6 +112,17 @@ Civilians.
 | `cower_hiding.fbx` | Hiding (Crouched Hiding To Ducking) | Cowering (crouched) |
 | `cower_ducking.fbx` | Ducking (Ducking For Cover From Standing Idle) | Not used (`cower_hiding` is) |
 | `turn_l.fbx`, `turn_r.fbx` | Male Locomotion Pack: left turn 90 / right turn 90 | Turning in place |
+
+Stairs (everyone; soldiers use the legs only, the upper body keeps the rifle).
+
+| File | Mixamo animation | Used for |
+|---|---|---|
+| `stairs_walk_up.fbx` | Ascending Stairs (Walking Up A Set Of Stairs) | Walking up stairs |
+| `stairs_walk_down.fbx` | Descending Stairs (Walking Down A Set Of Stairs) | Walking down stairs |
+| `stairs_run_up.fbx` | Running Up Stairs | Running up stairs |
+| `stairs_run_down.fbx` | Descending Stairs (Running Down A Set Of Stairs) | Running down stairs |
+
+These five were a third download round (2026-09-30), same settings as above.
 
 The three runs (`run_standard`, `run_medium`, `jogging`) were a second download round, after the
 first clips showed no run near the civilians' speed.

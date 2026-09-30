@@ -30,18 +30,20 @@ export const CHARACTERS = {
   // The squad: olive uniforms, vests and helmets.
   squad_swat: {
     src: 'Swat', role: 'squad', sex: 'm', size: 1024, normalScale: 0.5, lods: [14000, 4500, 1500],
+    face: { lipY: 0.002 }, // measured (dev preview ?lip=): the automatic lip line misses on this head
     credit: 'recolored olive, "SWAT" lettering removed',
     // Blue-grey camo, black vest and helmet -> olive shades (texture detail kept).
     despeckle: { material: /body/i }, // no "SWAT" lettering on the vest
     recolor: [{ material: /body/i, to: OLIVE, contrast: 0.7, skipSkin: true }],
   },
   squad_swatguy: {
-    src: 'SwatGuy', mixamo: 'Swat Guy', role: 'squad', sex: 'm', size: 1024, normalScale: 0.5, lods: [14000, 4500, 1500],
+    src: 'SwatGuy', mixamo: 'Swat Guy', role: 'squad', sex: 'm', size: 1024, normalScale: 0.5, lods: [14000, 4500, 1500], noFace: true, // a full face mask
     credit: 'recolored olive',
     recolor: [{ material: /./, to: OLIVE, contrast: 0.65, skipSkin: true }],
   },
   squad_steve: {
     src: 'Steve', role: 'squad', sex: 'm', size: 1024, normalScale: 0.5, lods: [14000, 4500, 1500], drop: DROP,
+    face: { lipY: 0.039 }, // measured lip line (dev preview ?lip=)
     credit: 'toned to olive; a vest is added in game',
     recolor: [{ material: /./, to: OLIVE, contrast: 0.9, skipSkin: true, amount: 0.55 }],
     addVest: true,
@@ -66,16 +68,16 @@ export const CHARACTERS = {
   },
   // Civilians: their own everyday clothes; the game varies shirt/trouser colors per person.
   civ_brian: { ...civilian, src: 'Brian', sex: 'm' },
-  civ_joe: { ...civilian, src: 'Joe', sex: 'm' },
-  civ_josh: { ...civilian, src: 'Josh', sex: 'm' },
-  civ_lewis: { ...civilian, src: 'Lewis', sex: 'm', parts: [], hairMaterial: /hair/i },
+  civ_joe: { ...civilian, src: 'Joe', sex: 'm', face: { lipY: 0.028 } }, // measured lip line
+  civ_josh: { ...civilian, src: 'Josh', sex: 'm', face: { lipY: 0.024 } }, // measured lip line
+  civ_lewis: { ...civilian, src: 'Lewis', sex: 'm', parts: [], hairMaterial: /hair/i, face: { lipY: 0.038 } },
   civ_remy: { ...civilian, src: 'Remy', sex: 'm', drop: /Eyelash|^Eyes$/i, size: 1024, sizes: { Bodymat: 1024 }, smallSize: 512 },
-  civ_bryce: { ...civilian, src: 'Bryce', sex: 'm' },
+  civ_bryce: { ...civilian, src: 'Bryce', sex: 'm', face: { lipY: 0.033 } },
   civ_martha: { ...woman, src: 'Martha' },
-  civ_kate: { ...woman, src: 'Kate' },
+  civ_kate: { ...woman, src: 'Kate', face: { lipY: 0.029 } },
   civ_elizabeth: { ...woman, src: 'Elizabeth' },
-  civ_sophie: { ...woman, src: 'Sophie' },
-  civ_megan: { ...woman, src: 'Megan' },
+  civ_sophie: { ...woman, src: 'Sophie', face: { lipY: 0.0355 } },
+  civ_megan: { ...woman, src: 'Megan', face: { lipY: 0.022 } }, // measured lip line
 };
 
 // Clips shipped in anims.bin (a few downloads are not used: see DOWNLOADS.md).
@@ -124,6 +126,7 @@ export const CLIPS = {
   idle_lookaround: IDLE,
   idle_nervous: IDLE,
   talk_general: IDLE,
+  talk_question_left: IDLE, // soldiers: the left hand gestures, the right keeps the rifle
   talk_phone_female: IDLE,
   talk_phone_male: IDLE,
   texting: IDLE,
@@ -178,6 +181,7 @@ export const CLIP_SOURCES = {
   idle_nervous: 'Nervously Look Around (Nervously Looking Around Left To Right - Loop)',
   talk_general: 'Talking (General Conversation)',
   talk_question: 'Talking (Asking A Question With One Hand)',
+  talk_question_left: 'Talking (Asking A Question With One Hand), mirrored',
   talk_phone_female: 'Talking On Phone (Female Standing Talking On Phone)',
   talk_phone_male: 'Talking On A Cell Phone (Male Standing While Talking On A Cell Phone)',
   texting: 'Texting (Standing Texting On Phone)',

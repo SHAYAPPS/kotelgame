@@ -70,7 +70,7 @@ export const CAST = {
   worshipper: { civ_joe: 1, civ_josh: 1, civ_brian: 1, civ_bryce: 0.8, civ_remy: 0.8, civ_lewis: 0.7 },
   worshipperWoman: { civ_martha: 1, civ_kate: 1, civ_elizabeth: 1, civ_megan: 1, civ_sophie: 1 },
   tourist: { civ_remy: 1, civ_bryce: 1, civ_lewis: 0.7, civ_brian: 0.6, civ_sophie: 1, civ_megan: 1, civ_elizabeth: 0.8, civ_kate: 0.8 },
-  guide: { civ_bryce: 1 },
+  guide: { civ_kate: 1 }, // the tour guide (text.he.js: a woman)
   civilian: { civ_lewis: 1, civ_josh: 1, civ_joe: 0.7, civ_brian: 1, civ_remy: 0.7, civ_bryce: 0.6, civ_kate: 1, civ_martha: 1, civ_megan: 1, civ_sophie: 1, civ_elizabeth: 1 },
 };
 
@@ -132,8 +132,8 @@ export function makeOutfit(id, info, kind, rand = Math.random) {
   let head = null;
   if (chance(0.3, rand)) set(4, pick(HAIR, rand), 0.75);
   if (info?.sex === 'f') {
-    look = 'modest';
-    const top = pick(W_TOPS, rand);
+    look = kind === 'guide' ? 'guide' : 'modest';
+    const top = kind === 'guide' ? GUIDE_SHIRT : pick(W_TOPS, rand); // the guide: bright yellow, easy to follow
     set(1, top, 0.92);
     set(6, pick(WHITE_SHIRTS, rand), 0.9); // blouse under a jacket
     set(8, top, 1, 0.75, 0.005); // bare arms -> long sleeves in the top's color

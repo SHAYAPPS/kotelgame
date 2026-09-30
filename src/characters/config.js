@@ -18,6 +18,7 @@ export const CHARACTER = {
   // Only near characters cast shadows and get hand IK.
   shadowDistance: 30,
   ikDistance: 18,
+  lookDistance: 25, // head turns toward a listener / speaker
 
   // Blending
   fade: 0.22, // default crossfade
@@ -28,6 +29,8 @@ export const CHARACTER = {
 
   // Upper-body overlays (reload, throw, hit) never fully replace the legs.
   upperBones: /^(Spine|Spine1|Spine2|Neck|Head|.*Shoulder|.*Arm|.*ForeArm|.*Hand.*)$/,
+  // Talking gestures while holding the rifle.
+  leftArmBones: /^(Neck|Head|LeftShoulder|LeftArm|LeftForeArm|LeftHand.*)$/,
 
   // Aim: spine pitch toward the target, spread over the spine bones.
   aimPitchLimit: 0.9,

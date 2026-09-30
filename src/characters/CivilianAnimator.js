@@ -35,6 +35,7 @@ export class CivilianAnimator {
     this.mix = new Map(); // standing clip -> share
     this.frozenTime = 0;
     this.scared = false;
+    this.talkWalk = false;
     this._used = new Set();
     // Desynchronize loops (a crowd praying in unison looks wrong).
     this.offset = rand() * 8;
@@ -100,6 +101,12 @@ export class CivilianAnimator {
         stride += w * meta.speed * meta.duration * this.hips;
       }
       this.phase = (this.phase + (dt * speed) / stride) % 1;
+    }
+    // Talking while walking: the arms gesture over the walk.
+    const talkWalk = s.speaking && move > 0.5 && !s.fleeing;
+    if (talkWalk !== this.talkWalk) {
+      this.talkWalk = talkWalk;
+      m.fade('talk_general', talkWalk ? 0.55 : 0, 0.4, { mode: 'upper', key: 'talkUpper', startAt: this.offset % 6 });
     }
     // Running for the shelter: the upper body of the look-back run over the legs (scared).
     const scared = s.fleeing && speed > 2;

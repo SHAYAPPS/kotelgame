@@ -19,6 +19,12 @@ const _v = new Vector3();
 const _w = new Vector3();
 const _q = new Quaternion();
 const _q2 = new Quaternion();
+const _q3 = new Quaternion();
+// How a head turn is spread over the neck and head.
+const LOOK_SHARE = [
+  ['Neck', 0.4],
+  ['Head', 0.6],
+];
 const _m = new Matrix4();
 const _inv = new Matrix4();
 const _axis = new Vector3();
@@ -95,8 +101,19 @@ export class CharacterModel {
     this.ikL.name = 'ikHandL';
     this.body.add(this.ikR, this.ikL);
     this.ikWeight = 0;
+    this.ikLeft = 1; // share of the IK on the left hand (0: free, e.g. gesturing while talking)
     this.aimPitch = 0;
     this.aimWeight = 0;
+
+    // Face (converter morphs on LOD0): mouth opening (lip sync) and blinks.
+    const dict = this.lods[0].morphTargetDictionary ?? {};
+    this.face = { mouth: 0, blink: 0, mouthIdx: dict.mouthOpen ?? -1, blinkIdx: dict.blink ?? -1 };
+    this._blinkWait = 1 + Math.random() * 4;
+    this._blinkT = -1;
+    this._blinkTwice = false;
+    // Look at someone (a listener, a speaker): world point or null; blended over the animation.
+    this.lookTarget = null;
+    this._look = { yaw: 0, pitch: 0, weight: 0 };
 
     this.mixer = new AnimationMixer(this.body);
     /** @type {Map<string, { action, weight: number, target: number, rate: number, mode: string, sync: boolean }>} */
@@ -164,7 +181,7 @@ export class CharacterModel {
    * @param {string} name clip
    * @param {number} target weight (base: the base layer's weights should sum to 1)
    * @param {number} time seconds to get there
-   * @param {{ mode?: 'base'|'upper'|'add'|'addUpper', loop?: boolean, sync?: boolean, restart?: boolean,
+   * @param {{ mode?: 'base'|'upper'|'leftArm'|'add'|'addUpper', loop?: boolean, sync?: boolean, restart?: boolean,
    *   timeScale?: number, startAt?: number, key?: string }} opts key: slot name (one clip at a
    *   time per key; switching clips fades the old one out)
    */
@@ -182,7 +199,7 @@ export class CharacterModel {
     if (!s) {
       if (target <= 0) return null;
       const mode = opts.mode ?? 'base';
-      const clip = this.type.clip(name, { upper: mode === 'upper' || mode === 'addUpper', additive: mode === 'add' || mode === 'addUpper' });
+      const clip = this.type.clip(name, { upper: mode === 'upper' || mode === 'addUpper', additive: mode === 'add' || mode === 'addUpper', leftArm: mode === 'leftArm' });
       if (!clip) return null;
       const action = this.mixer.clipAction(clip);
       if (mode === 'add' || mode === 'addUpper') action.blendMode = AdditiveAnimationBlendMode;
@@ -261,8 +278,9 @@ export class CharacterModel {
         this.slots.delete(k);
         continue;
       }
-      // Upper-body overrides win over the base layer: w / (1 - w) against a base of 1.
-      const w = s.mode === 'upper' ? Math.min(400, s.weight / Math.max(1e-3, 1 - s.weight)) : s.weight;
+      // Partial overrides (upper body, a gesturing arm) win over the base layer: w / (1 - w)
+      // against a base of 1.
+      const w = s.mode === 'upper' || s.mode === 'leftArm' ? Math.min(400, s.weight / Math.max(1e-3, 1 - s.weight)) : s.weight;
       s.action.setEffectiveWeight(w);
     }
   }
@@ -353,15 +371,97 @@ export class CharacterModel {
     const near = this.distance < c.ikDistance * c.lodScale;
     const aim = this.aimWeight > 0.01 && near;
     const ik = this.ikWeight > 0.01 && near;
-    if (aim || ik) {
+    const look = this._lookUpdate(step) && this.distance < c.lookDistance * c.lodScale;
+    if (aim || ik || look) {
       this.root.updateMatrixWorld(true);
       if (aim) this._aim();
       if (ik) this._ik();
+      if (look) this._lookApply();
     } else {
       // Only the bones the hit zones read (the renderer updates the rest).
       for (const b of this._zoneBones) b.updateWorldMatrix(true, false);
     }
+    this._faceUpdate(step);
     this._hitZones();
+  }
+
+  /** Mouth (lip sync) and blinks: the LOD0 morph influences. */
+  _faceUpdate(dt) {
+    const f = this.face;
+    if (f.mouthIdx < 0 && f.blinkIdx < 0) return;
+    // Blinks every few seconds (now and then twice): ~0.16 s, closing faster than opening.
+    if (this._blinkT < 0) {
+      this._blinkWait -= dt;
+      if (this._blinkWait <= 0) {
+        this._blinkT = 0;
+        this._blinkTwice = Math.random() < 0.12;
+        this._blinkWait = 1.8 + Math.random() * 4.5;
+      }
+    }
+    let blink = 0;
+    if (this._blinkT >= 0) {
+      const t = (this._blinkT += dt);
+      blink = t < 0.06 ? t / 0.06 : t < 0.08 ? 1 : Math.max(0, 1 - (t - 0.08) / 0.09);
+      if (t > 0.17) {
+        this._blinkT = -1;
+        if (this._blinkTwice) {
+          this._blinkTwice = false;
+          this._blinkWait = 0.12;
+        }
+      }
+    }
+    f.blink = blink;
+    const inf = this.lods[0].morphTargetInfluences;
+    if (!inf) return;
+    if (f.mouthIdx >= 0) inf[f.mouthIdx] = Math.min(1, Math.max(0, f.mouth));
+    if (f.blinkIdx >= 0) inf[f.blinkIdx] = blink;
+  }
+
+  /** Smooth the head's turn toward `lookTarget` (or back). Returns whether to apply it. */
+  _lookUpdate(dt) {
+    const L = this._look;
+    let yaw = 0;
+    let pitch = 0;
+    let want = 0;
+    const t = this.lookTarget;
+    if (t) {
+      const head = this.bone('Head');
+      if (head) {
+        head.getWorldPosition(_v);
+        _w.subVectors(t, _v);
+        this.root.getWorldQuaternion(_q).invert();
+        _w.applyQuaternion(_q); // into the root's frame (it faces -Z)
+        yaw = Math.atan2(-_w.x, -_w.z);
+        pitch = Math.atan2(_w.y, Math.hypot(_w.x, _w.z));
+        // Too far around: turn the head as far as it goes, then give up on it.
+        want = Math.abs(yaw) < 1.9 ? 1 : 0;
+        yaw = Math.max(-1.1, Math.min(1.1, yaw));
+        pitch = Math.max(-0.45, Math.min(0.4, pitch));
+      }
+    }
+    const k = 1 - Math.exp(-7 * dt);
+    if (want > 0) {
+      L.yaw += (yaw - L.yaw) * k;
+      L.pitch += (pitch - L.pitch) * k;
+    }
+    L.weight += (want - L.weight) * (1 - Math.exp(-4 * dt));
+    return L.weight > 0.01;
+  }
+
+  _lookApply() {
+    const L = this._look;
+    this.root.getWorldQuaternion(_q);
+    _axis.set(1, 0, 0).applyQuaternion(_q); // the root's right (+X): pitch axis
+    _w.set(0, 1, 0);
+    for (const [name, share] of LOOK_SHARE) {
+      const b = this.bone(name);
+      if (!b) continue;
+      _q2.setFromAxisAngle(_w, L.yaw * L.weight * share);
+      _q3.setFromAxisAngle(_axis, L.pitch * L.weight * share);
+      b.getWorldQuaternion(_q);
+      setWorldQuaternion(b, _q.premultiply(_q3).premultiply(_q2));
+      b.updateMatrixWorld(true);
+    }
   }
 
   _aim() {
@@ -394,13 +494,15 @@ export class CharacterModel {
     rh.getWorldQuaternion(_q2);
     setWorldQuaternion(rh, _q2.slerp(_q, w));
     rh.updateMatrixWorld(true);
-    // Left hand: on the handguard, relative to the (corrected) right hand.
+    // Left hand: on the handguard, relative to the (corrected) right hand (unless it is busy).
+    const wl = w * this.ikLeft;
+    if (wl < 0.01) return;
     _m.compose(this.ikL.position, this.ikL.quaternion, _w.set(1, 1, 1)).premultiply(rh.matrixWorld);
     _v.setFromMatrixPosition(_m);
-    solveTwoBone(this.bone('LeftArm'), this.bone('LeftForeArm'), lh, _v, w);
+    solveTwoBone(this.bone('LeftArm'), this.bone('LeftForeArm'), lh, _v, wl);
     _q.setFromRotationMatrix(_m);
     lh.getWorldQuaternion(_q2);
-    setWorldQuaternion(lh, _q2.slerp(_q, w));
+    setWorldQuaternion(lh, _q2.slerp(_q, wl));
     lh.updateMatrixWorld(true);
   }
 

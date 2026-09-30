@@ -75,6 +75,7 @@ export class Dialogue {
       name: sp.name,
       color: sp.color,
       radio: !!(line.radio ?? sp.radio),
+      to: line.to ?? null, // who the speaker talks to (an NPC id); default: the player
       text: line.text,
       time: 0,
       duration: line.duration ?? lineDuration(line.text),

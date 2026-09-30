@@ -18,6 +18,16 @@ export class CharacterType {
     this.info = info;
     this.scene = gltf.scene;
     this.scene.updateMatrixWorld(true);
+    // Face morphs (mouth, blink) only on LOD0: three keeps a morph texture per geometry.
+    const lodMeshes = [];
+    this.scene.traverse((o) => {
+      if (o.isSkinnedMesh) lodMeshes.push(o);
+    });
+    for (const m of lodMeshes.slice(1)) {
+      m.geometry.morphAttributes = {};
+      m.morphTargetInfluences = undefined;
+      m.morphTargetDictionary = undefined;
+    }
     const bone = (n) => this.scene.getObjectByName(n);
     // Proportions vs the source skeleton (Y Bot) the clips were made on.
     this.hipsRatio = info.hips / anims.sourceHips;
@@ -143,17 +153,19 @@ export class CharacterType {
    * A clip variant: `upper` keeps only upper-body tracks (plus the IK targets), `additive`
    * makes it relative to its first frame (hit reactions, recoil on top of anything).
    */
-  clip(name, { upper = false, additive = false } = {}) {
-    const key = `${name}:${upper ? 'u' : ''}${additive ? 'a' : ''}`;
+  clip(name, { upper = false, additive = false, leftArm = false } = {}) {
+    const key = `${name}:${upper ? 'u' : ''}${additive ? 'a' : ''}${leftArm ? 'l' : ''}`;
     if (this._variants.has(key)) return this._variants.get(key);
     const base = this.clips.get(name);
     if (!base) return null;
     let clip = base;
-    if (upper) {
-      const re = CHARACTER.upperBones;
+    if (upper || leftArm) {
+      // upper: the upper body plus the IK targets; leftArm: the left arm, neck and head only
+      // (a gesture while the right hand keeps the rifle).
+      const re = leftArm ? CHARACTER.leftArmBones : CHARACTER.upperBones;
       clip = new AnimationClip(key, base.duration, base.tracks.filter((t) => {
         const node = t.name.slice(0, t.name.lastIndexOf('.'));
-        return re.test(node) || node.startsWith('ik');
+        return re.test(node) || (!leftArm && node.startsWith('ik'));
       }));
     }
     if (additive) {

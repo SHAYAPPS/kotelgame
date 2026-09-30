@@ -74,6 +74,7 @@ export class SoldierAnimator {
     this.time = 0;
     this.dead = false;
     this.deathClip = null;
+    this.talking = false;
     this.model.ikWeight = 1;
     this._used = new Set();
     this._ray = { point: new Vector3(), normal: new Vector3(), distance: 0 };
@@ -86,7 +87,7 @@ export class SoldierAnimator {
    * @param {{ alive: boolean, facing: number, velocity: Vector3, crouched: boolean,
    *   posture: 'relaxed'|'alert'|'combat', mode?: string, cover?: object|null,
    *   aimAt?: Vector3|null, eyeY: number, shotsFired: number, health: number, throws: number,
-   *   deathDir?: Vector3, hitZone?: string|null, position: Vector3 }} s
+   *   deathDir?: Vector3, hitZone?: string|null, position: Vector3, speaking?: boolean }} s
    */
   update(dt, s) {
     const m = this.model;
@@ -167,6 +168,15 @@ export class SoldierAnimator {
       m.aimPitch = Math.atan2(s.aimAt.y - (s.position.y + s.eyeY), Math.max(0.5, Math.hypot(dx, dz)));
     }
     m.aimWeight = this.aim;
+
+    // Talking off duty: the left hand gestures (the right keeps the rifle), the head follows
+    // the talk (plus CharacterModel's look toward the listener).
+    const talk = !!s.speaking && s.posture !== 'combat' && !this.upper && this.crouch < 0.5;
+    if (talk !== this.talking) {
+      this.talking = talk;
+      m.fade('talk_question_left', talk ? 1 : 0, talk ? 0.35 : 0.45, { mode: 'leftArm', key: 'talk', startAt: this.rand() * 2 });
+    }
+    m.ikLeft += ((talk ? 0 : 1) - m.ikLeft) * (1 - Math.exp(-5 * dt));
   }
 
   /** Idle / locomotion weights (sum to 1). */
