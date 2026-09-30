@@ -6,6 +6,7 @@ export const HE = {
   start: 'לחצו כדי להתחיל',
   chaptersTitle: 'או התחילו מחלק מסוים',
   weapons: { rifle: 'M4', launcher: 'מטול רקטות' },
+  graphics: { title: 'איכות גרפיקה', low: 'נמוכה', medium: 'בינונית', high: 'גבוהה' },
   resume: 'לחצו כדי להמשיך',
   paused: 'המשחק מושהה',
   lockError: 'לא הצלחנו לנעול את העכבר. חכו רגע ולחצו שוב.',

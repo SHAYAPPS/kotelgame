@@ -17,6 +17,18 @@ The start screen lists the mission's parts: click one to start there instead of 
 beginning. Difficulty (wave sizes, spawn timing, enemy accuracy, grenade frequency, ammo)
 is tuned in `src/story/difficulty.js`.
 
+## Graphics
+
+The start/pause screen has a graphics setting (low / medium / high; saved in the browser).
+Medium is the default and aims at 60 FPS on an average laptop; low drops ambient occlusion,
+bloom, MSAA and shadow cascades; high adds full-resolution AO, 3 shadow cascades, 4x MSAA
+and a 2x pixel ratio on high-DPI screens.
+
+Textures are KTX2 in `public/assets/textures/`. The shipped stone sets are generated
+(`npm run assets:generate`); `npm run assets:fetch` swaps in CC0 photoscans from Poly Haven /
+ambientCG and a 2k sky HDRI. Every asset is listed in
+[`public/assets/CREDITS.md`](public/assets/CREDITS.md).
+
 ## Controls
 
 | Key | Action |

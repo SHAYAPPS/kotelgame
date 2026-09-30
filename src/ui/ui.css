@@ -891,3 +891,26 @@
 .weapon-name[hidden] {
   display: none;
 }
+
+.overlay-segments {
+  display: flex;
+  gap: 4px;
+}
+
+.overlay-segment {
+  padding: 5px 12px;
+  font: inherit;
+  font-size: 13px;
+  color: #f2ead8;
+  background: rgb(255 255 255 / 7%);
+  border: 1px solid rgb(226 207 156 / 35%);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.overlay-segment[aria-checked='true'] {
+  background: #e2cf9c;
+  color: #1d1a14;
+  border-color: #e2cf9c;
+  font-weight: 700;
+}

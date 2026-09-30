@@ -34,6 +34,7 @@ const flashMat = new MeshBasicMaterial({
   side: DoubleSide,
   toneMapped: false,
 });
+flashMat.color.multiplyScalar(5); // HDR: blooms
 
 function colored(geo, hex) {
   const g = geo.index ? geo.toNonIndexed() : geo;

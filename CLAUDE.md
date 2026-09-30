@@ -34,7 +34,12 @@ A browser-based 3D first-person story shooter.
    - [x] Part 2: sirens, civilians to shelter, first contact
    - [x] Part 3: holding the plaza, three waves, grenades, ammo crates
    - [x] Part 4: the final push (armed truck, rocket launcher), counterattack, ending + stats
-6. [ ] Realism pass  <- next (or Mission 2)
+6. [ ] Realism pass
+   - [x] Part 1: textures (KTX2), HDRI lighting, time-of-day sun, cascaded shadows, post FX,
+     wall detail (plants, prayer notes), building facades, impact dust/scorch, flash lights,
+     graphics setting (low/medium/high)
+   - [ ] Part 2  <- next
+   - [ ] Part 3
 
 ## Commands
 
@@ -44,6 +49,14 @@ A browser-based 3D first-person story shooter.
 - `npm test`: physics, collision, weapon, grenade, level-route, AI and mission tests (Node's built-in test runner, no browser needed; the scripted Mission 1 playthrough takes ~1 min)
 - `npm run build`: production build into `dist/`
 - `npm run preview`: serve the production build locally
+- `npm run assets:generate [id ...]`: rebuild the generated stone texture sets (KTX2) in
+  `public/assets/textures/` (~20 s per set); rewrites `public/assets/CREDITS.md`
+- `npm run assets:fetch [id | id=polyhaven:<asset> | id=ambientcg:<Asset> | hdri]`: replace them
+  with CC0 photoscans from Poly Haven / ambientCG and fetch a 2k sky HDRI (needs network access
+  to api.polyhaven.com, dl.polyhaven.org, ambientcg.com). `LOCAL=<dir>` imports files you
+  downloaded yourself (`<id>_color/_normal/_rough[/_ao].jpg`). A set that fails keeps what's there.
+- `npm run screenshots -- [outDir] [low|medium|high]`: Playwright screenshots from 5 fixed
+  spots around the plaza (dev server must be running; needs `playwright` installed)
 
 ## Architecture
 
@@ -65,9 +78,27 @@ A browser-based 3D first-person story shooter.
   raycasts with no allocations. Built from meshes; `userData.noCollision` skips a mesh.
   Use `raycast()` for bullets too.
 - `src/world/capsuleContact.js`: exact capsule-vs-triangle contact (closest points).
-- `src/world/Environment.js`: sky dome, fog, sun + hemisphere light. Shadows are rendered once
-  (static world); call `refreshShadows()` if static geometry changes.
-- `src/world/greybox.js`: procedural 1 m grid texture, color palette, box/ramp geometry with UVs in meters.
+- `src/core/Graphics.js`: the `QUALITY` presets (low / medium / high: pixel ratio, MSAA, shadow
+  cascades / map size / distance, AO, bloom, flash-light count, anisotropy), saved in
+  localStorage (`kotelgame.graphics`); picked on the start/pause screen, `Game.setQuality()`
+  applies one live.
+- `src/core/PostFX.js`: EffectComposer chain: world (half-float, MSAA) -> GTAO (half-res on
+  medium) -> the viewmodel on top (depth cleared) -> bloom (threshold 3.2: only HDR-bright
+  flashes, fire, the sun) -> OutputPass (ACES filmic) -> color grade (contrast, split tone,
+  vignette). Flash materials are colored well above 1 so they bloom.
+- `src/world/Environment.js`: sky dome shader (gradient, sun disc, drifting clouds), FogExp2
+  haze, HDRI image-based light (PMREM, the HDRI's sun clamped; list of files tried in order),
+  a warm hemisphere bounce fill, and the sun as three's `CSM` (cascaded shadow maps, updated
+  every frame). `src/world/sun.js`: solar position from the level's date/time/place (Mission 1:
+  11:40 on the title card -> sun high in the south-east, the west-facing wall in shade).
+- `src/world/Textures.js`: `TextureLibrary` loads KTX2 texture sets (`<id>_color/_normal/_orm`,
+  see `public/assets/textures/manifest.json`) and streams them into existing materials
+  (`apply(material, id, { scale, normalScale })`; UVs are in meters). Asset scripts live in
+  `scripts/assets/` (`generate.mjs`, `fetch.mjs`, `credits.mjs`, `ktx2.mjs`).
+- `src/world/FlashLights.js`: a small pool of point lights (count per quality) for muzzle
+  flashes, explosions and the rocket launch; the dimmest one is reused.
+- `src/world/greybox.js`: procedural 1 m grid texture, color palette, box/ramp geometry with UVs in meters
+  (the test range still uses the grid).
 - `src/world/kotel/`: the greybox Western Wall plaza (Mission 1), 1 unit = 1 m.
   - `config.js`: **every dimension** (wall, prayer area, mechitza, Wilson's Arch, bridge, terraces,
     buildings, checkpoint, backdrop, spawn, lighting) plus the plain greybox colors. Axes: +X east
@@ -76,7 +107,12 @@ A browser-based 3D first-person story shooter.
   - `KotelLevel.js`: builds floors/terraces, the wall, prayer area, Wilson's Arch; `groundY(x, z)`.
   - `kotelSurroundings.js`: plaza edges, tunnels entrance, stairs, southern checkpoint, dig,
     Mughrabi Bridge, plaza props, skyline.
-  - `wallStones.js`: procedural instanced ashlar courses (bands, drafted margins, plants).
+  - `wallStones.js`: procedural instanced ashlar courses (bands, drafted margins; the top band
+    is `rough`), textures projected from world space with a per-stone offset, caper plants
+    in clumps (leaf cards), prayer notes in the joints at hand height.
+  - `facades.js`: instanced windows (stone surrounds, glass), arches and shutters on the
+    plaza-facing building fronts. `KotelLevel.js` `SURFACES` maps each color role to a texture
+    set; StaticBatch writes world-space UVs (`worldUVs`).
     The wall's collision is one invisible blocker just in front of the stone faces.
   - `batch.js`: StaticBatch merges static boxes per color (few draw calls); `blocker()` adds
     invisible out-of-bounds walls. `instancing.js` + `props.js`: instanced props, each with one
@@ -94,7 +130,8 @@ A browser-based 3D first-person story shooter.
   - `Viewmodel.js`: placeholder rifle + hands in its own scene/camera, drawn after the world
     with a cleared depth buffer (no wall clipping). Model origin = rear sight, so the ADS pose
     puts it on the view axis. Poses: hip, ADS, sprint, reload; sway, bob, shot kick, muzzle flash.
-  - `Impacts.js`: pooled bullet-hole decals (one InstancedMesh) and sparks (one Points).
+  - `Impacts.js`: pooled bullet-hole decals (one InstancedMesh), sparks (one Points), stone
+    dust puffs (`puff()`, one Points with a soft-particle shader) and scorch decals (`scorch()`).
   - `WeaponAudio.js`: Web Audio procedural shot / dry-fire / reload sounds; `unlock()` must be
     called from a user gesture (the start click).
 - `src/ai/`: enemies.
@@ -241,5 +278,16 @@ A browser-based 3D first-person story shooter.
 - Viewmodel materials use low metalness: without an environment map, metals render black.
 - Levels export `navBounds` and `enemySpawns` for the AI. Keep cover objects >= 0.75 m tall
   (the cover generator's crouched-chest height) if they should count as cover.
+- CSM: every lit material must go through `csm.setupMaterial()` or it is lit once per cascade
+  (far too bright). `Environment.prepare()` does that each frame for new materials and chains
+  any existing `onBeforeCompile` patch (keep custom patches on `onBeforeCompile` before the
+  first render, or store them in `userData.baseOnBeforeCompile`). Mark unlit/special meshes
+  `userData.noCSM`.
+- KTX2 needs the Basis transcoder in `public/basis/`. Normal maps are UASTC (ETC1S artifacts
+  show badly in lighting); color and ORM are ETC1S. Textures ship at 1024 px.
+- A baked AO map with too much contrast reads as black speckle on the shaded wall; keep AO
+  soft (`generate.mjs` `aoFromHeight`).
+- Poly Haven / ambientCG may be blocked by a sandbox network policy (HTTP 403); `assets:fetch`
+  then leaves the generated textures in place.
 - Headless Chromium is very slow at compositing full-screen CSS overlays (damage vignette,
   death fade); game time crawls in those tests. Real GPUs are fine.

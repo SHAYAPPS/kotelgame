@@ -1,0 +1,42 @@
+{
+  "limestone": {
+    "meters": 2,
+    "source": "generated",
+    "license": "CC0",
+    "maps": [
+      "color",
+      "normal",
+      "orm"
+    ]
+  },
+  "limestone_rough": {
+    "meters": 1.5,
+    "source": "generated",
+    "license": "CC0",
+    "maps": [
+      "color",
+      "normal",
+      "orm"
+    ]
+  },
+  "paving": {
+    "meters": 4,
+    "source": "generated",
+    "license": "CC0",
+    "maps": [
+      "color",
+      "normal",
+      "orm"
+    ]
+  },
+  "ashlar": {
+    "meters": 4,
+    "source": "generated",
+    "license": "CC0",
+    "maps": [
+      "color",
+      "normal",
+      "orm"
+    ]
+  }
+}

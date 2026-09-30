@@ -3,6 +3,7 @@ import {
   BoxGeometry,
   CanvasTexture,
   CapsuleGeometry,
+  Color,
   CylinderGeometry,
   DoubleSide,
   Group,
@@ -44,7 +45,7 @@ function assets() {
     clothes: new MeshStandardMaterial({ color: 0x33352f, roughness: 0.95 }),
     skin: new MeshStandardMaterial({ color: 0xa47a5a, roughness: 0.8 }),
     charred: new MeshStandardMaterial({ color: 0x1e1c1a, roughness: 1 }),
-    flash: new MeshBasicMaterial({ color: 0xffc87a, transparent: true, blending: AdditiveBlending, depthWrite: false, side: DoubleSide, toneMapped: false }),
+    flash: new MeshBasicMaterial({ color: new Color(0xffc87a).multiplyScalar(5), transparent: true, blending: AdditiveBlending, depthWrite: false, side: DoubleSide, toneMapped: false }),
     fireTex: sprite([[0, 'rgba(255,230,160,1)'], [0.35, 'rgba(255,130,40,0.85)'], [1, 'rgba(200,50,10,0)']]),
     smokeTex: sprite([[0, 'rgba(40,38,35,0.95)'], [0.5, 'rgba(50,48,44,0.6)'], [1, 'rgba(60,58,54,0)']]),
   };
@@ -111,7 +112,7 @@ export class TruckView {
     // Fire and smoke once it's destroyed.
     this.fires = [];
     for (let i = 0; i < 4; i++) {
-      const f = new Sprite(new SpriteMaterial({ map: a.fireTex, transparent: true, blending: AdditiveBlending, depthWrite: false, toneMapped: false }));
+      const f = new Sprite(new SpriteMaterial({ map: a.fireTex, color: new Color(3, 2.6, 2.2), transparent: true, blending: AdditiveBlending, depthWrite: false, toneMapped: false }));
       const s = new Sprite(new SpriteMaterial({ map: a.smokeTex, transparent: true, depthWrite: false, toneMapped: false }));
       f.visible = s.visible = false;
       this.root.add(f, s);

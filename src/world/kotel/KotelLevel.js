@@ -6,6 +6,7 @@ import { bookshelf, lectern, plasticChair, table, torahArk, washStation } from '
 import { mulberry32, randRange } from './random.js';
 import { buildStoneWall } from './wallStones.js';
 import { buildSurroundings } from './kotelSurroundings.js';
+import { buildFacades } from './facades.js';
 
 const HALF_PI = Math.PI / 2;
 // Prop yaws: a seated/standing prop faces local -Z, its back is +Z.
@@ -14,18 +15,39 @@ export const FACE_WEST = HALF_PI;
 export const FACE_NORTH = 0;
 export const FACE_SOUTH = Math.PI;
 
-/** Plain (untextured) greybox materials by color role, cached. */
+/**
+ * Stone surfaces by color role: which texture set, how it tiles (scale per meter-UV), the
+ * tint it's multiplied by (the textures carry the stone's own color) and relief strength.
+ * Roles not listed stay plain colors (metal, wood, plastic, small props).
+ */
+export const SURFACES = {
+  paving: { set: 'paving', tint: 0xffffff, normalScale: 0.8 },
+  pavingUpper: { set: 'paving', tint: 0xf4ede0, offset: [0.37, 0.61], normalScale: 0.8 },
+  stone: { set: 'limestone', tint: 0xf6efe0 },
+  stoneLight: { set: 'limestone', tint: 0xfffbf2 },
+  fence: { set: 'limestone', tint: 0xefe4cc, scale: 1.5 },
+  building: { set: 'ashlar', tint: 0xf3e9d6 },
+  buildingDark: { set: 'ashlar', tint: 0xd9c9a8, offset: [0.5, 0.25] },
+  dig: { set: 'limestone_rough', tint: 0xc8b28c, scale: 0.6, normalScale: 1.4 },
+  concrete: { set: 'limestone_rough', tint: 0xcbc7bf, scale: 2, normalScale: 0.5 },
+};
+
+const METALS = new Set(['gold', 'steel', 'metal', 'metalDark']);
+
+/** Greybox materials by color role (textured stone for SURFACES roles), cached. */
 function createMaterials() {
   const cache = new Map();
-  return (key) => {
+  const get = (key) => {
     if (!cache.has(key)) {
       const color = KOTEL_COLORS[key];
       if (color === undefined) throw new Error(`Unknown Kotel color "${key}"`);
-      const shiny = key === 'gold' || key === 'steel' || key === 'metal' || key === 'metalDark';
-      cache.set(key, new MeshStandardMaterial({ color, roughness: shiny ? 0.45 : 0.9, metalness: shiny ? 0.3 : 0 }));
+      const shiny = METALS.has(key);
+      cache.set(key, new MeshStandardMaterial({ color, roughness: shiny ? 0.45 : 0.9, metalness: shiny ? 0.6 : 0 }));
     }
     return cache.get(key);
   };
+  get.cache = cache;
+  return get;
 }
 
 /**
@@ -98,6 +120,7 @@ function buildWall(root, b) {
     height: w.height,
     bands: w.bands,
     plants: w.plants,
+    notes: w.notes,
     seed: w.seed,
   });
   // Inside the hall under Wilson's Arch the wall is visible up to the vault.
@@ -111,7 +134,7 @@ function buildWall(root, b) {
     seed: w.seed + 1,
   });
   for (const mesh of [...main.meshes, ...hall.meshes]) root.add(mesh);
-  return main.stones + hall.stones;
+  return { stones: main.stones + hall.stones, wallMaterials: [...main.materials, ...hall.materials] };
 }
 
 function buildPrayerArea(b, props, rand) {
@@ -251,10 +274,11 @@ export function createKotelLevel() {
   };
 
   buildFloors(b);
-  const stones = buildWall(root, b);
+  const { stones, wallMaterials } = buildWall(root, b);
   buildPrayerArea(b, props, rand);
   buildWilsonsArch(b, props);
   const extraProps = buildSurroundings({ root, b, m, props, rand, groundY });
+  buildFacades(root, m, groundY, mulberry32(KOTEL.wall.seed + 9));
 
   // A wide collision floor under everything (the batches are the visible floors).
   collisionOnly.add(new Mesh(new PlaneGeometry(400, 400).rotateX(-HALF_PI).translate(-60, -0.6, 20)));
@@ -273,5 +297,17 @@ export function createKotelLevel() {
     navBounds: KOTEL.ai.navBounds,
     enemySpawns: KOTEL.ai.enemySpawns.map((e) => ({ position: new Vector3(e.x, groundY(e.x, e.z), e.z), yaw: e.yaw })),
     stats: { stones },
+    /** Stream the stone textures in (the level shows plain colors until they arrive). */
+    applyTextures(library) {
+      const jobs = [];
+      for (const [key, mat] of m.cache) {
+        const s = SURFACES[key];
+        if (!s) continue;
+        mat.color.set(s.tint);
+        jobs.push(library.apply(mat, s.set, { scale: s.scale ?? 1, normalScale: s.normalScale ?? 1, offset: s.offset }));
+      }
+      for (const w of wallMaterials) jobs.push(w.applyTextures(library));
+      return Promise.all(jobs);
+    },
   };
 }

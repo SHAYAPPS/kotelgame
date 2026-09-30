@@ -50,6 +50,7 @@ function assets() {
       toneMapped: false,
     }),
   };
+  shared.flashMat.color.multiplyScalar(5); // HDR: blooms
   return shared;
 }
 
@@ -195,6 +196,7 @@ export class Tracers {
       geo,
       new LineBasicMaterial({ vertexColors: true, transparent: true, blending: AdditiveBlending, depthWrite: false, toneMapped: false }),
     );
+    this.lines.material.color.setScalar(3.5); // HDR: tracer heads bloom
     this.lines.frustumCulled = false;
     scene.add(this.lines);
     this.items = Array.from({ length: count }, () => ({ o: new Vector3(), d: new Vector3(), len: 0, t: -1 }));

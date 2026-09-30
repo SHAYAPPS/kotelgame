@@ -227,6 +227,7 @@ export class Viewmodel {
       side: DoubleSide,
       toneMapped: false,
     });
+    flashMat.color.setScalar(6); // HDR: bright enough to bloom
     this.flash = new Group();
     this.flash.position.set(0, BORE_Y, MUZZLE_Z - 0.06);
     const facing = new Mesh(new PlaneGeometry(0.14, 0.14), flashMat);

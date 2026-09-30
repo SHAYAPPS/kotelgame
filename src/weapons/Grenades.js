@@ -196,7 +196,8 @@ export class GrenadeView {
     const flashTex = radialTexture([[0, 'rgba(255,240,200,1)'], [0.3, 'rgba(255,170,70,0.9)'], [1, 'rgba(255,120,40,0)']]);
     const smokeTex = radialTexture([[0, 'rgba(48,45,40,0.95)'], [0.45, 'rgba(62,58,52,0.75)'], [1, 'rgba(80,76,70,0)']]);
     this.blasts = Array.from({ length: 10 }, () => {
-      const flash = new Sprite(new SpriteMaterial({ map: flashTex, transparent: true, blending: AdditiveBlending, depthWrite: false, toneMapped: false }));
+      const flash = new Sprite(new SpriteMaterial({ map: flashTex, color: 0xffffff, transparent: true, blending: AdditiveBlending, depthWrite: false, toneMapped: false }));
+      flash.material.color.setScalar(5); // HDR: the fireball blooms
       const smoke = new Sprite(new SpriteMaterial({ map: smokeTex, transparent: true, depthWrite: false, toneMapped: false }));
       flash.visible = smoke.visible = false;
       this.root.add(smoke, flash);

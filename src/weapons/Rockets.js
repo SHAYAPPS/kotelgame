@@ -115,6 +115,7 @@ export class RocketView {
     const nose = new ConeGeometry(0.05, 0.22, 8).rotateX(-Math.PI / 2).translate(0, 0, -0.36);
     const mat = new MeshStandardMaterial({ color: 0x4f5a3a, roughness: 0.6 });
     const glowMat = new MeshBasicMaterial({ color: 0xffc070, toneMapped: false });
+    glowMat.color.multiplyScalar(6); // HDR: the motor glows
     this.meshes = sim.items.map(() => {
       const g = new Group();
       g.add(new Mesh(body, mat), new Mesh(nose, mat));

@@ -36,7 +36,7 @@ export class Overlay {
    * @param {{ onStart, sensitivity, onSensitivity, chapters?: { label: string }[],
    *   onChapter?: (i: number) => void }} opts chapters: start-from buttons (the mission's parts)
    */
-  constructor(parent, { onStart, sensitivity, onSensitivity, chapters = [], onChapter = null }) {
+  constructor(parent, { onStart, sensitivity, onSensitivity, chapters = [], onChapter = null, quality = 'medium', onQuality = null }) {
     this.root = el('div', 'overlay');
     const panel = el('div', 'overlay-panel');
 
@@ -94,6 +94,29 @@ export class Overlay {
     });
     setting.append(slider, output);
     panel.append(setting);
+
+    // Graphics quality: low / medium / high (medium targets 60 FPS on an average laptop).
+    if (onQuality) {
+      const row = el('div', 'overlay-setting overlay-quality');
+      row.append(el('span', null, HE.graphics.title));
+      const group = el('div', 'overlay-segments');
+      group.setAttribute('role', 'radiogroup');
+      const buttons = [];
+      for (const q of ['low', 'medium', 'high']) {
+        const b = el('button', 'overlay-segment', HE.graphics[q]);
+        b.type = 'button';
+        b.setAttribute('role', 'radio');
+        b.addEventListener('click', () => {
+          for (const o of buttons) o.setAttribute('aria-checked', String(o === b));
+          onQuality(q);
+        });
+        b.setAttribute('aria-checked', String(q === quality));
+        buttons.push(b);
+        group.append(b);
+      }
+      row.append(group);
+      panel.append(row);
+    }
 
     this.root.append(panel);
     parent.append(this.root);

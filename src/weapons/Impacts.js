@@ -12,11 +12,14 @@ import {
   PointsMaterial,
   Quaternion,
   SRGBColorSpace,
+  ShaderMaterial,
   Vector3,
 } from 'three';
 
 const MAX_DECALS = 160;
 const MAX_SPARKS = 400;
+const MAX_DUST = 160;
+const MAX_SCORCH = 16;
 const GRAVITY = 9.8;
 
 const _z = new Vector3(0, 0, 1);
@@ -55,6 +58,25 @@ function holeTexture() {
     }
     ctx.closePath();
     ctx.fill();
+  });
+}
+
+// Explosion scorch: a sooty blotch with a ragged edge.
+function scorchTexture() {
+  return canvasTexture(128, (ctx, s) => {
+    const c = s / 2;
+    for (let i = 0; i < 26; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = Math.random() * c * 0.45;
+      const x = c + Math.cos(a) * r;
+      const y = c + Math.sin(a) * r;
+      const rr = c * (0.25 + Math.random() * 0.4);
+      const g = ctx.createRadialGradient(x, y, 0, x, y, rr);
+      g.addColorStop(0, 'rgba(12,10,9,0.55)');
+      g.addColorStop(1, 'rgba(20,17,15,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, s, s);
+    }
   });
 }
 
@@ -120,6 +142,103 @@ export class Impacts {
     this._nextSpark = 0;
     this._alive = 0;
     scene.add(this.sparks);
+
+    // Stone dust: soft puffs that billow out of each hit and settle (per-puff size and
+    // opacity, so a small custom point shader).
+    const dg = new BufferGeometry();
+    this.dustPos = new Float32Array(MAX_DUST * 3);
+    this.dustVel = new Float32Array(MAX_DUST * 3);
+    this.dustSize = new Float32Array(MAX_DUST);
+    this.dustAlpha = new Float32Array(MAX_DUST);
+    this.dustLife = new Float32Array(MAX_DUST);
+    this.dustMaxLife = new Float32Array(MAX_DUST).fill(1);
+    dg.setAttribute('position', new BufferAttribute(this.dustPos, 3));
+    dg.setAttribute('size', new BufferAttribute(this.dustSize, 1));
+    dg.setAttribute('alpha', new BufferAttribute(this.dustAlpha, 1));
+    this.dust = new Points(
+      dg,
+      new ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        uniforms: { color: { value: [0.78, 0.72, 0.62] }, scale: { value: 600 } },
+        vertexShader: /* glsl */ `
+          attribute float size;
+          attribute float alpha;
+          varying float vAlpha;
+          uniform float scale;
+          void main() {
+            vAlpha = alpha;
+            vec4 mv = modelViewMatrix * vec4(position, 1.0);
+            gl_PointSize = size * scale / -mv.z;
+            gl_Position = projectionMatrix * mv;
+          }
+        `,
+        fragmentShader: /* glsl */ `
+          uniform vec3 color;
+          varying float vAlpha;
+          void main() {
+            vec2 d = gl_PointCoord - 0.5;
+            float r = length(d) * 2.0;
+            float a = smoothstep(1.0, 0.2, r) * vAlpha;
+            if (a < 0.01) discard;
+            gl_FragColor = vec4(color, a);
+          }
+        `,
+      }),
+    );
+    this.dust.frustumCulled = false;
+    this.dust.userData.noCSM = true;
+    this._nextDust = 0;
+    this._dustAlive = 0;
+    scene.add(this.dust);
+
+    // Scorch marks from explosions (ground decals, oldest reused).
+    this.scorches = new InstancedMesh(
+      new PlaneGeometry(1, 1),
+      new MeshBasicMaterial({ map: scorchTexture(), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }),
+      MAX_SCORCH,
+    );
+    this.scorches.count = 0;
+    this.scorches.frustumCulled = false;
+    this.scorches.renderOrder = 1;
+    this._nextScorch = 0;
+    scene.add(this.scorches);
+  }
+
+  /** A puff of stone dust where a bullet hit (or a heavier one for bigger hits). */
+  puff(point, normal, amount = 1) {
+    const n = Math.round(3 + amount * 3);
+    for (let k = 0; k < n; k++) {
+      const i = this._nextDust;
+      this._nextDust = (this._nextDust + 1) % MAX_DUST;
+      const o = i * 3;
+      const sp = (0.4 + Math.random() * 1.2) * amount;
+      this.dustPos[o] = point.x + normal.x * 0.05;
+      this.dustPos[o + 1] = point.y + normal.y * 0.05;
+      this.dustPos[o + 2] = point.z + normal.z * 0.05;
+      this.dustVel[o] = normal.x * sp + (Math.random() - 0.5) * 0.6;
+      this.dustVel[o + 1] = normal.y * sp + (Math.random() - 0.2) * 0.5;
+      this.dustVel[o + 2] = normal.z * sp + (Math.random() - 0.5) * 0.6;
+      const life = 0.7 + Math.random() * 0.9;
+      this.dustLife[i] = life;
+      this.dustMaxLife[i] = life;
+      this.dustSize[i] = 0.06 * amount;
+    }
+    this._dustAlive = MAX_DUST;
+  }
+
+  /** A scorch mark on the ground (or wall) under an explosion. */
+  scorch(point, normal, size) {
+    _q.setFromUnitVectors(_z, normal);
+    _roll.setFromAxisAngle(_z, Math.random() * Math.PI * 2);
+    _q.multiply(_roll);
+    _pos.copy(point).addScaledVector(normal, 0.01);
+    _scale.set(size, size, 1);
+    _m.compose(_pos, _q, _scale);
+    this.scorches.setMatrixAt(this._nextScorch, _m);
+    this._nextScorch = (this._nextScorch + 1) % MAX_SCORCH;
+    this.scorches.count = Math.min(this.scorches.count + 1, MAX_SCORCH);
+    this.scorches.instanceMatrix.needsUpdate = true;
   }
 
   /**
@@ -140,9 +259,10 @@ export class Impacts {
     this.decals.count = Math.min(this.decals.count + 1, MAX_DECALS);
     this.decals.instanceMatrix.needsUpdate = true;
 
-    // Sparks: mostly along the ricochet direction.
+    this.puff(point, normal, 1);
+    // Sparks: mostly along the ricochet direction (stone throws few).
     _reflect.copy(dir).reflect(normal);
-    const n = 7 + Math.floor(Math.random() * 6);
+    const n = 3 + Math.floor(Math.random() * 4);
     for (let k = 0; k < n; k++) {
       const i = this._nextSpark;
       this._nextSpark = (this._nextSpark + 1) % MAX_SPARKS;
@@ -204,13 +324,47 @@ export class Impacts {
   clear() {
     this.decals.count = 0;
     this._nextDecal = 0;
+    this.scorches.count = 0;
+    this._nextScorch = 0;
+    this.dustLife.fill(0);
+    this.dustAlpha.fill(0);
+    this.dust.geometry.attributes.alpha.needsUpdate = true;
+    this._dustAlive = 0;
     this.sparkLife.fill(0);
     this.sparkCol.fill(0);
     this.sparks.geometry.attributes.color.needsUpdate = true;
     this._alive = 0;
   }
 
+  _updateDust(dt) {
+    if (this._dustAlive === 0) return;
+    let alive = 0;
+    const drag = Math.exp(-3 * dt);
+    for (let i = 0; i < MAX_DUST; i++) {
+      if (this.dustLife[i] <= 0) {
+        this.dustAlpha[i] = 0;
+        continue;
+      }
+      alive++;
+      const o = i * 3;
+      this.dustLife[i] -= dt;
+      this.dustVel[o] *= drag;
+      this.dustVel[o + 1] = this.dustVel[o + 1] * drag - 0.25 * dt;
+      this.dustVel[o + 2] *= drag;
+      this.dustPos[o] += this.dustVel[o] * dt;
+      this.dustPos[o + 1] += this.dustVel[o + 1] * dt;
+      this.dustPos[o + 2] += this.dustVel[o + 2] * dt;
+      const f = Math.max(0, this.dustLife[i] / this.dustMaxLife[i]);
+      this.dustSize[i] += dt * 0.35; // billows out
+      this.dustAlpha[i] = 0.55 * f * Math.min(1, (1 - f) * 8 + 0.3);
+    }
+    this._dustAlive = alive;
+    const a = this.dust.geometry.attributes;
+    a.position.needsUpdate = a.size.needsUpdate = a.alpha.needsUpdate = true;
+  }
+
   update(dt) {
+    this._updateDust(dt);
     if (this._alive === 0) return;
     let alive = 0;
     for (let i = 0; i < MAX_SPARKS; i++) {

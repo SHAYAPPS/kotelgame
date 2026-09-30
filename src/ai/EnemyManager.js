@@ -295,6 +295,7 @@ export class EnemyManager {
 
   _onEnemyFire(shot) {
     this.tracers.add(shot.origin, shot.dir, shot.distance);
+    if (this.onShotFx) this.onShotFx(shot);
     this.audio.shotAt(shot.origin);
     const victim = shot.hitPlayer ? shot.target.agent : null;
     if (victim) {

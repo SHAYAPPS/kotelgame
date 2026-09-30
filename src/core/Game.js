@@ -1,10 +1,14 @@
-import { ACESFilmicToneMapping, MathUtils, PCFShadowMap, PerspectiveCamera, Scene, Vector3, WebGLRenderer } from 'three';
+import { ACESFilmicToneMapping, MathUtils, PCFShadowMap, PerspectiveCamera, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
 import { Input } from './Input.js';
 import { PlayerController } from '../player/PlayerController.js';
 import { PlayerCamera } from '../player/PlayerCamera.js';
 import { VIEW } from '../player/config.js';
 import { CollisionWorld } from '../world/CollisionWorld.js';
 import { Environment } from '../world/Environment.js';
+import { FlashLights } from '../world/FlashLights.js';
+import { TextureLibrary } from '../world/Textures.js';
+import { PostFX } from './PostFX.js';
+import { QUALITY, loadQuality, saveQuality } from './Graphics.js';
 import { SkyFx } from '../world/SkyFx.js';
 import { createTestRange } from '../world/TestRange.js';
 import { createKotelLevel } from '../world/kotel/KotelLevel.js';
@@ -41,17 +45,23 @@ const DEATH_RESTART = 3.2; // seconds from death to restart
 const _up = new Vector3(0, 1, 0);
 const _o = new Vector3();
 const _b = new Vector3();
+const _size = new Vector2();
+const _c = new Vector3();
+const _down = new Vector3(0, -1, 0);
 
 export class Game {
   constructor(container) {
-    const renderer = new WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // Antialiasing happens in the post chain (MSAA render target), not on the canvas.
+    const renderer = new WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+    this.qualityName = loadQuality();
+    this.quality = QUALITY[this.qualityName];
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.quality.pixelRatio));
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.toneMapping = ACESFilmicToneMapping;
+    renderer.toneMapping = ACESFilmicToneMapping; // filmic; applied by the post chain's output pass
     renderer.toneMappingExposure = 1.0;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = PCFShadowMap;
-    renderer.info.autoReset = false; // two render passes per frame; reset manually
+    renderer.info.autoReset = false; // several passes per frame; reset manually
     container.append(renderer.domElement);
     this.renderer = renderer;
 
@@ -66,11 +76,13 @@ export class Game {
       : createKotelLevel();
     this.level = level;
     this.scene.add(level.root);
-    this.environment = new Environment(
-      this.scene,
-      renderer,
-      level.environment ?? { shadowCenter: [0, 0, -8], shadowExtent: 36 },
-    );
+    this.environment = new Environment(this.scene, renderer, this.camera, level.environment ?? {}, this.quality);
+    // Stone textures stream in after the level shows (KTX2).
+    this.textures = new TextureLibrary(renderer);
+    this.textures.anisotropy = this.quality.anisotropy;
+    level.applyTextures?.(this.textures);
+    this.flashes = new FlashLights(this.scene, this.quality.flashLights);
+    this._blastHit = { point: new Vector3(), normal: new Vector3(), distance: 0 };
     this.collision = new CollisionWorld().build(level.collisionRoots);
 
     // Player
@@ -82,7 +94,9 @@ export class Game {
     // Weapon
     this.viewmodel = new Viewmodel();
     this.viewmodel.setAspect(this.camera.aspect);
+    this.post = new PostFX(renderer, this.scene, this.camera, this.viewmodel.scene, this.viewmodel.camera, this.quality);
     this.impacts = new Impacts(this.scene);
+    this._dustScale();
     this.audio = new WeaponAudio();
     this.rifle = new Rifle(
       {
@@ -131,6 +145,8 @@ export class Game {
       spawns: level.enemySpawns ?? [],
     });
     this.enemies.grenades = this.grenadeSim;
+    // Every enemy / squad shot briefly lights up the stone around the muzzle.
+    this.enemies.onShotFx = (shot) => this.flashes.flash(shot.origin, { intensity: 14, distance: 7, duration: 0.05 });
     this.enemies.onVehicleDestroyed = (truck) => this._vehicleExplosion(truck);
     this.rockets.targets = { raycast: (o, d, max) => this.enemies.raycast(o, d, max) };
     this.rockets.onImpact = (r, point, normal, target) => this._rocketImpact(r, point, target);
@@ -228,6 +244,8 @@ export class Game {
       onSensitivity: (v) => {
         this.view.sensitivity = v;
       },
+      quality: this.qualityName,
+      onQuality: (q) => this.setQuality(q),
       // Chapter select: start (or restart) the mission at one of its parts.
       chapters: this.story ? MISSION1.chapters : [],
       onChapter: (i) => {
@@ -274,6 +292,31 @@ export class Game {
     this.camera.updateProjectionMatrix();
     this.viewmodel.setAspect(this.camera.aspect);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+    const size = this.renderer.getDrawingBufferSize(_size);
+    this.post.setSize(size.x, size.y);
+    this.environment.csm.updateFrustums();
+    this._dustScale();
+  }
+
+  /** Dust puffs are sized in meters: pixels per meter at 1 m for the current view. */
+  _dustScale() {
+    const h = this.renderer.getDrawingBufferSize(_size).y;
+    this.impacts.dust.material.uniforms.scale.value = h / (2 * Math.tan(MathUtils.degToRad(this.camera.fov) / 2));
+  }
+
+  /** Graphics setting (low / medium / high): applied live and saved. */
+  setQuality(name) {
+    if (!QUALITY[name]) return;
+    this.qualityName = name;
+    this.quality = QUALITY[name];
+    saveQuality(name);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.quality.pixelRatio));
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.environment.setQuality(this.quality);
+    this.post.setQuality(this.quality);
+    this.flashes.setCount(this.quality.flashLights);
+    this.textures.setAnisotropy(this.quality.anisotropy);
+    this.resize();
   }
 
   frame(timeMs) {
@@ -298,7 +341,8 @@ export class Game {
     }
 
     this.view.render(this.active ? this.accumulator / FIXED_DT : 1);
-    this.environment.update(this.camera);
+    this.environment.update(this.camera, dt);
+    this.flashes.update(dt);
     const L = this.weapon === 'launcher';
     this.viewmodel.update(dt, {
       aim: L ? this.launcher.state.aim : this.rifle.state.aim,
@@ -330,11 +374,7 @@ export class Game {
     // World first, then the weapon on top with a cleared depth buffer.
     const r = this.renderer;
     r.info.reset();
-    r.render(this.scene, this.camera);
-    r.autoClear = false;
-    r.clearDepth();
-    r.render(this.viewmodel.scene, this.viewmodel.camera);
-    r.autoClear = true;
+    this.post.render(dt);
   }
 
   _fixedStep(dt) {
@@ -486,6 +526,7 @@ export class Game {
     _o.x += Math.cos(this.view.yaw) * 0.12;
     _o.z -= Math.sin(this.view.yaw) * 0.12;
     this.rockets.spawn(_o, dir, LAUNCHER.rocketSpeed);
+    this.flashes.flash(_o, { color: 0xffc080, intensity: 200, distance: 12, duration: 0.15 });
     this.viewmodel.onLauncherShot();
     this.view.addShake(0.25);
     this.audio.rocketLaunch?.();
@@ -510,6 +551,8 @@ export class Game {
     for (const [dx, dy, dz] of [[0, 1.2, 0], [0.8, 1.8, -1.2], [-0.7, 1.5, 1.3]]) this.grenadeView.explode(_o.set(p.x + dx, p.y + dy, p.z + dz), 2.2);
     this.audio.explosion(_o.set(p.x, p.y + 1, p.z));
     this.audio.explosion(_o.set(p.x, p.y + 1, p.z));
+    this.flashes.flash(_o.set(p.x, p.y + 2, p.z), { color: 0xff9040, intensity: 4000, distance: 32, duration: 0.8 });
+    this.impacts.scorch(_c.set(p.x, p.y + 0.02, p.z), _up, 7);
     this._blast(_o.set(p.x, p.y + 1, p.z), 9, 120, 320, null, 0);
     const d = p.distanceTo(this.player.position);
     this.view.addShake(Math.max(0.55, 1 - d / 60));
@@ -546,6 +589,13 @@ export class Game {
       this.grenadeView.explode(at, fx);
       this.audio.explosion(at);
       this.impacts.burst(at, _up, [0.45, 0.4, 0.33], 26);
+      this.flashes.flash(at, { color: 0xffa050, intensity: 900 * fx, distance: 16 + 6 * fx, duration: 0.35 });
+      // Scorch the surface under it and kick up stone dust.
+      const hit = this.collision.raycast(_c.set(at.x, at.y + 0.5, at.z), _down, 3, this._blastHit);
+      if (hit) {
+        this.impacts.scorch(hit.point, hit.normal, 2.2 * fx);
+        this.impacts.puff(hit.point, hit.normal, 3);
+      }
     }
     if (!this.health.dead) {
       const dmg = this.enemies.explosionDamageAt(at, info.chest, info.head, radius, playerDamage);

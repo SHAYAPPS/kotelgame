@@ -19,10 +19,12 @@ export const KOTEL = {
       { top: 7.5, course: [1.0, 1.12], length: [1.4, 4.6], gap: 0.035, relief: 0.05, margin: 0.08, color: 0xcbbd9c, colorJitter: 0.1 },
       // Umayyad: 4 courses, medium, plain faces
       { top: 11, course: [0.82, 0.95], length: [0.9, 1.7], gap: 0.03, relief: 0.06, color: 0xd6c39b, colorJitter: 0.12 },
-      // Mamluk / Ottoman: ~16 courses of small squared stones
-      { top: 19, course: [0.44, 0.52], length: [0.45, 0.85], gap: 0.025, relief: 0.035, color: 0xdcc79c, colorJitter: 0.1 },
+      // Mamluk / Ottoman: ~16 courses of small, rougher squared stones
+      { top: 19, course: [0.44, 0.52], length: [0.45, 0.85], gap: 0.025, relief: 0.035, color: 0xdcc79c, colorJitter: 0.1, rough: true },
     ],
-    plants: { count: 140, color: 0x5d7a3a, minY: 2.5 },
+    plants: { count: 150, color: 0x5d7a3a, minY: 2.5 },
+    // Folded prayer notes in the joints at hand height, along the prayer section.
+    notes: { count: 420, z: [-27, 27] },
     seed: 1967,
   },
 
@@ -134,12 +136,15 @@ export const KOTEL = {
   spawn: { x: -67.5, z: 78 },
 
   environment: {
-    shadowCenter: [-55, 0, 20],
-    shadowExtent: 95,
-    shadowMapSize: 4096,
-    // Afternoon sun from the west-south-west, so the wall face is lit.
-    sunOffset: [-80, 95, 45],
-    fog: [160, 750],
+    // The title card: Friday 11:40. Real sun position for the Kotel on a spring Friday
+    // (11 April 2025, Israel summer time): high in the south-east, so the west-facing
+    // wall is in its own shade and the plaza is in sun.
+    sun: { lat: 31.7767, lon: 35.2345, date: '2025-04-11', time: '11:40', utcOffset: 3 },
+    hdri: ['assets/hdri/sky_2k.hdr', 'assets/hdri/sky_512.exr'], // sky_2k: npm run assets:fetch
+    sunIntensity: 3.0,
+    envIntensity: 0.5,
+    bounce: 0.95, // warm fill from the sunlit plaza
+    fogDensity: 0.0019,
   },
 };
 
