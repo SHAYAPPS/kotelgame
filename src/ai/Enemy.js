@@ -56,6 +56,9 @@ export class CombatTarget {
     const p = this.position;
     this.head.set(p.x, p.y + (this.crouched ? c.crouchHeadHeight : c.headHeight), p.z);
     this.chest.set(p.x, p.y + (this.crouched ? 0.75 : 1.25), p.z);
+    // With an animated model, aim at its actual head (hit zones follow the model).
+    const hs = this.agent.hitShape;
+    if (hs?.valid) placeLocal(this.head, hs, p, hs.head);
   }
 
   hitTest(origin, dir, maxDist) {
@@ -64,6 +67,39 @@ export class CombatTarget {
     this.zone = h.zone;
     return h.distance;
   }
+}
+
+const _h = new Vector3();
+const _ca = new Vector3();
+const _cb = new Vector3();
+
+/** A point of a model's hit shape (root frame, rotated by shape.yaw) placed at `position`. */
+export function placeLocal(out, shape, position, v) {
+  const s = Math.sin(shape.yaw);
+  const c = Math.cos(shape.yaw);
+  return out.set(position.x + v.x * c + v.z * s, position.y + v.y, position.z - v.x * s + v.z * c);
+}
+
+/**
+ * Ray test against a character model's hit zones: `shape` holds the head center and the body
+ * capsule's end points in the model's root frame (feet at the origin, rotated by `yaw`); they
+ * are placed at the body's current position. The capsule's top stops `radius` below the neck
+ * so the head sphere is what a shot at the head hits.
+ * @returns {{ distance: number, zone: 'head'|'body' } | null}
+ */
+export function modelHitTest(shape, position, headRadius, radius, origin, dir, maxDist) {
+  placeLocal(_h, shape, position, shape.head);
+  placeLocal(_ca, shape, position, shape.a);
+  placeLocal(_cb, shape, position, shape.b);
+  // Pull the capsule's top end down by its radius (the neck ends the body zone).
+  _dir.subVectors(_ca, _cb);
+  const len = _dir.length();
+  if (len > 1e-4) _cb.addScaledVector(_dir, Math.min(radius, len * 0.5) / len);
+  const th = raySphere(origin, dir, _h, headRadius, maxDist);
+  const tb = rayCapsule(origin, dir, _ca, _cb, radius, maxDist);
+  if (th >= 0 && (tb < 0 || th <= tb + 0.05)) return { distance: th, zone: 'head' };
+  if (tb >= 0) return { distance: tb, zone: 'body' };
+  return null;
 }
 
 /** Nobody to fight (a friendly with no enemies left). */
@@ -142,6 +178,7 @@ export class Enemy {
     this.fireCooldown = 0;
     this.shotsFired = 0;
     this.lastShotTime = -Infinity;
+    this.throws = 0; // grenades thrown (the view plays the throw)
 
     // Roles (see story/difficulty.js): a route to run before engaging (flankers), aimed
     // single shots with a scope glint (marksman), grenades.
@@ -166,6 +203,12 @@ export class Enemy {
     // Death
     this.deathDir = new Vector3(0, 0, 1);
     this.lastHitZone = null;
+
+    // Hit zones from the animated model (set by the view: head sphere and body capsule
+    // points in its root frame, see characters/CharacterModel.js). Without a model: the
+    // analytic zones below.
+    this.hitShape = null;
+    this.visualMuzzle = null; // where tracers start (the rifle's muzzle on the model)
 
     this._hit = { point: new Vector3(), normal: new Vector3(), distance: 0 };
     this._controls = { forward: 0, right: 0, jump: false, sprint: false, crouch: false, moveScale: 1 };
@@ -207,6 +250,7 @@ export class Enemy {
     if (!this.alive) return null;
     const c = this.cfg;
     const p = this.body.position;
+    if (this.hitShape?.valid) return modelHitTest(this.hitShape, p, c.headRadius, c.radius, origin, dir, maxDist);
     const headY = this.crouched ? c.crouchHeadHeight : c.headHeight;
     _a.set(p.x, p.y + headY, p.z);
     const th = raySphere(origin, dir, _a, c.headRadius, maxDist);
@@ -578,6 +622,7 @@ export class Enemy {
     _a.set(targetPoint.x + (this.rand() - 0.5) * 2 * s, targetPoint.y, targetPoint.z + (this.rand() - 0.5) * 2 * s);
     solve(outOrigin, _a, outVelocity);
     this.grenadeCooldown = rangeRand(this.rand, g.cooldown);
+    this.throws++;
     this.fireCooldown = Math.max(this.fireCooldown, 0.9);
     this.burstLeft = 0;
     this._faceTarget(1, targetPoint);

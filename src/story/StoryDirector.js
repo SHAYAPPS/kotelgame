@@ -604,6 +604,8 @@ export class StoryDirector {
     this.npcs.update(dt, playerInfo, p);
     for (const c of this.crates.values()) c.pushOut(p.position, p.cfg.radius);
     this.dialogue.update(dt);
+    const line = this.dialogue.current;
+    for (const n of this.npcs.list) n.speaking = !!(line && n.speaker && line.speaker === n.speaker && !line.radio);
     this.mission.update(dt);
   }
 

@@ -9,6 +9,7 @@ import {
   Vector3,
 } from 'three';
 import { ENEMY } from './config.js';
+import { placeLocal } from './Enemy.js';
 import { HE } from '../ui/strings.he.js';
 
 const STATE_COLORS = {
@@ -21,6 +22,15 @@ const CONE_SEGMENTS = 16;
 const CONE_DRAW_RANGE = 18; // draw the cone shorter than the real 70 m so it stays readable
 const MAX_PATH = 64;
 const _v = new Vector3();
+const _h = new Vector3();
+const _a = new Vector3();
+const _b = new Vector3();
+const _ax = new Vector3();
+const _u = new Vector3();
+const _w = new Vector3();
+const ZONE_AGENTS = 64;
+const ZONE_SEGS = 12; // per circle
+const ZONE_FLOATS = (3 * ZONE_SEGS + 2 * ZONE_SEGS + 4) * 6; // per agent: head (3 circles), capsule (2 rings + 4 sides)
 
 /**
  * Dev overlay (F1): the navmesh, cover points, and per enemy the vision cone, the
@@ -52,6 +62,14 @@ export class DebugDraw {
 
   _buildStatic() {
     this.built = true;
+    // Hit zones (head sphere, body capsule) of every combatant with an animated model.
+    this.zonePos = new Float32Array(ZONE_AGENTS * ZONE_FLOATS);
+    const zg = new BufferGeometry();
+    zg.setAttribute('position', new BufferAttribute(this.zonePos, 3));
+    this.zones = new LineSegments(zg, new LineBasicMaterial({ color: 0xff40ff, depthTest: false, transparent: true, opacity: 0.85, toneMapped: false }));
+    this.zones.frustumCulled = false;
+    this.zones.renderOrder = 10;
+    this.group.add(this.zones);
     const nav = this.manager.nav;
     // Navmesh: one point per walkable cell (pale near walls, where paths avoid going).
     const pts = [];
@@ -107,7 +125,53 @@ export class DebugDraw {
     return c;
   }
 
+  /** Hit zones as wireframes (the same shapes modelHitTest uses). */
+  _drawZones() {
+    const out = this.zonePos;
+    let o = 0;
+    const seg = (p, q) => {
+      out[o++] = p.x; out[o++] = p.y; out[o++] = p.z;
+      out[o++] = q.x; out[o++] = q.y; out[o++] = q.z;
+    };
+    const circle = (c, r, u, w) => {
+      for (let i = 0; i < ZONE_SEGS; i++) {
+        const t0 = (i / ZONE_SEGS) * Math.PI * 2;
+        const t1 = ((i + 1) / ZONE_SEGS) * Math.PI * 2;
+        seg(_v.copy(c).addScaledVector(u, Math.cos(t0) * r).addScaledVector(w, Math.sin(t0) * r), _ax.copy(c).addScaledVector(u, Math.cos(t1) * r).addScaledVector(w, Math.sin(t1) * r));
+      }
+    };
+    const X = new Vector3(1, 0, 0), Y = new Vector3(0, 1, 0), Z = new Vector3(0, 0, 1);
+    let n = 0;
+    for (const e of [...this.manager.enemies, ...this.manager.friendlies]) {
+      const hs = e.hitShape;
+      if (!hs?.valid || !e.alive || n >= ZONE_AGENTS) continue;
+      n++;
+      const c = e.cfg;
+      placeLocal(_h, hs, e.position, hs.head);
+      circle(_h, c.headRadius, X, Y);
+      circle(_h, c.headRadius, Y, Z);
+      circle(_h, c.headRadius, Z, X);
+      placeLocal(_a, hs, e.position, hs.a);
+      placeLocal(_b, hs, e.position, hs.b);
+      _ax.subVectors(_a, _b);
+      const len = _ax.length();
+      if (len > 1e-4) _b.addScaledVector(_ax, Math.min(c.radius, len * 0.5) / len);
+      _ax.subVectors(_b, _a).normalize();
+      _u.crossVectors(_ax, Math.abs(_ax.y) < 0.9 ? Y : X).normalize();
+      _w.crossVectors(_ax, _u);
+      const u = _u.clone();
+      const w = _w.clone();
+      circle(_a, c.radius, u, w);
+      circle(_b, c.radius, u, w);
+      for (const k of [u, w, u.clone().negate(), w.clone().negate()]) seg(_v.copy(_a).addScaledVector(k, c.radius), _h.copy(_b).addScaledVector(k, c.radius));
+    }
+    out.fill(0, o);
+    this.zones.geometry.attributes.position.needsUpdate = true;
+    this.zones.geometry.setDrawRange(0, o / 3);
+  }
+
   update() {
+    if (this.visible && this.zones) this._drawZones();
     // Drop overlays of enemies that no longer exist.
     const live = new Set(this.manager.enemies);
     for (const [enemy, c] of this.cones) {

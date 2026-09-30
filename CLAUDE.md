@@ -12,15 +12,17 @@ A browser-based 3D first-person story shooter.
 - Tone: grounded and intense, with realistic weapon feel and squad AI.
 - Hebrew UI and dialogue (RTL).
 - Visuals: start with greybox shapes, then move to realistic textures and lighting later.
-  **Free/CC0 assets only.**
+  **Free/CC0 assets only.** One exception, chosen by the project owner: the characters and
+  animations come from Mixamo (free to use in the game, not redistributable on their own;
+  they ship only converted, inside the game; raw files stay out of git, see `DOWNLOADS.md`).
 
 ## Working rules
 
 - Build **one feature at a time**. Stop after each one and tell the user how to test it
   (the command to run and what to try).
 - **Commit to git after every working feature.**
-- Keep the code modular: `src/player`, `src/weapons`, `src/world`, `src/ai`, `src/story`, `src/ui`.
-  (`src/core` holds engine plumbing: renderer, game loop, input.)
+- Keep the code modular: `src/player`, `src/weapons`, `src/world`, `src/ai`, `src/story`, `src/ui`,
+  `src/characters` (animated people). (`src/core` holds engine plumbing: renderer, game loop, input.)
 - Target a smooth **60 FPS on an average laptop**.
 
 ## Roadmap
@@ -38,8 +40,11 @@ A browser-based 3D first-person story shooter.
    - [x] Part 1: textures (KTX2), HDRI lighting, time-of-day sun, cascaded shadows, post FX,
      wall detail (plants, prayer notes), building facades, impact dust/scorch, flash lights,
      graphics setting (low/medium/high)
-   - [ ] Part 2  <- next
-   - [ ] Part 3
+   - [x] Part 2: animated characters (Mixamo) replace the capsules: squad (olive, helmets,
+     vests), enemies (dark, faces covered, role-colored headbands), civilians (varied clothes);
+     8-way blended locomotion at the real ground speed, cover / reload / grenade / hit
+     overlays, deaths by hit direction, model hit zones, LODs and distance-based update rates
+   - [ ] Part 3  <- next
 
 ## Commands
 
@@ -56,7 +61,14 @@ A browser-based 3D first-person story shooter.
   to api.polyhaven.com, dl.polyhaven.org, ambientcg.com). `LOCAL=<dir>` imports files you
   downloaded yourself (`<id>_color/_normal/_rough[/_ao].jpg`). A set that fails keeps what's there.
 - `npm run screenshots -- [outDir] [low|medium|high]`: Playwright screenshots from 5 fixed
-  spots around the plaza (dev server must be running; needs `playwright` installed)
+  spots around the plaza (dev server must be running; `playwright` is a dev dependency)
+- `npm run assets:characters [id ... | anims]`: rebuild the characters (`public/assets/characters/`)
+  from the Mixamo FBX files in `assets-src/mixamo/` (git-ignored; see `DOWNLOADS.md` for how to
+  get them). ~15 s per character; rewrites the manifest and `public/assets/CREDITS.md`
+- `npm run character-shots -- [outDir] [name filter]`: Playwright screenshots of the characters
+  in the dev preview and at 8 moments of Mission 1 (`GAME_SHOTS`: prayer, patrol, sirens,
+  shelter, combat, bodies; dev server must be running). The preview itself: `npm run dev`, then http://localhost:5173/dev/characters.html
+  (`?role=squad|enemy|civilian`, `ids=`, `clip=`, `cam=front|side|back|close|far`, `t=`, `deaths=1`)
 
 ## Architecture
 
@@ -168,8 +180,9 @@ A browser-based 3D first-person story shooter.
     when nobody is in sight), `via` (flankers run a route first), `rusher` (charge, fire on the
     move), `suppress` (keep firing at the last known spot), `marksman` (aimed single shots,
     `glint` 0..1 drawn as a scope glint by EnemyView), `defender` (holds a post).
-  - `EnemyView.js`: placeholder soldier (capsule body + separate head), crouch, muzzle flash,
-    death fall; `Tracers`.
+  - `EnemyView.js`: the enemy's animated character (see `src/characters/`), a capsule
+    placeholder until the characters load; `soldierState()`; `Tracers` (they start at the
+    model's muzzle: `enemy.visualMuzzle`).
   - `DebugDraw.js`: F1 overlay (navmesh points, cover points, vision cones, paths, state labels).
 - `src/story/`: the mission system (pure logic except the views/audio) and Mission 1.
   - `Mission.js`: a script is a list of steps; each step runs `do` actions on entry and waits for
@@ -203,8 +216,10 @@ A browser-based 3D first-person story shooter.
     Emergency: `panic()` (civilians flee to shelter spots with staggered reactions, bystanders
     freeze until E), `escort` (squad keeps near the player), `brain` (the combat AI drives the
     body; the NPC only mirrors it).
-  - `NpcView.js`: placeholder figures (one merged vertex-colored mesh per kind), pray/walk/idle
-    loops, crouch; soldiers raise the rifle and show a muzzle flash while their AI fights.
+  - `NpcView.js`: the NPC's animated character: squad members by name (SoldierAnimator,
+    relaxed off duty, full combat behavior once their AI takes over), civilians by kind
+    (CivilianAnimator); placeholder figures until the characters load (and in tests).
+    StoryDirector sets `npc.speaking` while the NPC has the current line.
   - `AmbientAudio.js`: generated crowd murmur (panic shouts), birds, the rising-and-falling
     siren (three horns into the echo bus), distant booms, radio lines (garbled synthesized voice
     through a band-pass + distortion, with squelches), charging handle, objective chime.
@@ -222,6 +237,55 @@ A browser-based 3D first-person story shooter.
   `GrenadeView` (pooled grenades, blasts, the dashed arc). `GrenadeThrower.js`: the player's
   3 grenades (hold G = aim with the arc, release = throw). `Game._explode()` applies damage.
 - `src/ui/GrenadeWarning.js`: icon around the crosshair toward enemy grenades within 9 m.
+- `src/characters/`: the animated people (Mixamo). Assets in `public/assets/characters/`:
+  one `<id>.glb` per character (skinned mesh whose 3 primitives are LOD0-2 sharing one vertex
+  buffer, one material: color + normal atlas in KTX2, `_part` vertex attribute for tints),
+  `anims.bin` (every clip, see below) and `manifest.json` (roles, head/chest measurements,
+  clip data: loop, measured locomotion speed, IK, grenade release time, death fall direction).
+  - `CharacterLibrary.js`: loads it all (the TextureLibrary's KTX2 loader, three's
+    MeshoptDecoder); `characters` (module singleton: `library`, `camera`, `frustum`, set by
+    Game) is how views find it. Per type: its clip set with the hips track scaled to the
+    body (`hipsRatio`) and the IK target scaled to the arms (`armRatio`).
+  - `animLibrary.js`: decodes `anims.bin` into three clips (bone quaternions, hips position,
+    IK targets `ikHandR` / `ikHandL`).
+  - `CharacterModel.js`: one character: `SkeletonUtils.clone`, LODs on one skeleton, a
+    per-person material (part tints in the shader), weighted slots over an AnimationMixer
+    (`fade`, `setWeight`; modes base / upper (overrides the upper body) / add / addUpper),
+    a shared locomotion `phase`, spine aim pitch, two-bone arm IK (`ik.js`: right hand where
+    the source clip held it vs Spine2, left hand on the handguard vs the right hand), bone
+    attachments (`attach`, rifle via `addRifle`), and the hit zones in root space (`hit`).
+    Performance: LOD by distance, animation every frame < 16 m / every 2nd < 36 m / every 4th,
+    off-screen every 8th; IK < 18 m; shadows < `characterShadows` (Graphics.js); characters
+    beyond 20 m on `FAR_LAYER` (drawn, but not in the AO prepass or shadow maps); bone
+    matrices uploaded only when the pose or placement changed. Tuning: `config.js`.
+  - `SoldierAnimator.js`: squad and enemies from the AI state (`soldierState()` in
+    EnemyView.js): postures relaxed / alert / combat, idles (aiming, crouched, cover wall with
+    the back to high cover), 8-way walk / run / crouch-walk (`directionBlend`) at the real
+    ground speed, recoil and muzzle flash per shot, reloads after ~28 shots when quiet,
+    grenade throws started just before the release (the AI's grenade is already flying), hit
+    reactions (additive), deaths via `deaths.js` (the clip whose fall direction best follows
+    the shot, avoiding walls; the fall ends on its last frame (`model.finish()`, even when
+    throttled updates lagged), then the body freezes and stays down).
+  - `CivilianAnimator.js`: idles by kind, praying (desynchronized), walk / run (scared upper
+    body while fleeing), frozen cowering, panic, nervous waiting in the shelter, talking.
+  - `outfits.js` (who wears what: rifles, vest, role-colored headbands, kippot, hats,
+    headscarves, per-person tints), `attachments.js`, `weapons.js` (M4 / AK from boxes).
+  - `EnemyView.js` / `story/NpcView.js` / `ai/TruckView.js` (the gunner) build the models
+    once the library is ready; until then (and in tests) the old placeholder figures.
+    Hit zones: views set `agent.hitShape = model.hit`; `Enemy.raycast` / `Npc.raycast` then
+    use `modelHitTest` (head sphere + body capsule from feet/hips to the neck, same radii as
+    before), and other agents aim at the model's head. F1 draws the zones (magenta).
+- `scripts/assets/characters.mjs` (+ `characters.config.mjs`, `lib/`): the converter. FBX via
+  three's FBXLoader in Node (`lib/fbx.mjs`, embedded textures captured) -> skeleton in meters
+  with duplicate bone hierarchies merged (`lib/rig.mjs`) -> meshes merged and welded ->
+  hidden skin under clothes removed (`lib/hidden.mjs`) -> texture atlas + recolors (olive /
+  dark / "SWAT" lettering removed / painted balaclava or face wrap) (`lib/atlas.mjs`) ->
+  LODs with meshoptimizer (`lib/lod.mjs`) -> GLB (`lib/glb.mjs`). Clips (`lib/anim.mjs`):
+  sampled at 30 fps (slow idles 15 fps, long ones cut to crossfaded 8 s loops), root motion
+  measured then removed for locomotion (speed in the manifest), cycles shifted so the left
+  foot plants at phase 0, IK hand targets baked from the source skeleton; packed by
+  `lib/animbin.mjs` (meshopt codec, quaternion / exponential filters).
+- `dev/characters.html`: the character preview (dev only, not in the build).
 - Start screen: chapter buttons (`MISSION1.chapters`) start the mission at a part (`story.startAt`).
 - Weapons: 1 = rifle, 2 = launcher (once owned), or the mouse wheel (`Game._updateWeapons`: lower,
   swap the viewmodel, raise). `src/weapons/Launcher.js` (pure: one loaded, auto reload, ADS) +
@@ -256,8 +320,8 @@ A browser-based 3D first-person story shooter.
   `src/ui/strings.he.js`. Wrap numbers inside Hebrew text in LTR isolates (see `Hud.js`).
 - Gameplay logic that can run without a browser (physics, AI decisions, story triggers) stays
   DOM-free and gets tests in `tests/`. Run `npm test` before committing.
-- Assets: free/CC0 only. Record the source and license of every third-party asset
-  in `public/assets/CREDITS.md`.
+- Assets: free/CC0 only (the Mixamo characters are the one exception, see Game vision).
+  Record the source and license of every third-party asset in `public/assets/CREDITS.md`.
 - Performance: no per-frame allocations in hot paths (reuse vectors), keep draw calls low,
   and check the FPS readout after every feature.
 
@@ -271,7 +335,9 @@ A browser-based 3D first-person story shooter.
   (e.g. `__game.setActive(true)` plays without pointer lock).
 - Headless Chromium (Playwright) renders with SwiftShader: fine for screenshots and logic checks,
   meaningless for FPS numbers. At ~5 FPS the frame-time cap makes game time run slower than real
-  time. Under pointer lock, Playwright's synthetic mouse events report bogus large movements
+  time (with every character on screen it can drop under 1 FPS, a few tenths of a second of game
+  time in 15 s: fast-forward what a shot needs, e.g. `view.update(0.1)` in a loop for the
+  death falls in `character-shots.mjs`). Under pointer lock, Playwright's synthetic mouse events report bogus large movements
   (the view jumps); drive input via `__game.input.held` / `.pressed` instead.
 - Two render passes per frame (world, then viewmodel), so `renderer.info.autoReset` is off and
   `Game.frame()` resets it.
@@ -292,3 +358,17 @@ A browser-based 3D first-person story shooter.
   then leaves the generated textures in place.
 - Headless Chromium is very slow at compositing full-screen CSS overlays (damage vignette,
   death fade); game time crawls in those tests. Real GPUs are fine.
+- Characters, retargeting: all Mixamo rigs share bone names and axis conventions, so clips made
+  on Y Bot play by copying local rotations (plus the scaled hips track). Proportions differ,
+  so rifle holds need the arm IK (the source hands' placement is baked into the clips).
+  The rifle axis is the body's forward, not the hand-to-hand line (the support wrist sits
+  ~30 degrees off the bore in the Pro Rifle Pack).
+- Characters, converter pitfalls: FBX UVs are v-up (glTF v-down); some Fuse models bind each
+  clothing mesh to its own copy of the skeleton (merge them or the clothes don't move);
+  glTF-Transform's `quantize` sorts skin weights once per primitive and scrambles joints when
+  primitives share accessors (the LODs do): weights are sorted/quantized in `packSkin` and
+  `normalizeWeights` is off. A glTF with every clip was ~60% JSON: hence `anims.bin`.
+- Characters, runtime: `SkinnedMesh.boundingSphere` is preset (a fixed sphere) so three never
+  computes skinned bounds; three calls `skeleton.update()` on every `render()` that draws the
+  mesh (the post chain renders the scene more than once), which CharacterModel skips when
+  nothing changed.

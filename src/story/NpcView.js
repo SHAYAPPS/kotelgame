@@ -13,9 +13,12 @@ import {
   MeshStandardMaterial,
   PlaneGeometry,
   SphereGeometry,
+  Vector3,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { NPC } from './Npc.js';
+import { characters } from '../characters/registry.js';
+import { soldierState } from '../ai/EnemyView.js';
 
 const SKIN = [0xc79a78, 0xa87b5a, 0xe0b596, 0x8d6246, 0xd2a282];
 const BRIGHT = [0xd9534f, 0x3f7fbf, 0xf0ad4e, 0x5cb85c, 0x9b59b6, 0x1abc9c, 0xe67e22, 0xf2f2f2];
@@ -128,11 +131,12 @@ function figureGeometry(kind, rand) {
   return mergeGeometries(parts);
 }
 
-/** Placeholder figure with walk / pray / idle loops. */
-export class NpcView {
-  constructor(npc, rand = Math.random) {
+/** Placeholder figure with walk / pray / idle loops (until the characters load, and in tests). */
+class PlaceholderFigure {
+  constructor(npc, root, rand = Math.random) {
     this.npc = npc;
     this.root = new Group();
+    root.add(this.root);
     this.pivot = new Group(); // rocks when praying, bobs when walking
     this.root.add(this.pivot);
     this.mesh = new Mesh(figureGeometry(npc.kind, rand), material);
@@ -158,7 +162,6 @@ export class NpcView {
 
   update(dt) {
     const n = this.npc;
-    this.root.position.copy(n.position);
     this.root.rotation.y = n.facing;
     // Crouching (cowering civilians, soldiers behind low cover): squash the figure.
     const want = n.body.crouched ? 1 : 0;
@@ -201,5 +204,111 @@ export class NpcView {
   dispose() {
     this.root.removeFromParent();
     this.mesh.geometry.dispose();
+  }
+}
+
+// Which character plays whom. Squad members by name; civilians by kind, cycling through
+// the fitting models so neighbors differ.
+const SQUAD = { cmd: 'squad_swat', yonatan: 'squad_steve', noam: 'squad_swatguy' };
+const BY_KIND = {
+  worshipper: ['civ_brian', 'civ_joe', 'civ_josh'],
+  worshipperWoman: ['civ_martha', 'civ_kate', 'civ_elizabeth', 'civ_megan'],
+  tourist: ['civ_remy', 'civ_bryce', 'civ_sophie', 'civ_megan', 'civ_elizabeth', 'civ_lewis'],
+  guide: ['civ_bryce'],
+  civilian: ['civ_lewis', 'civ_josh', 'civ_kate', 'civ_martha', 'civ_brian', 'civ_megan', 'civ_sophie'],
+};
+const kindCount = new Map();
+
+/**
+ * A story NPC: the animated character (squad member or civilian) driven by its animator,
+ * or a placeholder figure until the characters have loaded. Hit zones follow the model
+ * (npc.hitShape: friendly-fire tests).
+ */
+export class NpcView {
+  constructor(npc, rand = Math.random) {
+    this.npc = npc;
+    this.rand = rand;
+    this.root = new Group();
+    this.model = null;
+    this.animator = null;
+    this.placeholder = null;
+    this.soldier = npc.kind === 'soldier' || npc.kind === 'commander';
+    this.state = {
+      alive: true, facing: 0, velocity: null, crouched: false, posture: 'relaxed', mode: 'idle', cover: null,
+      aimAt: null, eyeY: 1.62, shotsFired: 0, health: 100, throws: 0, deathDir: null, hitZone: null, position: null,
+    };
+    this.civ = { speed: 0, pray: false, frozen: false, fleeing: false, sheltered: false, panicking: false, speaking: false, crouched: false };
+    if (!this._build()) this.placeholder = new PlaceholderFigure(npc, this.root, rand);
+  }
+
+  _build() {
+    const lib = characters.library;
+    if (!lib?.ready) return false;
+    const n = this.npc;
+    let id = null;
+    if (this.soldier) id = SQUAD[n.id] ?? lib.ids('squad')[Math.floor(this.rand() * 3) % lib.ids('squad').length];
+    else {
+      const list = (BY_KIND[n.kind] ?? BY_KIND.civilian).filter((x) => lib.has(x));
+      const k = kindCount.get(n.kind) ?? Math.floor(this.rand() * 7);
+      kindCount.set(n.kind, k + 1);
+      id = list.length ? list[k % list.length] : lib.ids('civilian')[0];
+    }
+    if (!id || !lib.has(id)) return false;
+    ({ model: this.model, animator: this.animator } = this.soldier ? lib.soldier(id, { rand: this.rand }) : lib.civilian(id, n.kind, { rand: this.rand }));
+    this.root.add(this.model.root);
+    n.hitShape = this.model.hit;
+    if (this.placeholder) {
+      this.placeholder.dispose();
+      this.placeholder = null;
+    }
+    return true;
+  }
+
+  update(dt) {
+    const n = this.npc;
+    this.root.position.copy(n.position);
+    if (!this.model && characters.library?.ready) this._build();
+    if (!this.model) return this.placeholder.update(dt);
+    if (this.soldier) {
+      const b = n.brain;
+      if (b) soldierState(b, this.state);
+      else {
+        const s = this.state;
+        s.alive = true;
+        s.facing = n.facing;
+        s.velocity = n.body.velocity;
+        s.crouched = n.body.crouched;
+        s.posture = 'relaxed';
+        s.mode = 'idle';
+        s.cover = null;
+        s.aimAt = null;
+        s.position = n.position;
+      }
+      this.animator.update(dt, this.state);
+    } else {
+      const c = this.civ;
+      c.speed = n.speed;
+      c.pray = n.pray;
+      c.frozen = n.frozen;
+      c.fleeing = n.fleeing;
+      c.sheltered = n.sheltered;
+      c.panicking = n.panicking;
+      c.speaking = !!n.speaking;
+      c.crouched = n.body.crouched;
+      this.model.root.rotation.y = n.facing;
+      this.animator.update(dt, c);
+    }
+    this.model.update(dt, characters);
+    if (n.brain) {
+      // The combat AI on this body is what enemies shoot at: same zones, same muzzle.
+      n.brain.hitShape = this.model.hit;
+      n.brain.visualMuzzle = this.model.muzzleWorld(n.brain.visualMuzzle ?? new Vector3());
+    }
+  }
+
+  dispose() {
+    if (this.model) this.model.dispose();
+    this.root.removeFromParent();
+    this.placeholder?.dispose();
   }
 }

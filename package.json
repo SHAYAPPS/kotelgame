@@ -14,13 +14,20 @@
     "test": "node --test \"tests/**/*.test.js\"",
     "assets:generate": "node scripts/assets/generate.mjs",
     "assets:fetch": "node scripts/assets/fetch.mjs",
-    "screenshots": "node scripts/screenshots.mjs"
+    "screenshots": "node scripts/screenshots.mjs",
+    "assets:characters": "node scripts/assets/characters.mjs",
+    "character-shots": "node scripts/character-shots.mjs"
   },
   "dependencies": {
     "three": "^0.186.1"
   },
   "devDependencies": {
+    "@gltf-transform/core": "^4.5.1",
+    "@gltf-transform/extensions": "^4.5.1",
+    "@gltf-transform/functions": "^4.5.1",
     "ktx2-encoder": "^0.6.0",
+    "meshoptimizer": "^1.3.0",
+    "playwright": "^1.63.0",
     "sharp": "^0.35.5",
     "vite": "^8.3.1"
   }

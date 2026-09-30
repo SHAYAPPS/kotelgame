@@ -1,0 +1,2625 @@
+{
+ "characters": {
+  "squad_swat": {
+   "file": "squad_swat.glb",
+   "source": "Swat",
+   "role": "squad",
+   "sex": "m",
+   "height": 1.795,
+   "hips": 0.9637,
+   "head": {
+    "min": [
+     -0.1154,
+     -0.0175,
+     -0.132
+    ],
+    "max": [
+     0.1154,
+     0.2017,
+     0.1383
+    ],
+    "chinY": 0.0007,
+    "topY": 0.2017,
+    "eyeY": 0.1012,
+    "front": 0.1383,
+    "ring": {
+     "y": 0.1313,
+     "cz": 0.0097,
+     "rx": 0.1012,
+     "rz": 0.1286
+    }
+   },
+   "chest": {
+    "min": [
+     -0.189,
+     -0.1775,
+     -0.2047
+    ],
+    "max": [
+     0.189,
+     0.2314,
+     0.1759
+    ]
+   },
+   "parts": [
+    0
+   ],
+   "partLum": [
+    0.1422,
+    0.3,
+    0.3,
+    0.3,
+    0.3,
+    0.3
+   ],
+   "tris": [
+    14000,
+    4481,
+    1498
+   ],
+   "alpha": false,
+   "vest": false,
+   "credit": "recolored olive, \"SWAT\" lettering removed"
+  },
+  "squad_swatguy": {
+   "file": "squad_swatguy.glb",
+   "source": "Swat Guy",
+   "role": "squad",
+   "sex": "m",
+   "height": 1.795,
+   "hips": 0.9535,
+   "head": {
+    "min": [
+     -0.1124,
+     -0.0426,
+     -0.0869
+    ],
+    "max": [
+     0.1124,
+     0.232,
+     0.1746
+    ],
+    "chinY": -0.024,
+    "topY": 0.232,
+    "eyeY": 0.104,
+    "front": 0.1746,
+    "ring": {
+     "y": 0.1424,
+     "cz": 0.0489,
+     "rx": 0.1083,
+     "rz": 0.1224
+    }
+   },
+   "chest": {
+    "min": [
+     -0.1985,
+     -0.1898,
+     -0.1557
+    ],
+    "max": [
+     0.1985,
+     0.1928,
+     0.2012
+    ]
+   },
+   "parts": [
+    0
+   ],
+   "partLum": [
+    0.0336,
+    0.3,
+    0.3,
+    0.3,
+    0.3,
+    0.3
+   ],
+   "tris": [
+    13999,
+    4494,
+    2564
+   ],
+   "alpha": false,
+   "vest": false,
+   "credit": "recolored olive"
+  },
+  "squad_steve": {
+   "file": "squad_steve.glb",
+   "source": "Steve",
+   "role": "squad",
+   "sex": "m",
+   "height": 1.78,
+   "hips": 0.9714,
+   "head": {
+    "min": [
+     -0.1099,
+     -0.028,
+     -0.0905
+    ],
+    "max": [
+     0.1099,
+     0.2415,
+     0.1589
+    ],
+    "chinY": -0.0197,
+    "topY": 0.2415,
+    "eyeY": 0.1109,
+    "front": 0.1589,
+    "ring": {
+     "y": 0.1501,
+     "cz": 0.0341,
+     "rx": 0.0937,
+     "rz": 0.1078
+    }
+   },
+   "chest": {
+    "min": [
+     -0.181,
+     -0.1806,
+     -0.116
+    ],
+    "max": [
+     0.1801,
+     0.2192,
+     0.1478
+    ]
+   },
+   "parts": [
+    0
+   ],
+   "partLum": [
+    0.0895,
+    0.3,
+    0.3,
+    0.3,
+    0.3,
+    0.3
+   ],
+   "tris": [
+    14000,
+    4498,
+    1499
+   ],
+   "alpha": false,
+   "vest": true,
+   "credit": "toned to olive; a vest is added in game"
+  },
+  "enemy_ninja": {
+   "file": "enemy_ninja.glb",
+   "source": "Ninja",
+   "role": "enemy",
+   "sex": "m",
+   "height": 1.742,
+   "hips": 0.9341,
+   "head": {
+    "min": [
+     -0.0883,
+     -0.0285,
+     -0.0828
+    ],
+    "max": [
+     0.0883,
+     0.1976,
+     0.1444
+    ],
+    "chinY": -0.0203,
+    "topY": 0.1976,
+    "eyeY": 0.0886,
+    "front": 0.1444,
+    "ring": {
+     "y": 0.1213,
+     "cz": 0.0183,
+     "rx": 0.0822,
+     "rz": 0.101
+    }
+   },
+   "chest": {
+    "min": [
+     -0.1707,
+     -0.1848,
+     -0.1555
+    ],
+    "max": [
+     0.1685,
+     0.2352,
+     0.1778
+    ]
+   },
+   "parts": [
+    0
+   ],
+   "partLum": [
+    0.0511,
+    0.3,
+    0.3,
+    0.3,
+    0.3,
+    0.3
+   ],
+   "tris": [
+    12000,
+    3999,
+    1299
+   ],
+   "alpha": false,
+   "vest": false,
+   "credit": "darkened"
+  },
+  "enemy_david": {
+   "file": "enemy_david.glb",
+   "source": "David",
+   "role": "enemy",
+   "sex": "m",
+   "height": 1.758,
+   "hips": 0.9606,
+   "head": {
+    "min": [
+     -0.0883,
+     -0.0491,
+     -0.1087
+    ],
+    "max": [
+     0.0883,
+     0.2172,
+     0.1519
+    ],
+    "chinY": -0.012,
+    "topY": 0.2172,
+    "eyeY": 0.1026,
+    "front": 0.1519,
+    "ring": {
+     "y": 0.137,
+     "cz": 0.0317,
+     "rx": 0.0793,
+     "rz": 0.1015
+    }
+   },
+   "chest": {
+    "min": [
+     -0.1834,
+     -0.1418,
+     -0.1139
+    ],
+    "max": [
+     0.1886,
+     0.2282,
+     0.1482
+    ]
+   },
+   "parts": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "partLum": [
+    0.0506,
+    0.0055,
+    0.0062,
+    0.0746,
+    0.3,
+    0.3
+   ],
+   "tris": [
+    11999,
+    3998,
+    1299
+   ],
+   "alpha": false,
+   "vest": false,
+   "credit": "darkened; hair removed, balaclava painted on"
+  },
+  "enemy_alex": {
+   "file": "enemy_alex.glb",
+   "source": "Alex",
+   "role": "enemy",
+   "sex": "m",
+   "height": 1.751,
+   "hips": 0.9377,
+   "head": {
+    "min": [
+     -0.0886,
+     -0.0424,
+     -0.0843
+    ],
+    "max": [
+     0.0864,
+     0.2295,
+     0.1846
+    ],
+    "chinY": -0.0231,
+    "topY": 0.2295,
+    "eyeY": 0.1032,
+    "front": 0.1846,
+    "ring": {
+     "y": 0.1411,
+     "cz": 0.0556,
+     "rx": 0.0789,
+     "rz": 0.129
+    }
+   },
+   "chest": {
+    "min": [
+     -0.1863,
+     -0.1755,
+     -0.1224
+    ],
+    "max": [
+     0.1925,
+     0.2081,
+     0.1644
+    ]
+   },
+   "parts": [
+    0
+   ],
+   "partLum": [
+    0.0209,
+    0.3,
+    0.3,
+    0.3,
+    0.3,
+    0.3
+   ],
+   "tris": [
+    11997,
+    3975,
+    1300
+   ],
+   "alpha": false,
+   "vest": false,
+   "credit": "darkened; face wrap painted on"
+  },
+  "civ_brian": {
+   "file": "civ_brian.glb",
+   "source": "Brian",
+   "role": "civilian",
+   "sex": "m",
+   "height": 1.75,
+   "hips": 0.9916,
+   "head": {
+    "min": [
+     -0.0886,
+     -0.0404,
+     -0.0795
+    ],
+    "max": [
+     0.0886,
+     0.192,
+     0.1498
+    ],
+    "chinY": -0.0167,
+    "topY": 0.192,
+    "eyeY": 0.0877,
+    "front": 0.1498,
+    "ring": {
+     "y": 0.119,
+     "cz": 0.0241,
+     "rx": 0.0799,
+     "rz": 0.1016
+    }
+   },
+   "chest": {
+    "min": [
+     -0.194,
+     -0.1581,
+     -0.1266
+    ],
+    "max": [
+     0.1948,
+     0.2034,
+     0.1552
+    ]
+   },
+   "parts": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "partLum": [
+    0.2651,
+    0.4959,
+    0.0747,
+    0.2193,
+    0.3,
+    0.3
+   ],
+   "tris": [
+    9999,
+    3199,
+    1098
+   ],
+   "alpha": false,
+   "vest": false,
+   "credit": "clothes recolored per person in game"
+  },
+  "civ_joe": {
+   "file": "civ_joe.glb",
+   "source": "Joe",
+   "role": "civilian",
+   "sex": "m",
+   "height": 1.778,
+   "hips": 0.9957,
+   "head": {
+    "min": [
+     -0.0893,
+     -0.0333,
+     -0.0747
+    ],
+    "max": [
+     0.0909,
+     0.2099,
+     0.1627
+    ],
+    "chinY": -0.0024,
+    "topY": 0.2099,
+    "eyeY": 0.1037,
+    "front": 0.1627,
+    "ring": {
+     "y": 0.1356,
+     "cz": 0.0322,
+     "rx": 0.0771,
+     "rz": 0.1056
+    }
+   },
+   "chest": {
+    "min": [
+     -0.1556,
+     -0.1659,
+     -0.1016
+    ],
+    "max": [
+     0.1608,
+     0.2074,
+     0.1449
+    ]
+   },
+   "parts": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "partLum": [
+    0.1542,
+    0.0613,
+    0.035,
+    0.0095,
+    0.0195,
+    0.0178
+   ],
+   "tris": [
+    9997,
+    3198,
+    1100
+   ],
+   "alpha": true,
+   "vest": false,
+   "credit": "clothes recolored per person in game"
+  },
+  "civ_josh": {
+   "file": "civ_josh.glb",
+   "source": "Josh",
+   "role": "civilian",
+   "sex": "m",
+   "height": 1.782,
+   "hips": 1.009,
+   "head": {
+    "min": [
+     -0.0938,
+     -0.0409,
+     -0.0606
+    ],
+    "max": [
+     0.0899,
+     0.2083,
+     0.1573
+    ],
+    "chinY": -0.0062,
+    "topY": 0.2083,
+    "eyeY": 0.101,
+    "front": 0.1573,
+    "ring": {
+     "y": 0.1332,
+     "cz": 0.038,
+     "rx": 0.0812,
+     "rz": 0.0978
+    }
+   },
+   "chest": {
+    "min": [
+     -0.168,
+     -0.1641,
+     -0.1018
+    ],
+    "max": [
+     0.1563,
+     0.1996,
+     0.1448
+    ]
+   },
+   "parts": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "partLum": [
+    0.1767,
+    0.0294,
+    0.0841,
+    0.0312,
+    0.0045,
+    0.0063
+   ],
+   "tris": [
+    9997,
+    3200,
+    1099
+   ],
+   "alpha": true,
+   "vest": false,
+   "credit": "clothes recolored per person in game"
+  },
+  "civ_lewis": {
+   "file": "civ_lewis.glb",
+   "source": "Lewis",
+   "role": "civilian",
+   "sex": "m",
+   "height": 1.757,
+   "hips": 0.9765,
+   "head": {
+    "min": [
+     -0.0881,
+     -0.0349,
+     -0.0656
+    ],
+    "max": [
+     0.0864,
+     0.204,
+     0.142
+    ],
+    "chinY": -0.0009,
+    "topY": 0.204,
+    "eyeY": 0.1015,
+    "front": 0.142,
+    "ring": {
+     "y": 0.1323,
+     "cz": 0.0282,
+     "rx": 0.0762,
+     "rz": 0.093
+    }
+   },
+   "chest": {
+    "min": [
+     -0.15,
+     -0.1543,
+     -0.0878
+    ],
+    "max": [
+     0.1555,
+     0.1959,
+     0.1173
+    ]
+   },
+   "parts": [
+    0,
+    4
+   ],
+   "partLum": [
+    0.0965,
+    0.3,
+    0.3,
+    0.3,
+    0.0025,
+    0.3
+   ],
+   "tris": [
+    9998,
+    3200,
+    1100
+   ],
+   "alpha": true,
+   "vest": false,
+   "credit": "clothes recolored per person in game"
+  },
+  "civ_remy": {
+   "file": "civ_remy.glb",
+   "source": "Remy",
+   "role": "civilian",
+   "sex": "m",
+   "height": 1.78,
+   "hips": 1.0011,
+   "head": {
+    "min": [
+     -0.0991,
+     -0.0304,
+     -0.112
+    ],
+    "max": [
+     0.0963,
+     0.194,
+     0.1155
+    ],
+    "chinY": 0.0109,
+    "topY": 0.194,
+    "eyeY": 0.1024,
+    "front": 0.1155,
+    "ring": {
+     "y": 0.1299,
+     "cz": -0.0142,
+     "rx": 0.0835,
+     "rz": 0.0945
+    }
+   },
+   "chest": {
+    "min": [
+     -0.1929,
+     -0.1575,
+     -0.1162
+    ],
+    "max": [
+     0.2049,
+     0.1848,
+     0.1629
+    ]
+   },
+   "parts": [
+    0,
+    1,
+    2,
+    3,
+    4
+   ],
+   "partLum": [
+    0.368,
+    0.055,
+    0.1402,
+    0.6048,
+    0.1712,
+    0.3
+   ],
+   "tris": [
+    10000,
+    3199,
+    1100
+   ],
+   "alpha": false,
+   "vest": false,
+   "credit": "clothes recolored per person in game"
+  },
+  "civ_bryce": {
+   "file": "civ_bryce.glb",
+   "source": "Bryce",
+   "role": "civilian",
+   "sex": "m",
+   "height": 1.791,
+   "hips": 0.9637,
+   "head": {
+    "min": [
+     -0.0952,
+     -0.0209,
+     -0.0652
+    ],
+    "max": [
+     0.0953,
+     0.2269,
+     0.161
+    ],
+    "chinY": 0.0005,
+    "topY": 0.2269,
+    "eyeY": 0.1137,
+    "front": 0.161,
+    "ring": {
+     "y": 0.1477,
+     "cz": 0.0352,
+     "rx": 0.0806,
+     "rz": 0.0995
+    }
+   },
+   "chest": {
+    "min": [
+     -0.1578,
+     -0.1581,
+     -0.1019
+    ],
+    "max": [
+     0.1657,
+     0.1986,
+     0.1301
+    ]
+   },
+   "parts": [
+    0,
+    1,
+    2,
+    3,
+    4
+   ],
+   "partLum": [
+    0.1802,
+    0.1089,
+    0.2567,
+    0.3844,
+    0.0134,
+    0.3
+   ],
+   "tris": [
+    10000,
+    3200,
+    1099
+   ],
+   "alpha": true,
+   "vest": false,
+   "credit": "clothes recolored per person in game"
+  },
+  "civ_martha": {
+   "file": "civ_martha.glb",
+   "source": "Martha",
+   "role": "civilian",
+   "sex": "f",
+   "height": 1.752,
+   "hips": 0.9776,
+   "head": {
+    "min": [
+     -0.0826,
+     -0.028,
+     -0.0614
+    ],
+    "max": [
+     0.083,
+     0.2104,
+     0.1548
+    ],
+    "chinY": -0.0025,
+    "topY": 0.2104,
+    "eyeY": 0.104,
+    "front": 0.1548,
+    "ring": {
+     "y": 0.1359,
+     "cz": 0.0354,
+     "rx": 0.0761,
+     "rz": 0.0963
+    }
+   },
+   "chest": {
+    "min": [
+     -0.1476,
+     -0.1987,
+     -0.0649
+    ],
+    "max": [
+     0.1465,
+     0.1889,
+     0.168
+    ]
+   },
+   "parts": [
+    0,
+    1,
+    2,
+    3,
+    4
+   ],
+   "partLum": [
+    0.1274,
+    0.0861,
+    0.2455,
+    0.3243,
+    0.0062,
+    0.3
+   ],
+   "tris": [
+    10000,
+    3199,
+    1100
+   ],
+   "alpha": true,
+   "vest": false,
+   "credit": "clothes recolored per person in game"
+  },
+  "civ_kate": {
+   "file": "civ_kate.glb",
+   "source": "Kate",
+   "role": "civilian",
+   "sex": "f",
+   "height": 1.751,
+   "hips": 0.9523,
+   "head": {
+    "min": [
+     -0.0871,
+     -0.0276,
+     -0.0651
+    ],
+    "max": [
+     0.0867,
+     0.1964,
+     0.1459
+    ],
+    "chinY": -0.0031,
+    "topY": 0.1964,
+    "eyeY": 0.0967,
+    "front": 0.1459,
+    "ring": {
+     "y": 0.1266,
+     "cz": 0.0298,
+     "rx": 0.0745,
+     "rz": 0.0945
+    }
+   },
+   "chest": {
+    "min": [
+     -0.1366,
+     -0.1527,
+     -0.0779
+    ],
+    "max": [
+     0.1408,
+     0.2922,
+     0.1741
+    ]
+   },
+   "parts": [
+    0,
+    1,
+    2,
+    3,
+    4
+   ],
+   "partLum": [
+    0.214,
+    0.0441,
+    0.1326,
+    0.0724,
+    0.0608,
+    0.3
+   ],
+   "tris": [
+    10000,
+    3192,
+    1099
+   ],
+   "alpha": true,
+   "vest": false,
+   "credit": "clothes recolored per person in game"
+  },
+  "civ_elizabeth": {
+   "file": "civ_elizabeth.glb",
+   "source": "Elizabeth",
+   "role": "civilian",
+   "sex": "f",
+   "height": 1.779,
+   "hips": 0.9997,
+   "head": {
+    "min": [
+     -0.0857,
+     -0.0333,
+     -0.0588
+    ],
+    "max": [
+     0.084,
+     0.2086,
+     0.153
+    ],
+    "chinY": -0.0088,
+    "topY": 0.2086,
+    "eyeY": 0.0999,
+    "front": 0.153,
+    "ring": {
+     "y": 0.1325,
+     "cz": 0.0343,
+     "rx": 0.0768,
+     "rz": 0.0931
+    }
+   },
+   "chest": {
+    "min": [
+     -0.0971,
+     0.1039,
+     -0.0496
+    ],
+    "max": [
+     0.0971,
+     0.1503,
+     0.0877
+    ]
+   },
+   "parts": [
+    0,
+    1,
+    2,
+    3,
+    4
+   ],
+   "partLum": [
+    0.1241,
+    0.5458,
+    0.084,
+    0.1276,
+    0.0027,
+    0.3
+   ],
+   "tris": [
+    10826,
+    3200,
+    1100
+   ],
+   "alpha": true,
+   "vest": false,
+   "credit": "clothes recolored per person in game"
+  },
+  "civ_sophie": {
+   "file": "civ_sophie.glb",
+   "source": "Sophie",
+   "role": "civilian",
+   "sex": "f",
+   "height": 1.763,
+   "hips": 0.9828,
+   "head": {
+    "min": [
+     -0.0864,
+     -0.0288,
+     -0.0518
+    ],
+    "max": [
+     0.0866,
+     0.2093,
+     0.1651
+    ],
+    "chinY": -0.0011,
+    "topY": 0.2093,
+    "eyeY": 0.1041,
+    "front": 0.1651,
+    "ring": {
+     "y": 0.1357,
+     "cz": 0.0449,
+     "rx": 0.0764,
+     "rz": 0.0967
+    }
+   },
+   "chest": {
+    "min": [
+     -0.1821,
+     -0.1581,
+     -0.1146
+    ],
+    "max": [
+     0.1935,
+     0.1894,
+     0.1646
+    ]
+   },
+   "parts": [
+    0,
+    1,
+    3,
+    4
+   ],
+   "partLum": [
+    0.2363,
+    0.2987,
+    0.3,
+    0.5664,
+    0.2375,
+    0.3
+   ],
+   "tris": [
+    9997,
+    3199,
+    1099
+   ],
+   "alpha": true,
+   "vest": false,
+   "credit": "clothes recolored per person in game"
+  },
+  "civ_megan": {
+   "file": "civ_megan.glb",
+   "source": "Megan",
+   "role": "civilian",
+   "sex": "f",
+   "height": 1.746,
+   "hips": 1.0008,
+   "head": {
+    "min": [
+     -0.0903,
+     -0.0245,
+     -0.0452
+    ],
+    "max": [
+     0.0905,
+     0.2012,
+     0.1726
+    ],
+    "chinY": -0.0055,
+    "topY": 0.2012,
+    "eyeY": 0.0979,
+    "front": 0.1726,
+    "ring": {
+     "y": 0.1289,
+     "cz": 0.0514,
+     "rx": 0.0782,
+     "rz": 0.0966
+    }
+   },
+   "chest": {
+    "min": [
+     -0.1337,
+     -0.1493,
+     -0.067
+    ],
+    "max": [
+     0.1327,
+     0.1727,
+     0.1666
+    ]
+   },
+   "parts": [
+    0,
+    1,
+    2,
+    3,
+    4
+   ],
+   "partLum": [
+    0.2053,
+    0.6078,
+    0.0296,
+    0.3839,
+    0.0583,
+    0.3
+   ],
+   "tris": [
+    9975,
+    3197,
+    1100
+   ],
+   "alpha": true,
+   "vest": false,
+   "credit": "clothes recolored per person in game"
+  }
+ },
+ "version": 1,
+ "anims": {
+  "file": "anims.bin",
+  "sourceHips": 0.9979,
+  "sourceArm": 0.5502,
+  "bones": [
+   "Hips",
+   "Spine",
+   "Spine1",
+   "Spine2",
+   "Neck",
+   "Head",
+   "LeftShoulder",
+   "LeftArm",
+   "LeftForeArm",
+   "LeftHand",
+   "LeftHandRing1",
+   "LeftHandRing2",
+   "LeftHandRing3",
+   "LeftHandMiddle1",
+   "LeftHandMiddle2",
+   "LeftHandMiddle3",
+   "LeftHandThumb1",
+   "LeftHandThumb2",
+   "LeftHandThumb3",
+   "LeftHandIndex1",
+   "LeftHandIndex2",
+   "LeftHandIndex3",
+   "LeftHandPinky1",
+   "LeftHandPinky2",
+   "LeftHandPinky3",
+   "RightShoulder",
+   "RightArm",
+   "RightForeArm",
+   "RightHand",
+   "RightHandThumb1",
+   "RightHandThumb2",
+   "RightHandThumb3",
+   "RightHandIndex1",
+   "RightHandIndex2",
+   "RightHandIndex3",
+   "RightHandMiddle1",
+   "RightHandMiddle2",
+   "RightHandMiddle3",
+   "RightHandRing1",
+   "RightHandRing2",
+   "RightHandRing3",
+   "RightHandPinky1",
+   "RightHandPinky2",
+   "RightHandPinky3",
+   "LeftUpLeg",
+   "LeftLeg",
+   "LeftFoot",
+   "LeftToeBase",
+   "RightUpLeg",
+   "RightLeg",
+   "RightFoot",
+   "RightToeBase"
+  ],
+  "clips": {
+   "rifle_idle": {
+    "loop": true,
+    "source": "Pro Rifle Pack: idle",
+    "headY": 1.522,
+    "ik": true,
+    "duration": 2.1,
+    "fps": 30,
+    "frames": 64,
+    "rot": [
+     0,
+     5454
+    ],
+    "vec": [
+     5456,
+     755,
+     3
+    ],
+    "ikRot": [
+     6212,
+     316
+    ]
+   },
+   "rifle_idle_aiming": {
+    "loop": true,
+    "source": "Pro Rifle Pack: idle aiming",
+    "headY": 1.494,
+    "ik": true,
+    "duration": 2.1,
+    "fps": 30,
+    "frames": 64,
+    "rot": [
+     6528,
+     4976
+    ],
+    "vec": [
+     11504,
+     756,
+     3
+    ],
+    "ikRot": [
+     12260,
+     312
+    ]
+   },
+   "rifle_crouch_idle": {
+    "loop": true,
+    "source": "Pro Rifle Pack: idle crouching",
+    "headY": 0.992,
+    "ik": true,
+    "duration": 2.1,
+    "fps": 30,
+    "frames": 64,
+    "rot": [
+     12572,
+     5351
+    ],
+    "vec": [
+     17924,
+     686,
+     3
+    ],
+    "ikRot": [
+     18612,
+     312
+    ]
+   },
+   "rifle_crouch_idle_aiming": {
+    "loop": true,
+    "source": "Pro Rifle Pack: idle crouching aiming",
+    "headY": 0.981,
+    "ik": true,
+    "duration": 2.1,
+    "fps": 30,
+    "frames": 64,
+    "rot": [
+     18924,
+     5307
+    ],
+    "vec": [
+     24232,
+     719,
+     3
+    ],
+    "ikRot": [
+     24952,
+     304
+    ]
+   },
+   "rifle_idle_relaxed": {
+    "loop": true,
+    "source": "Rifle Idle (Two Hand Lowered Gun Rifle Idle)",
+    "headY": 1.582,
+    "ik": true,
+    "duration": 7.6667,
+    "fps": 15,
+    "frames": 116,
+    "rot": [
+     25256,
+     8723
+    ],
+    "vec": [
+     33980,
+     1352,
+     3
+    ],
+    "ikRot": [
+     35332,
+     604
+    ]
+   },
+   "rifle_idle_lookaround": {
+    "loop": true,
+    "source": "Rifle Idle (Rifle Idle Looking Around)",
+    "headY": 1.517,
+    "ik": true,
+    "duration": 8,
+    "fps": 15,
+    "frames": 121,
+    "rot": [
+     35936,
+     9185
+    ],
+    "vec": [
+     45124,
+     981,
+     3
+    ],
+    "ikRot": [
+     46108,
+     581
+    ]
+   },
+   "rifle_walk_f": {
+    "loop": true,
+    "source": "Pro Rifle Pack: walk forward",
+    "speed": 1.8559,
+    "dir": 0,
+    "phaseShift": 10,
+    "headY": 1.356,
+    "ik": true,
+    "duration": 1,
+    "fps": 30,
+    "frames": 31,
+    "rot": [
+     46692,
+     4228
+    ],
+    "vec": [
+     50920,
+     544,
+     3
+    ],
+    "ikRot": [
+     51464,
+     216
+    ]
+   },
+   "rifle_run_f": {
+    "loop": true,
+    "source": "Pro Rifle Pack: run forward",
+    "speed": 4.6398,
+    "dir": 0,
+    "phaseShift": 10,
+    "headY": 1.42,
+    "ik": true,
+    "duration": 0.5,
+    "fps": 30,
+    "frames": 16,
+    "rot": [
+     51680,
+     2836
+    ],
+    "vec": [
+     54516,
+     327,
+     3
+    ],
+    "ikRot": [
+     54844,
+     150
+    ]
+   },
+   "rifle_crouchwalk_f": {
+    "loop": true,
+    "source": "Pro Rifle Pack: walk crouching forward",
+    "speed": 1.9697,
+    "dir": 0,
+    "phaseShift": 10,
+    "headY": 1.132,
+    "ik": true,
+    "duration": 1,
+    "fps": 30,
+    "frames": 31,
+    "rot": [
+     54996,
+     4254
+    ],
+    "vec": [
+     59252,
+     476,
+     3
+    ],
+    "ikRot": [
+     59728,
+     201
+    ]
+   },
+   "rifle_walk_fl": {
+    "loop": true,
+    "source": "Pro Rifle Pack: walk forward left",
+    "speed": 1.8559,
+    "dir": 0.7854,
+    "phaseShift": 10,
+    "headY": 1.379,
+    "ik": true,
+    "duration": 1,
+    "fps": 30,
+    "frames": 31,
+    "rot": [
+     59932,
+     4218
+    ],
+    "vec": [
+     64152,
+     524,
+     3
+    ],
+    "ikRot": [
+     64676,
+     216
+    ]
+   },
+   "rifle_run_fl": {
+    "loop": true,
+    "source": "Pro Rifle Pack: run forward left",
+    "speed": 4.6398,
+    "dir": 0.7854,
+    "phaseShift": 8,
+    "headY": 1.425,
+    "ik": true,
+    "duration": 0.5,
+    "fps": 30,
+    "frames": 16,
+    "rot": [
+     64892,
+     2803
+    ],
+    "vec": [
+     67696,
+     317,
+     3
+    ],
+    "ikRot": [
+     68016,
+     155
+    ]
+   },
+   "rifle_crouchwalk_fl": {
+    "loop": true,
+    "source": "Pro Rifle Pack: walk crouching forward left",
+    "speed": 1.9697,
+    "dir": 0.7854,
+    "phaseShift": 11,
+    "headY": 1.14,
+    "ik": true,
+    "duration": 1,
+    "fps": 30,
+    "frames": 31,
+    "rot": [
+     68172,
+     4230
+    ],
+    "vec": [
+     72404,
+     462,
+     3
+    ],
+    "ikRot": [
+     72868,
+     169
+    ]
+   },
+   "rifle_walk_fr": {
+    "loop": true,
+    "source": "Pro Rifle Pack: walk forward right",
+    "speed": 1.856,
+    "dir": -0.7854,
+    "phaseShift": 11,
+    "headY": 1.33,
+    "ik": true,
+    "duration": 1,
+    "fps": 30,
+    "frames": 31,
+    "rot": [
+     73040,
+     4069
+    ],
+    "vec": [
+     77112,
+     499,
+     3
+    ],
+    "ikRot": [
+     77612,
+     169
+    ]
+   },
+   "rifle_run_fr": {
+    "loop": true,
+    "source": "Pro Rifle Pack: run forward right",
+    "speed": 4.6398,
+    "dir": -0.7854,
+    "phaseShift": 6,
+    "headY": 1.478,
+    "ik": true,
+    "duration": 0.5,
+    "fps": 30,
+    "frames": 16,
+    "rot": [
+     77784,
+     2779
+    ],
+    "vec": [
+     80564,
+     321,
+     3
+    ],
+    "ikRot": [
+     80888,
+     148
+    ]
+   },
+   "rifle_crouchwalk_fr": {
+    "loop": true,
+    "source": "Pro Rifle Pack: walk crouching forward right",
+    "speed": 1.9698,
+    "dir": -0.7854,
+    "phaseShift": 10,
+    "headY": 1.128,
+    "ik": true,
+    "duration": 1,
+    "fps": 30,
+    "frames": 31,
+    "rot": [
+     81036,
+     4216
+    ],
+    "vec": [
+     85252,
+     479,
+     3
+    ],
+    "ikRot": [
+     85732,
+     171
+    ]
+   },
+   "rifle_walk_l": {
+    "loop": true,
+    "source": "Pro Rifle Pack: walk left",
+    "speed": 1.8559,
+    "dir": 1.5708,
+    "phaseShift": 24,
+    "headY": 1.313,
+    "ik": true,
+    "duration": 1,
+    "fps": 30,
+    "frames": 31,
+    "rot": [
+     85904,
+     4279
+    ],
+    "vec": [
+     90184,
+     514,
+     3
+    ],
+    "ikRot": [
+     90700,
+     207
+    ]
+   },
+   "rifle_run_l": {
+    "loop": true,
+    "source": "Pro Rifle Pack: run left",
+    "speed": 4.6398,
+    "dir": 1.5708,
+    "phaseShift": 8,
+    "headY": 1.485,
+    "ik": true,
+    "duration": 0.5,
+    "fps": 30,
+    "frames": 16,
+    "rot": [
+     90908,
+     2789
+    ],
+    "vec": [
+     93700,
+     327,
+     3
+    ],
+    "ikRot": [
+     94028,
+     152
+    ]
+   },
+   "rifle_crouchwalk_l": {
+    "loop": true,
+    "source": "Pro Rifle Pack: walk crouching left",
+    "speed": 1.9697,
+    "dir": 1.5708,
+    "phaseShift": 15,
+    "headY": 1.157,
+    "ik": true,
+    "duration": 1,
+    "fps": 30,
+    "frames": 31,
+    "rot": [
+     94180,
+     4205
+    ],
+    "vec": [
+     98388,
+     478,
+     3
+    ],
+    "ikRot": [
+     98868,
+     206
+    ]
+   },
+   "rifle_walk_r": {
+    "loop": true,
+    "source": "Pro Rifle Pack: walk right",
+    "speed": 1.8559,
+    "dir": -1.5708,
+    "phaseShift": 7,
+    "headY": 1.35,
+    "ik": true,
+    "duration": 1,
+    "fps": 30,
+    "frames": 31,
+    "rot": [
+     99076,
+     4246
+    ],
+    "vec": [
+     103324,
+     514,
+     3
+    ],
+    "ikRot": [
+     103840,
+     201
+    ]
+   },
+   "rifle_run_r": {
+    "loop": true,
+    "source": "Pro Rifle Pack: run right",
+    "speed": 4.6399,
+    "dir": -1.5708,
+    "phaseShift": 6,
+    "headY": 1.408,
+    "ik": true,
+    "duration": 0.5,
+    "fps": 30,
+    "frames": 16,
+    "rot": [
+     104044,
+     2799
+    ],
+    "vec": [
+     106844,
+     330,
+     3
+    ],
+    "ikRot": [
+     107176,
+     151
+    ]
+   },
+   "rifle_crouchwalk_r": {
+    "loop": true,
+    "source": "Pro Rifle Pack: walk crouching right",
+    "speed": 1.9697,
+    "dir": -1.5708,
+    "phaseShift": 19,
+    "headY": 1.165,
+    "ik": true,
+    "duration": 1,
+    "fps": 30,
+    "frames": 31,
+    "rot": [
+     107328,
+     4279
+    ],
+    "vec": [
+     111608,
+     491,
+     3
+    ],
+    "ikRot": [
+     112100,
+     193
+    ]
+   },
+   "rifle_walk_b": {
+    "loop": true,
+    "source": "Pro Rifle Pack: walk backward",
+    "speed": 1.8559,
+    "dir": -3.1416,
+    "phaseShift": 7,
+    "headY": 1.379,
+    "ik": true,
+    "duration": 1,
+    "fps": 30,
+    "frames": 31,
+    "rot": [
+     112296,
+     4196
+    ],
+    "vec": [
+     116492,
+     498,
+     3
+    ],
+    "ikRot": [
+     116992,
+     221
+    ]
+   },
+   "rifle_run_b": {
+    "loop": true,
+    "source": "Pro Rifle Pack: run backward",
+    "speed": 4.6398,
+    "dir": -3.1416,
+    "phaseShift": 10,
+    "headY": 1.506,
+    "ik": true,
+    "duration": 0.5,
+    "fps": 30,
+    "frames": 16,
+    "rot": [
+     117216,
+     2802
+    ],
+    "vec": [
+     120020,
+     332,
+     3
+    ],
+    "ikRot": [
+     120352,
+     148
+    ]
+   },
+   "rifle_crouchwalk_b": {
+    "loop": true,
+    "source": "Pro Rifle Pack: walk crouching backward",
+    "speed": 1.9697,
+    "dir": 3.1416,
+    "phaseShift": 12,
+    "headY": 1.197,
+    "ik": true,
+    "duration": 1,
+    "fps": 30,
+    "frames": 31,
+    "rot": [
+     120500,
+     4236
+    ],
+    "vec": [
+     124736,
+     482,
+     3
+    ],
+    "ikRot": [
+     125220,
+     203
+    ]
+   },
+   "rifle_walk_bl": {
+    "loop": true,
+    "source": "Pro Rifle Pack: walk backward left",
+    "speed": 1.8559,
+    "dir": 2.3562,
+    "phaseShift": 21,
+    "headY": 1.386,
+    "ik": true,
+    "duration": 1,
+    "fps": 30,
+    "frames": 31,
+    "rot": [
+     125424,
+     4249
+    ],
+    "vec": [
+     129676,
+     503,
+     3
+    ],
+    "ikRot": [
+     130180,
+     177
+    ]
+   },
+   "rifle_run_bl": {
+    "loop": true,
+    "source": "Pro Rifle Pack: run backward left",
+    "speed": 4.6398,
+    "dir": 2.3562,
+    "phaseShift": 10,
+    "headY": 1.508,
+    "ik": true,
+    "duration": 0.5,
+    "fps": 30,
+    "frames": 16,
+    "rot": [
+     130360,
+     2844
+    ],
+    "vec": [
+     133204,
+     351,
+     3
+    ],
+    "ikRot": [
+     133556,
+     149
+    ]
+   },
+   "rifle_crouchwalk_bl": {
+    "loop": true,
+    "source": "Pro Rifle Pack: walk crouching backward left",
+    "speed": 1.9697,
+    "dir": 2.3562,
+    "phaseShift": 19,
+    "headY": 1.153,
+    "ik": true,
+    "duration": 1,
+    "fps": 30,
+    "frames": 31,
+    "rot": [
+     133708,
+     4212
+    ],
+    "vec": [
+     137920,
+     483,
+     3
+    ],
+    "ikRot": [
+     138404,
+     178
+    ]
+   },
+   "rifle_walk_br": {
+    "loop": true,
+    "source": "Pro Rifle Pack: walk backward right",
+    "speed": 1.8559,
+    "dir": -2.3562,
+    "phaseShift": 10,
+    "headY": 1.415,
+    "ik": true,
+    "duration": 1,
+    "fps": 30,
+    "frames": 31,
+    "rot": [
+     138584,
+     4226
+    ],
+    "vec": [
+     142812,
+     509,
+     3
+    ],
+    "ikRot": [
+     143324,
+     218
+    ]
+   },
+   "rifle_run_br": {
+    "loop": true,
+    "source": "Pro Rifle Pack: run backward right",
+    "speed": 4.6398,
+    "dir": -2.3562,
+    "phaseShift": 7,
+    "headY": 1.467,
+    "ik": true,
+    "duration": 0.5,
+    "fps": 30,
+    "frames": 16,
+    "rot": [
+     143544,
+     2746
+    ],
+    "vec": [
+     146292,
+     320,
+     3
+    ],
+    "ikRot": [
+     146612,
+     146
+    ]
+   },
+   "rifle_crouchwalk_br": {
+    "loop": true,
+    "source": "Pro Rifle Pack: walk crouching backward right",
+    "speed": 1.9697,
+    "dir": -2.3562,
+    "phaseShift": 12,
+    "headY": 1.168,
+    "ik": true,
+    "duration": 1,
+    "fps": 30,
+    "frames": 31,
+    "rot": [
+     146760,
+     4235
+    ],
+    "vec": [
+     150996,
+     479,
+     3
+    ],
+    "ikRot": [
+     151476,
+     169
+    ]
+   },
+   "rifle_walk_relaxed": {
+    "loop": true,
+    "source": "Rifle Walk (Walking With Rifle Down)",
+    "speed": 1.1468,
+    "dir": 0,
+    "phaseShift": 18,
+    "headY": 1.562,
+    "ik": true,
+    "duration": 1.3,
+    "fps": 30,
+    "frames": 40,
+    "rot": [
+     151648,
+     4549
+    ],
+    "vec": [
+     156200,
+     643,
+     3
+    ],
+    "ikRot": [
+     156844,
+     233
+    ]
+   },
+   "rifle_run_relaxed": {
+    "loop": true,
+    "source": "Rifle Run (Running With Rifle Down)",
+    "speed": 4.1585,
+    "dir": 0,
+    "phaseShift": 7,
+    "headY": 1.387,
+    "ik": true,
+    "duration": 0.6667,
+    "fps": 30,
+    "frames": 21,
+    "rot": [
+     157080,
+     3284
+    ],
+    "vec": [
+     160364,
+     378,
+     3
+    ],
+    "ikRot": [
+     160744,
+     163
+    ]
+   },
+   "rifle_fire_stand": {
+    "loop": false,
+    "source": "Firing Rifle (Firing A Rifle While Standing)",
+    "headY": 1.507,
+    "ik": true,
+    "duration": 0.2667,
+    "fps": 30,
+    "frames": 9,
+    "rot": [
+     160908,
+     1741
+    ],
+    "vec": [
+     162652,
+     217,
+     3
+    ],
+    "ikRot": [
+     162872,
+     120
+    ]
+   },
+   "rifle_reload_stand": {
+    "loop": false,
+    "source": "Reloading (Reloading Rifle While Standing)",
+    "headY": 1.508,
+    "ik": true,
+    "duration": 3.3,
+    "fps": 30,
+    "frames": 100,
+    "rot": [
+     162992,
+     17550
+    ],
+    "vec": [
+     180544,
+     1766,
+     3
+    ],
+    "ikRot": [
+     182312,
+     1015
+    ]
+   },
+   "rifle_reload_crouch": {
+    "loop": false,
+    "source": "Reload (Reload Rifle While In Crouch Position)",
+    "headY": 0.901,
+    "ik": true,
+    "duration": 6.8667,
+    "fps": 30,
+    "frames": 207,
+    "rot": [
+     183328,
+     35513
+    ],
+    "vec": [
+     218844,
+     3334,
+     3
+    ],
+    "ikRot": [
+     222180,
+     2000
+    ]
+   },
+   "grenade_toss_stand": {
+    "loop": false,
+    "source": "Toss Grenade (Throwing Something Holding Rifle Aimed)",
+    "release": 1.8,
+    "headY": 1.508,
+    "ik": true,
+    "duration": 3.2,
+    "fps": 30,
+    "frames": 97,
+    "rot": [
+     224180,
+     16432
+    ],
+    "vec": [
+     240612,
+     1903,
+     3
+    ],
+    "ikRot": [
+     242516,
+     1122
+    ]
+   },
+   "grenade_throw_crouch": {
+    "loop": false,
+    "source": "Throw Grenade (Throwing Grenade While Crouched)",
+    "release": 1.867,
+    "headY": 0.903,
+    "ik": true,
+    "duration": 3.5,
+    "fps": 30,
+    "frames": 106,
+    "rot": [
+     243640,
+     19757
+    ],
+    "vec": [
+     263400,
+     2072,
+     3
+    ],
+    "ikRot": [
+     265472,
+     1135
+    ]
+   },
+   "hit_rifle_stand": {
+    "loop": false,
+    "source": "Hit Reaction (Hit Reaction While Holding A Rifle)",
+    "headY": 1.495,
+    "ik": true,
+    "duration": 2.3,
+    "fps": 30,
+    "frames": 70,
+    "rot": [
+     266608,
+     7043
+    ],
+    "vec": [
+     273652,
+     1303,
+     3
+    ],
+    "ikRot": [
+     274956,
+     730
+    ]
+   },
+   "hit_rifle_front_left": {
+    "loop": false,
+    "source": "Hit Reaction (Left Reaction To Front Hit Holding A Rifle)",
+    "headY": 1.507,
+    "ik": true,
+    "duration": 2.4333,
+    "fps": 30,
+    "frames": 74,
+    "rot": [
+     275688,
+     7450
+    ],
+    "vec": [
+     283140,
+     1304,
+     3
+    ],
+    "ikRot": [
+     284444,
+     773
+    ]
+   },
+   "hit_rifle_crouch": {
+    "loop": false,
+    "source": "Hit Reaction (Hit Reaction From Rifle Crouched)",
+    "headY": 0.901,
+    "ik": true,
+    "duration": 1.8333,
+    "fps": 30,
+    "frames": 56,
+    "rot": [
+     285220,
+     4686
+    ],
+    "vec": [
+     289908,
+     428,
+     3
+    ],
+    "ikRot": [
+     290336,
+     84
+    ]
+   },
+   "cover_wall_idle": {
+    "loop": true,
+    "source": "Taking Cover Idle (Cover Idle Against A Wall With Rifle)",
+    "headY": 1.481,
+    "ik": true,
+    "duration": 2.2667,
+    "fps": 30,
+    "frames": 69,
+    "rot": [
+     290420,
+     5273
+    ],
+    "vec": [
+     295696,
+     714,
+     3
+    ],
+    "ikRot": [
+     296412,
+     275
+    ]
+   },
+   "death_front": {
+    "loop": false,
+    "source": "Pro Rifle Pack: death from the front",
+    "rootEnd": [
+     0.261,
+     1.02
+    ],
+    "headY": 1.522,
+    "ik": true,
+    "duration": 3.4333,
+    "fps": 30,
+    "frames": 104,
+    "rot": [
+     296688,
+     15835
+    ],
+    "vec": [
+     312524,
+     1989,
+     3
+    ],
+    "ikRot": [
+     314516,
+     1017
+    ]
+   },
+   "death_back": {
+    "loop": false,
+    "source": "Pro Rifle Pack: death from the back",
+    "rootEnd": [
+     0.253,
+     1.099
+    ],
+    "headY": 1.522,
+    "ik": true,
+    "duration": 2.9667,
+    "fps": 30,
+    "frames": 90,
+    "rot": [
+     315536,
+     14310
+    ],
+    "vec": [
+     329848,
+     1691,
+     3
+    ],
+    "ikRot": [
+     331540,
+     922
+    ]
+   },
+   "death_left": {
+    "loop": false,
+    "source": "Pro Rifle Pack: death from right (mirrored)",
+    "rootEnd": [
+     -0.846,
+     -0.106
+    ],
+    "headY": 1.522,
+    "ik": true,
+    "duration": 3.3,
+    "fps": 30,
+    "frames": 100,
+    "rot": [
+     332464,
+     15862
+    ],
+    "vec": [
+     348328,
+     1827,
+     3
+    ],
+    "ikRot": [
+     350156,
+     1041
+    ]
+   },
+   "death_right": {
+    "loop": false,
+    "source": "Pro Rifle Pack: death from right",
+    "rootEnd": [
+     0.846,
+     -0.106
+    ],
+    "headY": 1.522,
+    "ik": true,
+    "duration": 3.3,
+    "fps": 30,
+    "frames": 100,
+    "rot": [
+     351200,
+     15888
+    ],
+    "vec": [
+     367088,
+     1801,
+     3
+    ],
+    "ikRot": [
+     368892,
+     1001
+    ]
+   },
+   "death_headshot_front": {
+    "loop": false,
+    "source": "Pro Rifle Pack: death from front headshot",
+    "rootEnd": [
+     -0.288,
+     -0.248
+    ],
+    "headY": 1.522,
+    "ik": true,
+    "duration": 2.8333,
+    "fps": 30,
+    "frames": 86,
+    "rot": [
+     369896,
+     14310
+    ],
+    "vec": [
+     384208,
+     1702,
+     3
+    ],
+    "ikRot": [
+     385912,
+     938
+    ]
+   },
+   "death_headshot_back": {
+    "loop": false,
+    "source": "Pro Rifle Pack: death from back headshot",
+    "rootEnd": [
+     -0.059,
+     0.952
+    ],
+    "headY": 1.522,
+    "ik": true,
+    "duration": 3.7,
+    "fps": 30,
+    "frames": 112,
+    "rot": [
+     386852,
+     17176
+    ],
+    "vec": [
+     404028,
+     2065,
+     3
+    ],
+    "ikRot": [
+     406096,
+     1187
+    ]
+   },
+   "death_crouch_headshot": {
+    "loop": false,
+    "source": "Pro Rifle Pack: death crouching headshot front",
+    "rootEnd": [
+     -0.134,
+     0.929
+    ],
+    "headY": 0.992,
+    "ik": true,
+    "duration": 1.9,
+    "fps": 30,
+    "frames": 58,
+    "rot": [
+     407284,
+     9955
+    ],
+    "vec": [
+     417240,
+     1225,
+     3
+    ],
+    "ikRot": [
+     418468,
+     671
+    ]
+   },
+   "idle_standing": {
+    "loop": true,
+    "source": "Idle (Standing Idle)",
+    "headY": 1.586,
+    "ik": false,
+    "duration": 8.3333,
+    "fps": 15,
+    "frames": 126,
+    "rot": [
+     419140,
+     8771
+    ],
+    "vec": [
+     427912,
+     510,
+     1
+    ]
+   },
+   "idle_breathing": {
+    "loop": true,
+    "source": "Breathing Idle",
+    "headY": 1.568,
+    "ik": false,
+    "duration": 8,
+    "fps": 15,
+    "frames": 121,
+    "rot": [
+     428424,
+     20799
+    ],
+    "vec": [
+     449224,
+     597,
+     1
+    ]
+   },
+   "idle_weightshift": {
+    "loop": true,
+    "source": "Idle (Weight Shift Idle)",
+    "headY": 1.561,
+    "ik": false,
+    "duration": 8,
+    "fps": 15,
+    "frames": 121,
+    "rot": [
+     449824,
+     18418
+    ],
+    "vec": [
+     468244,
+     554,
+     1
+    ]
+   },
+   "idle_lookaround": {
+    "loop": true,
+    "source": "Looking Around (Idle Stand Looking Around)",
+    "headY": 1.545,
+    "ik": false,
+    "duration": 6.3333,
+    "fps": 15,
+    "frames": 96,
+    "rot": [
+     468800,
+     18503
+    ],
+    "vec": [
+     487304,
+     507,
+     1
+    ]
+   },
+   "idle_nervous": {
+    "loop": true,
+    "source": "Nervously Look Around (Nervously Looking Around Left To Right - Loop)",
+    "headY": 1.554,
+    "ik": false,
+    "duration": 6.2667,
+    "fps": 15,
+    "frames": 95,
+    "rot": [
+     487812,
+     14612
+    ],
+    "vec": [
+     502424,
+     481,
+     1
+    ]
+   },
+   "talk_general": {
+    "loop": true,
+    "source": "Talking (General Conversation)",
+    "headY": 1.564,
+    "ik": false,
+    "duration": 8,
+    "fps": 15,
+    "frames": 121,
+    "rot": [
+     502908,
+     22535
+    ],
+    "vec": [
+     525444,
+     569,
+     1
+    ]
+   },
+   "talk_phone_female": {
+    "loop": true,
+    "source": "Talking On Phone (Female Standing Talking On Phone)",
+    "headY": 1.573,
+    "ik": false,
+    "duration": 8,
+    "fps": 15,
+    "frames": 121,
+    "rot": [
+     526016,
+     18340
+    ],
+    "vec": [
+     544356,
+     587,
+     1
+    ]
+   },
+   "talk_phone_male": {
+    "loop": true,
+    "source": "Talking On A Cell Phone (Male Standing While Talking On A Cell Phone)",
+    "headY": 1.56,
+    "ik": false,
+    "duration": 8,
+    "fps": 15,
+    "frames": 121,
+    "rot": [
+     544944,
+     15992
+    ],
+    "vec": [
+     560936,
+     605,
+     1
+    ]
+   },
+   "texting": {
+    "loop": true,
+    "source": "Texting (Standing Texting On Phone)",
+    "headY": 1.553,
+    "ik": false,
+    "duration": 8,
+    "fps": 15,
+    "frames": 121,
+    "rot": [
+     561544,
+     18243
+    ],
+    "vec": [
+     579788,
+     527,
+     1
+    ]
+   },
+   "praying_swaying": {
+    "loop": true,
+    "source": "Praying (Standing Praying While Swaying)",
+    "headY": 1.576,
+    "ik": false,
+    "duration": 3.2333,
+    "fps": 30,
+    "frames": 98,
+    "rot": [
+     580316,
+     5697
+    ],
+    "vec": [
+     586016,
+     461,
+     1
+    ]
+   },
+   "terrified": {
+    "loop": true,
+    "source": "Terrified (Being Terrified While Standing)",
+    "headY": 1.158,
+    "ik": false,
+    "duration": 8,
+    "fps": 15,
+    "frames": 121,
+    "rot": [
+     586480,
+     15814
+    ],
+    "vec": [
+     602296,
+     620,
+     1
+    ]
+   },
+   "walk_male": {
+    "loop": true,
+    "source": "Walking (Male Standard Walk)",
+    "speed": 1.0433,
+    "dir": 0,
+    "phaseShift": 20,
+    "headY": 1.588,
+    "ik": false,
+    "duration": 1.2333,
+    "fps": 30,
+    "frames": 38,
+    "rot": [
+     602916,
+     7093
+    ],
+    "vec": [
+     610012,
+     261,
+     1
+    ]
+   },
+   "walk_female": {
+    "loop": true,
+    "source": "Female Walk (Female Normal Walk)",
+    "speed": 1.2211,
+    "dir": 0,
+    "phaseShift": 9,
+    "headY": 1.536,
+    "ik": false,
+    "duration": 1.1667,
+    "fps": 30,
+    "frames": 36,
+    "rot": [
+     610276,
+     4279
+    ],
+    "vec": [
+     614556,
+     243,
+     1
+    ]
+   },
+   "run_scared_lookback": {
+    "loop": true,
+    "source": "Run Look Back (Running Looking Back)",
+    "speed": 1.7976,
+    "dir": 0,
+    "phaseShift": 7,
+    "headY": 1.468,
+    "ik": false,
+    "duration": 2.2333,
+    "fps": 30,
+    "frames": 68,
+    "rot": [
+     614800,
+     14043
+    ],
+    "vec": [
+     628844,
+     445,
+     1
+    ]
+   },
+   "run_standard": {
+    "loop": true,
+    "source": "Standard Run (Standard Running)",
+    "speed": 4.2354,
+    "dir": 0,
+    "phaseShift": 8,
+    "headY": 1.377,
+    "ik": false,
+    "duration": 0.7333,
+    "fps": 30,
+    "frames": 23,
+    "rot": [
+     629292,
+     5174
+    ],
+    "vec": [
+     634468,
+     190,
+     1
+    ]
+   },
+   "cower_hiding": {
+    "loop": false,
+    "source": "Hiding (Crouched Hiding To Ducking)",
+    "headY": 1.096,
+    "ik": false,
+    "duration": 1.5333,
+    "fps": 30,
+    "frames": 47,
+    "rot": [
+     634660,
+     8361
+    ],
+    "vec": [
+     643024,
+     302,
+     1
+    ]
+   }
+  },
+  "rifle": {
+   "position": [
+    0,
+    0.0703,
+    0
+   ],
+   "quaternion": [
+    -0.39199,
+    -0.63077,
+    -0.43431,
+    0.50975
+   ],
+   "handguard": 0.264
+  }
+ }
+}

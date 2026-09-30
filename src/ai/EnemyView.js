@@ -22,6 +22,7 @@ import {
   Vector3,
 } from 'three';
 import { ENEMY } from './config.js';
+import { characters } from '../characters/registry.js';
 
 let shared = null;
 function assets() {
@@ -87,13 +88,15 @@ function glintMaterial() {
 }
 const UP = new Vector3(0, 1, 0);
 
-/** Placeholder soldier: capsule body with a separate head, a vest and a rifle. */
-export class EnemyView {
-  constructor(enemy) {
+/** Placeholder soldier: capsule body with a separate head, a vest and a rifle (used until
+ * the animated characters load, if they fail to, and in tests). */
+class PlaceholderSoldier {
+  constructor(enemy, root) {
     const a = assets();
     const c = ENEMY;
     this.enemy = enemy;
-    this.root = new Group(); // at the feet
+    this.root = new Group();
+    root.add(this.root);
     this.tilt = new Group(); // falls over on death
     this.yaw = new Group(); // faces where he looks
     this.root.add(this.tilt);
@@ -115,12 +118,6 @@ export class EnemyView {
     this.yaw.add(this.torso, this.head, this.gun);
     for (const m of [this.body, this.vest, this.head, this.band, this.gun]) m.castShadow = true;
 
-    if (enemy.cfg.marksman) {
-      this.glint = new Sprite(glintMaterial());
-      this.glint.visible = false;
-      this.root.add(this.glint);
-    }
-
     this.headY = c.headHeight;
     this.fall = 0;
     this.flashTimer = 0;
@@ -130,7 +127,6 @@ export class EnemyView {
   update(dt) {
     const e = this.enemy;
     const c = ENEMY;
-    this.root.position.copy(e.position);
     this.yaw.rotation.y = e.facing;
 
     // Crouch: squash the torso and lower the head smoothly.
@@ -150,22 +146,6 @@ export class EnemyView {
     this.flash.visible = this.flashTimer > 0;
     this.flashTimer = Math.max(0, this.flashTimer - dt);
 
-    if (this.glint) {
-      // Scope glint toward the player while he lines up a shot; big enough to spot far off.
-      const on = e.alive && e.glint > 0;
-      this.glint.visible = on;
-      if (on) {
-        const t = e.target?.position ?? e.lastKnown;
-        const d = Math.max(5, Math.hypot(t.x - e.position.x, t.z - e.position.z));
-        const tw = 0.75 + 0.25 * Math.sin(e.time * 17);
-        const size = (0.3 + d * 0.034) * e.glint * tw;
-        this.glint.scale.set(size, size, 1);
-        const s = Math.sin(e.facing);
-        const co = Math.cos(e.facing);
-        this.glint.position.set(-s * 0.45 + co * 0.1, this.headY - 0.03, -co * 0.45 - s * 0.1);
-      }
-    }
-
     if (!e.alive) {
       // Fall over away from the killing shot, accelerating like a dropped body, then stay down.
       this.fall = Math.min(1, this.fall + dt / 0.7);
@@ -182,6 +162,121 @@ export class EnemyView {
     this.root.removeFromParent();
   }
 }
+
+let spawnCount = 0;
+const DEFAULT_BAND = 0x2f6e35;
+
+/**
+ * An enemy soldier: the animated character (dark clothes, covered face, a headband in his
+ * role's color, AK rifle) driven by SoldierAnimator from the AI state; a placeholder until
+ * the characters have loaded. Hit zones follow the model (enemy.hitShape).
+ */
+export class EnemyView {
+  /** @param {import('./Enemy.js').Enemy} enemy @param {{ world?: object }} opts collision (deaths avoid walls) */
+  constructor(enemy, { world = null } = {}) {
+    this.enemy = enemy;
+    this.world = world;
+    this.index = spawnCount++;
+    this.root = new Group(); // at the feet
+    this.model = null;
+    this.animator = null;
+    this.placeholder = null;
+    this.state = {
+      alive: true, facing: 0, velocity: null, crouched: false, posture: 'alert', mode: 'idle', cover: null,
+      aimAt: new Vector3(), eyeY: ENEMY.eyeHeight, shotsFired: 0, health: 0, throws: 0, deathDir: null, hitZone: null, position: null,
+    };
+    if (!this._build()) this.placeholder = new PlaceholderSoldier(enemy, this.root);
+
+    if (enemy.cfg.marksman) {
+      this.glint = new Sprite(glintMaterial());
+      this.glint.visible = false;
+      this.root.add(this.glint);
+    }
+    this.headY = ENEMY.headHeight;
+  }
+
+  /** The animated character, once the library is ready. */
+  _build() {
+    const lib = characters.library;
+    if (!lib?.ready) return false;
+    const ids = lib.ids('enemy');
+    if (!ids.length) return false;
+    const e = this.enemy;
+    const id = ids[this.index % ids.length];
+    ({ model: this.model, animator: this.animator } = lib.soldier(id, { variant: this.index, band: e.cfg.bandColor ?? DEFAULT_BAND, world: this.world }));
+    this.root.add(this.model.root);
+    e.hitShape = this.model.hit;
+    if (this.placeholder) {
+      this.placeholder.dispose();
+      this.placeholder = null;
+    }
+    return true;
+  }
+
+  update(dt) {
+    const e = this.enemy;
+    this.root.position.copy(e.position);
+    if (!this.model && characters.library?.ready) this._build();
+    if (this.model) {
+      this.animator.update(dt, soldierState(e, this.state));
+      this.model.update(dt, characters);
+      e.visualMuzzle = this.model.muzzleWorld(e.visualMuzzle ?? new Vector3());
+      this.headY = this.model.hit.valid ? this.model.hit.head.y : this.headY;
+    } else {
+      this.placeholder.update(dt);
+      this.headY = this.placeholder.headY;
+    }
+
+    if (this.glint) {
+      // Scope glint toward the player while he lines up a shot; big enough to spot far off.
+      const on = e.alive && e.glint > 0;
+      this.glint.visible = on;
+      if (on) {
+        const t = e.target?.position ?? e.lastKnown;
+        const d = Math.max(5, Math.hypot(t.x - e.position.x, t.z - e.position.z));
+        const tw = 0.75 + 0.25 * Math.sin(e.time * 17);
+        const size = (0.3 + d * 0.034) * e.glint * tw;
+        this.glint.scale.set(size, size, 1);
+        const s = Math.sin(e.facing);
+        const co = Math.cos(e.facing);
+        this.glint.position.set(-s * 0.45 + co * 0.1, this.headY - 0.03, -co * 0.45 - s * 0.1);
+      }
+    }
+  }
+
+  dispose() {
+    if (this.model) this.model.dispose();
+    this.root.removeFromParent();
+  }
+}
+
+/**
+ * What SoldierAnimator needs from a combat agent (ai/Enemy.js), written into `out`.
+ * @param {object} [overrides] e.g. { posture: 'relaxed' } for a squad member off duty
+ */
+export function soldierState(e, out) {
+  const c = e.cfg;
+  out.alive = e.alive;
+  out.facing = e.facing;
+  out.velocity = e.body.velocity;
+  out.crouched = e.crouched;
+  out.posture = e.state === 'combat' ? 'combat' : 'alert';
+  out.mode = e.state === 'combat' ? e.mode : e.state;
+  out.cover = e.coverPoint;
+  const t = e.target;
+  if (t && t.alive && t.chest) out.aimAt = t.chest;
+  else if (e.hasLastKnown) out.aimAt = _aim.set(e.lastKnown.x, e.lastKnown.y + 1.2, e.lastKnown.z);
+  else out.aimAt = null;
+  out.eyeY = e.crouched ? c.crouchEyeHeight : c.eyeHeight;
+  out.shotsFired = e.shotsFired;
+  out.health = e.health;
+  out.throws = e.throws ?? 0;
+  out.deathDir = e.deathDir;
+  out.hitZone = e.lastHitZone;
+  out.position = e.position;
+  return out;
+}
+const _aim = new Vector3();
 
 /** Bullet tracers: short bright streaks that fly along each enemy shot. */
 export class Tracers {

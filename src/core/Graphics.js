@@ -14,6 +14,8 @@ export const QUALITY = {
     bloom: false,
     flashLights: 1,
     anisotropy: 2,
+    characterLod: 0.7, // scales the character LOD / animation-rate distances
+    characterShadows: 14, // only characters this close cast shadows
   },
   medium: {
     pixelRatio: 1,
@@ -25,6 +27,8 @@ export const QUALITY = {
     bloom: true,
     flashLights: 3,
     anisotropy: 4,
+    characterLod: 1,
+    characterShadows: 24,
   },
   high: {
     pixelRatio: 2, // capped by the display's own ratio
@@ -36,6 +40,8 @@ export const QUALITY = {
     bloom: true,
     flashLights: 5,
     anisotropy: 8,
+    characterLod: 1.4,
+    characterShadows: 60,
   },
 };
 

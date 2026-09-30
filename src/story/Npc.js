@@ -2,6 +2,7 @@ import { MathUtils, Vector3 } from 'three';
 import { PLAYER } from '../player/config.js';
 import { PlayerController } from '../player/PlayerController.js';
 import { raySphere, rayCapsule } from '../ai/hitZones.js';
+import { modelHitTest } from '../ai/Enemy.js';
 
 const _a = new Vector3();
 const _b = new Vector3();
@@ -70,6 +71,13 @@ export class Npc {
     this.emerged = false; // walked back out of the shelter after the battle
     this.escort = 0; // > 0: stay within this distance of the player (squad in an emergency)
     this._escortTimer = 0;
+    this.speaking = false; // has the current dialogue line (the view plays talking)
+    this.hitShape = null; // hit zones from the animated model (set by the view)
+  }
+
+  /** Reacting to the sirens, before running (the flee delay). */
+  get panicking() {
+    return this._fleeDelay >= 0;
   }
 
   /** Civilians count for the shelter objective; the squad does not. */
@@ -175,6 +183,10 @@ export class Npc {
   /** Friendly-fire hit test. Returns distance or -1. */
   raycast(origin, dir, maxDist) {
     const p = this.position;
+    if (this.hitShape?.valid) {
+      const h = modelHitTest(this.hitShape, p, NPC.headRadius, NPC.radius, origin, dir, maxDist);
+      return h ? h.distance : -1;
+    }
     _a.set(p.x, p.y + NPC.headHeight, p.z);
     const th = raySphere(origin, dir, _a, NPC.headRadius, maxDist);
     _a.set(p.x, p.y + NPC.radius, p.z);

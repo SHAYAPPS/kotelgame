@@ -1,4 +1,4 @@
-import { ACESFilmicToneMapping, MathUtils, PCFShadowMap, PerspectiveCamera, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
+import { ACESFilmicToneMapping, Frustum, MathUtils, Matrix4, PCFShadowMap, PerspectiveCamera, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
 import { Input } from './Input.js';
 import { PlayerController } from '../player/PlayerController.js';
 import { PlayerCamera } from '../player/PlayerCamera.js';
@@ -7,6 +7,8 @@ import { CollisionWorld } from '../world/CollisionWorld.js';
 import { Environment } from '../world/Environment.js';
 import { FlashLights } from '../world/FlashLights.js';
 import { TextureLibrary } from '../world/Textures.js';
+import { characters } from '../characters/registry.js';
+import { CHARACTER, FAR_LAYER } from '../characters/config.js';
 import { PostFX } from './PostFX.js';
 import { QUALITY, loadQuality, saveQuality } from './Graphics.js';
 import { SkyFx } from '../world/SkyFx.js';
@@ -48,6 +50,7 @@ const _b = new Vector3();
 const _size = new Vector2();
 const _c = new Vector3();
 const _down = new Vector3(0, -1, 0);
+const _pv = new Matrix4();
 
 export class Game {
   constructor(container) {
@@ -67,6 +70,7 @@ export class Game {
 
     this.scene = new Scene();
     this.camera = new PerspectiveCamera(VIEW.fov, window.innerWidth / window.innerHeight, VIEW.near, VIEW.far);
+    this.camera.layers.enable(FAR_LAYER); // far characters (see characters/config.js)
 
     // World
     // Level: the Kotel plaza by default; ?level=range loads the movement test range.
@@ -81,6 +85,17 @@ export class Game {
     this.textures = new TextureLibrary(renderer);
     this.textures.anisotropy = this.quality.anisotropy;
     level.applyTextures?.(this.textures);
+    // Animated characters stream in too (placeholders until they arrive); the loaders are
+    // their own chunk.
+    characters.camera = this.camera;
+    characters.frustum = new Frustum();
+    this._applyCharacterQuality();
+    this.characters = null;
+    import('../characters/CharacterLibrary.js').then(({ CharacterLibrary }) => {
+      this.characters = new CharacterLibrary({ ktx2Loader: this.textures.loader });
+      characters.library = this.characters;
+      return this.characters.load();
+    });
     this.flashes = new FlashLights(this.scene, this.quality.flashLights);
     this._blastHit = { point: new Vector3(), normal: new Vector3(), distance: 0 };
     this.collision = new CollisionWorld().build(level.collisionRoots);
@@ -316,7 +331,13 @@ export class Game {
     this.post.setQuality(this.quality);
     this.flashes.setCount(this.quality.flashLights);
     this.textures.setAnisotropy(this.quality.anisotropy);
+    this._applyCharacterQuality();
     this.resize();
+  }
+
+  _applyCharacterQuality() {
+    CHARACTER.lodScale = this.quality.characterLod ?? 1;
+    CHARACTER.shadowDistance = this.quality.characterShadows ?? 40;
   }
 
   frame(timeMs) {
@@ -363,6 +384,10 @@ export class Game {
     if (this.active) this.thrower.frameUpdate(this.view.eye, this.view.getAimDirection(this._forward), this.player.velocity);
     this.grenadeWarning.update(this._hostileGrenades(), this.player.position, this.view.viewYaw);
     this.impacts.update(dt);
+    // Characters: LOD and animation rates from where the camera is this frame.
+    this.camera.updateMatrixWorld();
+    characters.frustum.setFromProjectionMatrix(_pv.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse));
+    characters.frame++;
     this.enemies.frameUpdate(dt);
     this.debugDraw.update();
     this.audio.setListener(this.camera, this.view.getAimDirection(this._forward));

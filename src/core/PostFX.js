@@ -4,6 +4,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { FAR_LAYER } from '../characters/config.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 
 /**
@@ -77,6 +78,13 @@ export class PostFX {
       this.ao.blendIntensity = 0.85;
       this.ao.updateGtaoMaterial({ radius: 0.9, distanceExponent: 1.4, thickness: 1.2, scale: 1, samples: q.ao === 'full' ? 16 : 8 });
       this.ao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: q.ao === 'full' ? 16 : 8 });
+      // The AO prepass skips far characters (see characters/config.js aoDistance).
+      const renderOverride = this.ao._renderOverride.bind(this.ao);
+      this.ao._renderOverride = (...args) => {
+        this.camera.layers.disable(FAR_LAYER);
+        renderOverride(...args);
+        this.camera.layers.enable(FAR_LAYER);
+      };
       composer.addPass(this.ao);
     }
     const view = new RenderPass(this.viewScene, this.viewCamera);

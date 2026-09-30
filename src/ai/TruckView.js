@@ -17,6 +17,7 @@ import {
   SpriteMaterial,
 } from 'three';
 import { TRUCK_GUN } from './Truck.js';
+import { characters } from '../characters/registry.js';
 
 function sprite(stops) {
   if (typeof document === 'undefined') return null;
@@ -123,16 +124,34 @@ export class TruckView {
     this._wrecked = false;
   }
 
+  /** The animated gunner (an enemy model holding the gun's grips), once loaded. */
+  _buildGunner() {
+    const lib = characters.library;
+    const ids = lib.ids('enemy');
+    if (!ids.length) return;
+    const m = lib.dressed(ids[0], { band: 0x2f6e35 });
+    if (m.rifle) m.rifle.root.visible = false; // hands on the mounted gun instead
+    m.fade('rifle_idle_aiming', 1, 0);
+    m.ikWeight = 1;
+    m.root.position.set(0, 0.02, 0.42);
+    this.turret.add(m.root);
+    for (const g of this.gunner) g.visible = false;
+    this.gunnerModel = m;
+  }
+
   update(dt) {
     const t = this.truck;
     this.root.position.copy(t.position);
     this.root.rotation.y = t.facing;
     this.turret.rotation.y = t.turretYaw - t.facing;
+    if (!this.gunnerModel && !this._wrecked && characters.library?.ready) this._buildGunner();
     if (t.shotsFired !== this._shots) {
       this._shots = t.shotsFired;
       this._flash = 0.04;
       this.flash.rotation.z = Math.random() * Math.PI;
+      this.gunnerModel?.fade('rifle_fire_stand', 0.8, 0, { mode: 'addUpper', restart: true, loop: false, key: 'recoil' });
     }
+    if (this.gunnerModel && !this._wrecked) this.gunnerModel.update(dt, characters);
     this.flash.visible = this._flash > 0;
     this._flash -= dt;
     // Slight body roll while driving.
@@ -147,6 +166,7 @@ export class TruckView {
       this._wrecked = true;
       for (const m of this.painted) m.material = a.charred;
       for (const m of this.gunner) m.visible = false;
+      if (this.gunnerModel) this.gunnerModel.root.visible = false;
       this.turret.rotation.x = 0.35; // the gun droops
       this.body.rotation.set(0.04, 0, -0.06);
     }
@@ -166,6 +186,7 @@ export class TruckView {
   }
 
   dispose() {
+    this.gunnerModel?.dispose();
     this.root.removeFromParent();
   }
 }
