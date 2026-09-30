@@ -200,6 +200,16 @@ export class Impacts {
     this._alive = MAX_SPARKS;
   }
 
+  /** Remove every bullet hole and spark (restart / checkpoint). */
+  clear() {
+    this.decals.count = 0;
+    this._nextDecal = 0;
+    this.sparkLife.fill(0);
+    this.sparkCol.fill(0);
+    this.sparks.geometry.attributes.color.needsUpdate = true;
+    this._alive = 0;
+  }
+
   update(dt) {
     if (this._alive === 0) return;
     let alive = 0;

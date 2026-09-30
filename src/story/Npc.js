@@ -206,6 +206,12 @@ export class Npc {
       this.sheltered = true;
     }
     if (this.escort > 0) this._updateEscort(dt, player);
+    if (this.sheltered && this.arrived && !this.route && this.escort === 0) {
+      // Settled in the shelter: nothing moves them, so skip the physics (many of them).
+      if (this.faceYaw !== null) this._turnTo(this.faceYaw, dt);
+      this.speed = 0;
+      return;
+    }
     const ctl = this._ctl;
     ctl.forward = 0;
     let moveYaw = null;

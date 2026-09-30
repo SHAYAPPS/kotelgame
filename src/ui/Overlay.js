@@ -32,7 +32,11 @@ function el(tag, className, text) {
 
 /** Start / pause screen (Hebrew, RTL) with the controls list and mouse sensitivity. */
 export class Overlay {
-  constructor(parent, { onStart, sensitivity, onSensitivity }) {
+  /**
+   * @param {{ onStart, sensitivity, onSensitivity, chapters?: { label: string }[],
+   *   onChapter?: (i: number) => void }} opts chapters: start-from buttons (the mission's parts)
+   */
+  constructor(parent, { onStart, sensitivity, onSensitivity, chapters = [], onChapter = null }) {
     this.root = el('div', 'overlay');
     const panel = el('div', 'overlay-panel');
 
@@ -43,6 +47,18 @@ export class Overlay {
     this.cta = el('button', 'overlay-cta', HE.start);
     this.cta.type = 'button';
     panel.append(this.cta);
+
+    if (chapters.length && onChapter) {
+      panel.append(el('h2', 'overlay-section-title', HE.chaptersTitle));
+      const grid = el('div', 'overlay-chapters');
+      chapters.forEach((c, i) => {
+        const b = el('button', 'overlay-chapter', c.label);
+        b.type = 'button';
+        b.addEventListener('click', () => onChapter(i));
+        grid.append(b);
+      });
+      panel.append(grid);
+    }
 
     this.error = el('p', 'overlay-error', HE.lockError);
     this.error.hidden = true;

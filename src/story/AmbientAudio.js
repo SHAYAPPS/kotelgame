@@ -343,6 +343,12 @@ export class AmbientAudio {
       a._noise(t + 0.03, { type: 'lowpass', freq: 1200, gain: 0.3, decay: 0.12 });
       a._noise(t + 0.3, { type: 'bandpass', freq: 2400, q: 2, gain: 0.7, decay: 0.04 });
       a._tone(t + 0.3, { type: 'square', freq: 900, freqEnd: 400, gain: 0.08, decay: 0.05 });
+    } else if (id === 'resupply') {
+      // Magazines out of the crate, into pouches.
+      for (let i = 0; i < 4; i++) {
+        a._noise(t + i * 0.13, { type: 'bandpass', freq: 1200 + i * 150, q: 2, gain: 0.35, decay: 0.05 });
+        a._tone(t + i * 0.13 + 0.02, { type: 'square', freq: 700, freqEnd: 350, gain: 0.04, decay: 0.04 });
+      }
     } else if (id === 'chime') {
       a._tone(t, { type: 'sine', freq: 880, gain: 0.08, decay: 0.25 });
       a._tone(t + 0.12, { type: 'sine', freq: 1320, gain: 0.07, decay: 0.3 });

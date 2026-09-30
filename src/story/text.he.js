@@ -95,6 +95,49 @@ export const LINES = {
   after_4: { speaker: 'cmd', text: 'מוקד, כאן כיתת הסיור. הדפנו חוליה ראשונה ברחבת הכותל. אין נפגעים.', radio: true },
   after_5: { speaker: 'control', text: 'קיבלתי. תגבורת בדרך, לפחות עשרים דקות. אתם חייבים להחזיק את הרחבה.', radio: true },
   after_6: { speaker: 'cmd', text: 'שמעתם. הם יחזרו, ויותר. מחליפים מחסניות ותופסים עמדות. אנחנו מחזיקים את הכותל.' },
+
+  // ---- Part 3: holding the plaza ----
+  def_1: { speaker: 'cmd', text: 'הקו שלנו: החומה הנמוכה בין הרחבה לאזור התפילה. מאחורינו, מתחת לקשת וילסון, כל האזרחים.' },
+  def_2: { speaker: 'cmd', text: 'אף אחד לא עובר את החומה הזאת. יונתן צפון, נועם דרום, אתה איתי באמצע.' },
+  def_3: { speaker: 'yonatan', text: 'הבאתי ארגז תחמושת מעמדת המשטרה. מחסניות ורימונים, תתפנקו.' },
+  def_4: { speaker: 'noam', text: 'רק תזכרו: הם מגיעים מלמעלה, מהמדרגות המערביות, וגם מהכניסה הדרומית.' },
+  prep_1: { speaker: 'cmd', text: 'קחו רימונים. שלושה לכל אחד, לא יותר.' },
+  prep_2: { speaker: 'cmd', text: 'ואל תתקבעו במקום אחד. מי שנשאר באותה נקודה, יחטוף רימון.' },
+  prep_3: { speaker: 'post3', text: 'כיתת הכותל, כאן תצפית 3. יש תנועה על גג מעל המדרגות המערביות. היכונו.', radio: true },
+
+  wave1_a: { speaker: 'post3', text: 'חמושים יורדים במדרגות המערביות! חמישה, אולי יותר!', radio: true },
+  wave1_b: { speaker: 'cmd', text: 'מגע מערב! להחזיק את הקו!' },
+  w1_contact: { speaker: 'yonatan', text: 'מגע, מדרגות מערביות! רובאים!', radio: true },
+  b1_1: { speaker: 'cmd', text: 'חדל! להחליף מחסניות. מי שחסר לו, לארגז.' },
+  b1_2: { speaker: 'noam', text: 'זה היה רק הגל הראשון, נכון?' },
+  b1_3: { speaker: 'control', text: 'כיתת הכותל, מוקד. אנחנו רואים שתי קבוצות מתארגנות: מערב ודרום.', radio: true },
+
+  wave2_a: { speaker: 'post3', text: 'שתי חוליות! אחת במדרגות, אחת בכניסה הדרומית, יחד!', radio: true },
+  wave2_b: { speaker: 'cmd', text: 'שני כיוונים! נועם, תחזיק את הדרום!' },
+  w2_stairs: { speaker: 'yonatan', text: 'מגע, מדרגות! הם יורים אש חיפוי, תשארו נמוכים!', radio: true },
+  w2_flank: { speaker: 'yonatan', text: 'הם מאגפים לאורך הקצה הצפוני של הרחבה!', radio: true },
+  w2_south: { speaker: 'noam', text: 'מגע, דרום! אחד מהם זז לאורך החפירות, מאגף!', radio: true },
+  over_1: { speaker: 'noam', text: 'הם מעל החומה בצד הצפוני! הקו נפרץ!', radio: true },
+  over_2: { speaker: 'cmd', text: 'נסיגה! לעמדה השנייה ליד הכותל, מול הקשת! זזים, זזים!' },
+  p2_1: { speaker: 'cmd', text: 'זאת העמדה האחרונה. מאחורינו הקשת והאזרחים. מכאן לא זזים.' },
+  p2_2: { speaker: 'yonatan', text: 'עוד ארגז פה, ליד הקיר. תמלאו.' },
+  p2_3: { speaker: 'post3', text: 'כיתת הכותל... הם מביאים הכול. כולל צלף על הטרסות העליונות.', radio: true },
+
+  wave3_a: { speaker: 'control', text: 'לכל התחנות: מתקפה גדולה על רחבת הכותל, מכל הכיוונים!', radio: true },
+  wave3_b: { speaker: 'cmd', text: 'הנה הם באים! כל מה שיש לכם!' },
+  w3_sniper: { speaker: 'yonatan', text: 'צלף על הטרסות העליונות! תחפשו את הנצנוץ של הכוונת!', radio: true },
+  w3_stairs: { speaker: 'noam', text: 'מגע, מדרגות! הרבה!', radio: true },
+  w3_rush: { speaker: 'noam', text: 'הם רצים עלינו מהדרום! להסתער אלינו!', radio: true },
+  grenade_1: { speaker: 'yonatan', text: 'רימון!' },
+  grenade_2: { speaker: 'noam', text: 'רימון! תתרחקו!' },
+  grenade_3: { speaker: 'cmd', text: 'רימון! לזוז!' },
+
+  lull_1: { speaker: 'cmd', text: 'חדל... הם נסוגים. תנו לי מצב.' },
+  lull_2: { speaker: 'yonatan', text: 'אני בסדר. כמעט בלי תחמושת.' },
+  lull_3: { speaker: 'post3', text: 'מוקד, תצפית 3. הם מתארגנים בשער האשפות. עשרות, ויש רכבים.', radio: true },
+  lull_4: { speaker: 'control', text: 'קיבלתי. כיתת הכותל, זה הולך להיות גדול יותר. תגבורת עדיין בדרך.', radio: true },
+  lull_5: { speaker: 'noam', text: 'יותר גדול מזה?' },
+  lull_6: { speaker: 'cmd', text: 'למלא מחסניות, לשתות מים. כשהם יחזרו, אנחנו כאן.' },
 };
 
 export const OBJECTIVES = {
@@ -107,6 +150,10 @@ export const OBJECTIVES = {
   shelter: 'הבא את האזרחים למחסה מתחת לקשת וילסון',
   eliminate: 'חסל את המחבלים',
   regroup: 'התארגנו מחדש עם הכיתה',
+  take_position: 'תפוס עמדה בחומה הנמוכה מול הרחבה',
+  hold_line: 'החזק את הקו: אל תתן להם להגיע לאזרחים',
+  fall_back: 'היסוג לעמדה השנייה ליד הכותל',
+  hold_line2: 'החזק את העמדה השנייה',
 };
 
 // Counter shown under the objective (a number follows).
@@ -124,12 +171,13 @@ export const HINTS = {
   mag: { keys: ['R'], text: 'בדיקת מחסנית (הנשק מונמך במשמרת)' },
   shelter: { keys: ['E'], text: 'ליד אזרח שקפא: שלח אותו למחסה' },
   fire: { keys: ['LMB', 'RMB'], text: 'ירי / כוונת' },
+  grenade: { keys: ['G'], text: 'רימון: החזק לכיוון, שחרר לזריקה' },
 };
 
 export const CARDS = {
   intro: ['רחבת הכותל המערבי, ירושלים העתיקה', 'יום שישי · 11:40', 'משמרת סיור'],
   part1End: ['סוף חלק 1', 'המשך יבוא'],
-  part2End: ['להחזיק את הכותל', 'המשך יבוא'],
+  part3End: ['להחזיק את הכותל', 'המשך יבוא'],
 };
 
 // Mission UI text.
@@ -138,6 +186,9 @@ export const STORY_UI = {
   meters: 'מ׳',
   talkPrompt: 'שיחה עם',
   shelterPrompt: 'שלח למחסה',
+  cratePrompt: 'ארגז תחמושת: מלא מחסניות ורימונים',
+  resupplied: 'תחמושת ורימונים מולאו',
+  lowAmmo: 'תחמושת נמוכה: לך לארגז התחמושת',
   failedTitle: 'המשימה נכשלה',
   failedCivilian: 'פגעת באזרח.',
   failedTeammate: 'פגעת בחבר צוות.',

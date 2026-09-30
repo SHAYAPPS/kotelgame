@@ -1,10 +1,14 @@
-// Mission 1: the calm shift (part 1), then sirens, shelter and first contact (part 2).
-// Pure data: steps, triggers and actions.
+// Mission 1: the calm shift (part 1), sirens, shelter and first contact (part 2),
+// holding the plaza (part 3). Pure data: steps, triggers and actions. Wave contents,
+// spawn timing and enemy tuning live in difficulty.js.
 // Text lives in text.he.js (ids only here). Coordinates are Kotel plaza meters
 // (see src/world/kotel/config.js: +X east toward the wall, +Z south).
 
+import { DIFFICULTY } from './difficulty.js';
+
 const E = -Math.PI / 2; // facing east (toward the wall)
 const S = Math.PI;
+const W = Math.PI / 2; // facing west (toward the plaza)
 
 // Squad patrol legs. Teammates walk the same route with a small offset.
 const SQUAD_START = { cmd: [-63.5, 1.2, 71.5, S], yonatan: [-61.4, 1.2, 70.4, S + 0.4], noam: [-65.6, 1.2, 70.2, S - 0.4] };
@@ -20,11 +24,30 @@ for (let i = 0; i < 9; i++) for (let j = 0; j < 8; j++) SHELTER_SPOTS.push([-11.
 // Where the first wave comes in: the southern entrance (behind the checkpoint) and the
 // top of the western (Yehuda HaLevi) stairs.
 const SOUTH_ENTRY = [-67.5, 1.2, 72];
+const WEST_STAIRS = [-106, 3, 28];
+
+// Part 3 positions. The line: the low stone wall (the prayer area's back fence, x = -30)
+// between the plaza and the prayer area. The second position: near the wall, in front
+// of the hall under Wilson's Arch where the civilians are.
+const LINE1 = [-28.3, 0, -3.5];
+const LINE2 = [-10, 0, -22];
 
 export const MISSION1 = {
   id: 'mission1',
 
   shelter: { spots: SHELTER_SPOTS, center: [-6, 0, -35] },
+
+  // Start-screen chapter select (jump straight to a part while testing).
+  chapters: [
+    { label: 'חלק 1: המשמרת השקטה', step: 'intro' },
+    { label: 'חלק 1: הסיור בכותל', step: 'patrol_wall' },
+    { label: 'חלק 2: הצפירות', step: 'sirens' },
+    { label: 'חלק 2: מגע ראשון', step: 'contact' },
+    { label: 'חלק 3: הגנה על הרחבה', step: 'defense_orders' },
+    { label: 'חלק 3: גל 1', step: 'wave1' },
+    { label: 'חלק 3: גל 2', step: 'wave2' },
+    { label: 'חלק 3: העמדה השנייה וגל 3', step: 'position2' },
+  ],
 
   // Ambient population, placed by `populate` actions.
   groups: {
@@ -240,17 +263,10 @@ export const MISSION1 = {
         { type: 'combat', squad: SQUAD, on: true, threat: SOUTH_ENTRY },
         {
           type: 'wave',
-          spawns: [
-            { group: 'south', at: [-64, 99], yaw: 0, delay: 0.5 },
-            { group: 'south', at: [-70.5, 100], yaw: 0, delay: 1.3 },
-            { group: 'south', at: [-67, 98], yaw: 0, delay: 2.2 },
-            { group: 'west', at: [-121, 26], yaw: E, delay: 10 },
-            { group: 'west', at: [-123, 30], yaw: E, delay: 11 },
-            { group: 'south', at: [-65.5, 100], yaw: 0, delay: 17 },
-          ],
+          wave: 'contact',
           callouts: {
             south: { lines: ['contact_south'], delay: 3 },
-            west: { lines: ['contact_west', 'contact_watch'], delay: 2.5 },
+            stairs: { lines: ['contact_west', 'contact_watch'], delay: 2.5 },
           },
         },
         { type: 'objective', text: 'eliminate', target: null, counter: 'enemies' },
@@ -282,13 +298,122 @@ export const MISSION1 = {
       ],
       until: { dialogueDone: true },
     },
+
+    // ---- Part 3: holding the plaza ----
     {
-      id: 'part2_end',
+      id: 'defense_orders',
+      label: 'הגנה: תופסים את הקו בחומה הנמוכה',
+      do: [
+        { type: 'objective', text: 'take_position', target: LINE1 },
+        { type: 'crate', id: 'crate1', at: [-26.8, -0.6], yaw: W },
+        { type: 'dialogue', lines: ['def_1', 'def_2', 'def_3', 'def_4'], interrupt: true },
+        { type: 'npc', id: 'cmd', route: { points: [[-40, 0], [-28.5, 1.8]], speed: 2.6, face: W } },
+        { type: 'npc', id: 'yonatan', route: { points: [[-40, -4], [-28.5, -9.2]], speed: 2.6, face: W } },
+        { type: 'npc', id: 'noam', route: { points: [[-40, 6], [-28.5, 5.6]], speed: 2.6, face: W } },
+      ],
+      until: { all: [{ reach: [LINE1[0], LINE1[2]], radius: 4 }, { dialogueDone: true }] },
+    },
+    {
+      id: 'defense_prep',
+      label: 'הכנה לגל הראשון',
+      do: [
+        { type: 'hint', hint: 'grenade' },
+        { type: 'dialogue', lines: ['prep_1', 'prep_2', 'prep_3'], interrupt: true },
+      ],
+      until: { timer: DIFFICULTY.prep.beforeWave1 },
+    },
+    {
+      id: 'wave1',
+      label: 'גל 1: רובאים מהמדרגות המערביות (נקודת שמירה)',
+      do: [
+        { type: 'checkpoint', at: LINE1, yaw: W },
+        { type: 'hint', hint: null },
+        { type: 'objective', text: 'hold_line', target: null },
+        { type: 'combat', squad: SQUAD, on: true, threat: WEST_STAIRS },
+        { type: 'dialogue', lines: ['wave1_a', 'wave1_b'], interrupt: true },
+        { type: 'wave', wave: 'wave1', callouts: { stairs: { lines: ['w1_contact'], delay: 4 } } },
+      ],
+      until: { enemiesDead: true },
+    },
+    {
+      id: 'between1',
+      label: 'הפוגה לפני גל 2 (נקודת שמירה)',
+      do: [
+        { type: 'checkpoint', at: LINE1, yaw: W },
+        { type: 'dialogue', lines: ['b1_1', 'b1_2', 'b1_3'], interrupt: true },
+      ],
+      until: { timer: DIFFICULTY.prep.beforeWave2 },
+    },
+    {
+      id: 'wave2',
+      label: 'גל 2: מדרגות ודרום יחד, אש חיפוי ואיגוף',
+      do: [
+        { type: 'dialogue', lines: ['wave2_a', 'wave2_b'], interrupt: true },
+        {
+          type: 'wave',
+          wave: 'wave2',
+          callouts: {
+            stairs: { lines: ['w2_stairs', 'w2_flank'], delay: 3 },
+            south: { lines: ['w2_south'], delay: 5 },
+          },
+        },
+      ],
+      until: { enemiesDead: true },
+    },
+    {
+      id: 'overrun',
+      label: 'הקו נפרץ: נסיגה לעמדה השנייה',
+      do: [
+        { type: 'dialogue', lines: ['over_1', 'over_2'], interrupt: true },
+        { type: 'wave', wave: 'breach' },
+        { type: 'crate', id: 'crate2', at: [-7.5, -25.5], yaw: 0 },
+        { type: 'objective', text: 'fall_back', target: LINE2 },
+      ],
+      until: { all: [{ reach: [LINE2[0], LINE2[2]], radius: 4 }, { enemiesDead: true }] },
+    },
+    {
+      id: 'position2',
+      label: 'עמדה שנייה ליד הכותל (נקודת שמירה)',
+      do: [
+        { type: 'checkpoint', at: LINE2, yaw: W },
+        { type: 'objective', text: 'hold_line2', target: null },
+        { type: 'dialogue', lines: ['p2_1', 'p2_2', 'p2_3'], interrupt: true },
+      ],
+      until: { timer: DIFFICULTY.prep.beforeWave3 },
+    },
+    {
+      id: 'wave3',
+      label: 'גל 3: המתקפה הגדולה, מסתערים וצלף',
+      do: [
+        { type: 'dialogue', lines: ['wave3_a', 'wave3_b'], interrupt: true },
+        {
+          type: 'wave',
+          wave: 'wave3',
+          callouts: {
+            terrace: { lines: ['w3_sniper'], delay: 4 },
+            stairs: { lines: ['w3_stairs'], delay: 3 },
+            south: { lines: ['w3_rush'], delay: 6 },
+          },
+        },
+      ],
+      until: { enemiesDead: true },
+    },
+    {
+      id: 'lull',
+      label: 'הפוגה: הם מתארגנים למתקפה גדולה',
+      do: [
+        { type: 'ambience', siren: 0, crowd: 0.2, panic: false },
+        { type: 'dialogue', lines: ['lull_1', 'lull_2', 'lull_3', 'lull_4', 'lull_5', 'lull_6'], interrupt: true },
+      ],
+      until: { dialogueDone: true },
+    },
+    {
+      id: 'part3_end',
       label: 'סוף: המשך יבוא',
       do: [
         { type: 'objective', text: null, target: null },
         { type: 'fade', to: 1, time: 1.5 },
-        { type: 'endCard', card: 'part2End' },
+        { type: 'endCard', card: 'part3End' },
       ],
       until: { timer: 1e9 },
     },

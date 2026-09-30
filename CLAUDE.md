@@ -31,7 +31,9 @@ A browser-based 3D first-person story shooter.
 4. [x] First enemy: perception, cover AI, navmesh, hitscan + tracers; player health
 5. [x] Opening story beat
    - [x] Part 1: mission system + the calm shift (ends on the radio chatter, before the sirens)
-   - [x] Part 2: sirens, civilians to shelter, first contact (ends on "to be continued")
+   - [x] Part 2: sirens, civilians to shelter, first contact
+   - [x] Part 3: holding the plaza, three waves, grenades, ammo crates (ends on "to be continued")
+   - [ ] Mission 1 climax (the bigger push)  <- next
 6. [ ] Realism pass
 
 ## Commands
@@ -39,7 +41,7 @@ A browser-based 3D first-person story shooter.
 - `npm install`: install dependencies (Node >= 20.19)
 - `npm run dev`: dev server at http://localhost:5173 (Kotel plaza; add `?level=range` for the
   movement/gun test range)
-- `npm test`: physics, collision, weapon, level-route and AI tests (Node's built-in test runner, no browser needed)
+- `npm test`: physics, collision, weapon, grenade, level-route, AI and mission tests (Node's built-in test runner, no browser needed; the scripted Mission 1 playthrough takes ~1 min)
 - `npm run build`: production build into `dist/`
 - `npm run preview`: serve the production build locally
 
@@ -116,7 +118,13 @@ A browser-based 3D first-person story shooter.
     on a story NPC's body. Every agent re-picks its `target` a few times a second (closest in
     sight; hostiles slightly prefer the player). A target is the player info object or another
     agent's `asTarget` (`CombatTarget`); shots between agents go through `takeHit`.
-    `spawnAttacker()` spawns a hostile already in combat; `onEnemyKilled(enemy, killer)`.
+    `spawnAttacker(pos, yaw, threat, config, via)` spawns a hostile already in combat;
+    `onEnemyKilled(enemy, killer)`. Enemy grenades: `grenades` (a GrenadeSim) + a camping
+    check on the player (`campTime`); `explode()` / `explosionDamageAt()` for blasts.
+  - Attacker roles (config flags read by `Enemy.js`): `assault` (push toward the defenders
+    when nobody is in sight), `via` (flankers run a route first), `rusher` (charge, fire on the
+    move), `suppress` (keep firing at the last known spot), `marksman` (aimed single shots,
+    `glint` 0..1 drawn as a scope glint by EnemyView).
   - `EnemyView.js`: placeholder soldier (capsule body + separate head), crouch, muzzle flash,
     death fall; `Tracers`.
   - `DebugDraw.js`: F1 overlay (navmesh points, cover points, vision cones, paths, state labels).
@@ -133,7 +141,13 @@ A browser-based 3D first-person story shooter.
     their route ends) and enters step i; checkpoints restart this way. `fail()` freezes it.
   - `mission1.js`: Mission 1's steps, squad routes, checkpoints, crowd groups (worshipers,
     crossers, tour group, bystanders who freeze at the sirens), the shelter spots (the hall under
-    Wilson's Arch) and the first wave (southern entrance + top of the western stairs). `text.he.js`: **all** dialogue, speakers, objectives,
+    Wilson's Arch), the defense positions (the low wall at x = -30, then near the wall) and the
+    `chapters` shown on the start screen.
+  - `difficulty.js`: **all difficulty tuning**: global accuracy/damage/reaction multipliers,
+    per-role overrides, grenades (fuse, radius, damage, enemy throw frequency), ammo, prep times,
+    spawn points, flank routes and every wave's groups (`expandWave`, `attackerConfig`).
+  - `AmmoCrate.js`: E refills reserve + grenades; not in the static collision world, the player
+    is pushed out of its box instead. `text.he.js`: **all** dialogue, speakers, objectives,
     hints and cards (placeholder Hebrew; edit text there only).
   - `Dialogue.js`: queued subtitle lines with reading-time durations; `bark()` for callouts
     (dropped when lines are waiting; `{ next: true }` jumps the queue). A line with
@@ -158,6 +172,12 @@ A browser-based 3D first-person story shooter.
 - `WeaponAudio.echoBus`: the plaza reverb (generated impulse response: stone reflections + tail);
   distant gunshots, your shots, the siren, shouts and booms send into it.
 - `PlayerCamera.addShake(amount)`: view-only shake (the aim is unaffected).
+- `src/weapons/Grenades.js`: `GrenadeSim` (pure: gravity, bounces off the collision world, rest,
+  fuse, `predict()` for the aiming arc), `solveThrow()` (ballistic launch velocity to a point),
+  `GrenadeView` (pooled grenades, blasts, the dashed arc). `GrenadeThrower.js`: the player's
+  3 grenades (hold G = aim with the arc, release = throw). `Game._explode()` applies damage.
+- `src/ui/GrenadeWarning.js`: icon around the crosshair toward enemy grenades within 9 m.
+- Start screen: chapter buttons (`MISSION1.chapters`) start the mission at a part (`story.startAt`).
 - `src/ui/StoryHud.js`: objective, waypoint with distance, subtitles, key hints, talk prompt,
   title/end cards, fade, mission-failed screen, checkpoint toast, the F2 step menu.
 - Weapon modes: `rifle.mode = 'lowered'` (can't fire; R checks the magazine and fires

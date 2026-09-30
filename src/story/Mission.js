@@ -23,7 +23,8 @@
  *   weapon { mode: 'lowered' | 'ready' }, sound { id }, ambience { crowd, birds },
  *   fade { to, time }, title { card }, endCard { card }, checkpoint { at: [x, y, z], yaw },
  *   populate { group }, sky { barrage }, civilians { do: 'panic' | 'runAll' },
- *   combat { squad: [ids], on, threat }, wave { spawns, callouts }, sound { id, at }
+ *   combat { squad: [ids], on, threat }, wave { wave: name in difficulty.js, callouts },
+ *   sound { id, at }, crate { id, at: [x, z], yaw } (an ammo crate; `remove: true` takes it away)
  *
  * `jumpTo(i)` fast-forwards: it replays the state-setting actions of every earlier step
  * instantly (NPCs are placed where their routes end, timed/presentational actions are
@@ -154,6 +155,8 @@ export class Mission {
         return c.civilians(a.do, fast);
       case 'combat':
         return c.combat(a, fast);
+      case 'crate':
+        return c.crate(a);
       case 'wave':
         // Fast-forwarding past a fight means it was won: nobody to spawn.
         return fast ? undefined : c.wave(a);

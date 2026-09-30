@@ -65,7 +65,10 @@ export class StoryHud {
     this.checkpointToast = el('div', 'checkpoint-toast', STORY_UI.checkpoint);
     this.checkpointToast.hidden = true;
 
-    this.root.append(this.objective, this.marker, this.subtitle, this.hint, this.prompt, this.checkpointToast);
+    this.lowAmmo = el('div', 'low-ammo', STORY_UI.lowAmmo);
+    this.lowAmmo.hidden = true;
+
+    this.root.append(this.objective, this.marker, this.subtitle, this.hint, this.prompt, this.checkpointToast, this.lowAmmo);
     parent.append(this.fadeLayer, this.root, this.card, this.fail);
 
     this.menu = null;
@@ -169,8 +172,19 @@ export class StoryHud {
   }
 
   flashCheckpoint() {
+    this.flashToast(STORY_UI.checkpoint);
+  }
+
+  /** A short message above the bottom edge (checkpoint saved, ammo refilled). */
+  flashToast(text) {
+    this.checkpointToast.textContent = text;
     this.checkpointToast.hidden = false;
     this._toastTimer = 2;
+  }
+
+  setLowAmmo(on) {
+    if (this.lowAmmo.hidden === !on) return;
+    this.lowAmmo.hidden = !on;
   }
 
   /**

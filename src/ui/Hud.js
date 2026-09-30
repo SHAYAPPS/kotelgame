@@ -30,7 +30,11 @@ export class Hud {
     this.ammoCount.dir = 'ltr';
     this.ammoStatus = document.createElement('div');
     this.ammoStatus.className = 'ammo-status';
-    this.ammo.append(this.ammoCount, this.ammoStatus);
+    this.grenades = document.createElement('div');
+    this.grenades.className = 'grenades';
+    this.grenades.dir = 'ltr';
+    this._grenadeKey = '';
+    this.ammo.append(this.ammoCount, this.ammoStatus, this.grenades);
     this.root.append(this.ammo);
     this._ammoKey = '';
 
@@ -89,6 +93,19 @@ export class Hud {
     this.ammoCount.append(reserve);
     this.ammoStatus.textContent = status;
     this.ammo.classList.toggle('low', low);
+  }
+
+  /** Grenade pips under the ammo counter (max 0 hides them). */
+  setGrenades(count, max) {
+    const key = `${count}|${max}`;
+    if (key === this._grenadeKey) return;
+    this._grenadeKey = key;
+    this.grenades.replaceChildren();
+    for (let i = 0; i < max; i++) {
+      const pip = document.createElement('i');
+      if (i >= count) pip.className = 'used';
+      this.grenades.append(pip);
+    }
   }
 
   /**

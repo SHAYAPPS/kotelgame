@@ -14,6 +14,10 @@ import { Impacts } from '../weapons/Impacts.js';
 import { Rifle } from '../weapons/Rifle.js';
 import { Viewmodel } from '../weapons/Viewmodel.js';
 import { WeaponAudio } from '../weapons/WeaponAudio.js';
+import { GrenadeSim, GrenadeView } from '../weapons/Grenades.js';
+import { GrenadeThrower } from '../weapons/GrenadeThrower.js';
+import { GrenadeWarning } from '../ui/GrenadeWarning.js';
+import { DIFFICULTY } from '../story/difficulty.js';
 import { NavGrid } from '../ai/NavGrid.js';
 import { CoverPoints } from '../ai/CoverPoints.js';
 import { EnemyManager, playerHitTest } from '../ai/EnemyManager.js';
@@ -32,6 +36,7 @@ import { Overlay, loadSensitivity } from '../ui/Overlay.js';
 const FIXED_DT = 1 / 120;
 const MAX_FRAME_DT = 0.1; // after a hitch, slow down instead of spiraling
 const DEATH_RESTART = 3.2; // seconds from death to restart
+const _up = new Vector3(0, 1, 0);
 
 export class Game {
   constructor(container) {
@@ -75,14 +80,26 @@ export class Game {
     this.viewmodel.setAspect(this.camera.aspect);
     this.impacts = new Impacts(this.scene);
     this.audio = new WeaponAudio();
-    this.rifle = new Rifle({
-      scene: this.scene,
-      collision: this.collision,
-      view: this.view,
-      viewmodel: this.viewmodel,
-      impacts: this.impacts,
-      audio: this.audio,
-    });
+    this.rifle = new Rifle(
+      {
+        scene: this.scene,
+        collision: this.collision,
+        view: this.view,
+        viewmodel: this.viewmodel,
+        impacts: this.impacts,
+        audio: this.audio,
+      },
+      // The mission limits reserve ammo (ammo crates refill it); the test range doesn't.
+      range ? RIFLE : { ...RIFLE, reserveAmmo: DIFFICULTY.ammo.reserve },
+    );
+
+    // Grenades: one simulation for everyone's; the player throws with G.
+    const G = DIFFICULTY.grenades;
+    this.grenadeSim = new GrenadeSim(this.collision, { fuse: G.fuse });
+    this.grenadeView = new GrenadeView(this.scene, this.grenadeSim);
+    this.thrower = new GrenadeThrower({ sim: this.grenadeSim, view: this.grenadeView, audio: this.audio, config: G.player });
+    this.grenadeSim.onBounce = (g) => this.audio.grenadeBounce(g.position);
+    this.grenadeSim.onExplode = (g) => this._explode(g);
 
     // Enemies: navmesh + cover points baked from the level's collision.
     this.nav = new NavGrid(this.collision, level.navBounds).build();
@@ -98,6 +115,7 @@ export class Game {
       health: this.health,
       spawns: level.enemySpawns ?? [],
     });
+    this.enemies.grenades = this.grenadeSim;
     this._playerInfo = {
       position: this.player.position,
       head: new Vector3(),
@@ -139,6 +157,7 @@ export class Game {
           hud: this.storyHud,
           sky: new SkyFx(this.scene),
           view: this.view,
+          grenades: this.thrower,
         });
     this.storyHud.setVisible(false);
     this.deathTime = -1;
@@ -147,6 +166,7 @@ export class Game {
     // Input + UI
     this.input = new Input(renderer.domElement);
     this.damage = new DamageOverlay(document.body);
+    this.grenadeWarning = new GrenadeWarning(document.body);
     this.enemies.onEnemyHit = ({ zone, killed }) => {
       this.damage.showHitmarker(killed);
       this.audio.hitmarker(zone === 'head');
@@ -175,6 +195,14 @@ export class Game {
       onSensitivity: (v) => {
         this.view.sensitivity = v;
       },
+      // Chapter select: start (or restart) the mission at one of its parts.
+      chapters: this.story ? MISSION1.chapters : [],
+      onChapter: (i) => {
+        this._pendingChapter = this.story.mission.indexOf(MISSION1.chapters[i].step);
+        this.audio.unlock();
+        if (this.active) this._startChapter();
+        else this.input.requestLock();
+      },
     });
     this.input.onLockChange = (locked) => this.setActive(locked);
     this.input.onLockError = () => this.overlay.showError();
@@ -200,7 +228,10 @@ export class Game {
     this.input.setEnabled(active);
     this.hud.setPlaying(active);
     this.storyHud.setVisible(active);
-    if (active && this.story) this.story.start();
+    if (active && this.story) {
+      if (this._pendingChapter !== undefined) this._startChapter();
+      else this.story.start();
+    }
     if (active) this.overlay.hide();
     else this.overlay.show({ paused: true });
   }
@@ -238,7 +269,7 @@ export class Game {
       aim: this.rifle.state.aim,
       reload: this.rifle.state.reloadProgress,
       sprinting: this.player.sprinting,
-      lowered: this.rifle.lowered,
+      lowered: this.rifle.lowered || this.thrower.aiming || this.thrower.busy > 0,
       check: this.rifle.checkProgress,
       lookX: m.x,
       lookY: m.y,
@@ -247,6 +278,9 @@ export class Game {
       dip: this.view.dip,
     });
     this.rifle.frameUpdate(dt);
+    this.grenadeView.update(dt);
+    if (this.active) this.thrower.frameUpdate(this.view.eye, this.view.getAimDirection(this._forward), this.player.velocity);
+    this.grenadeWarning.update(this._hostileGrenades(), this.player.position, this.view.viewYaw);
     this.impacts.update(dt);
     this.enemies.frameUpdate(dt);
     this.debugDraw.update();
@@ -274,6 +308,9 @@ export class Game {
     this.player.update(dt, dead ? this._noControls() : this._readControls());
     this.view.fixedUpdate(dt);
     this.rifle.fixedUpdate(dt, dead ? this._noWeapon() : this._readWeaponInput(), this.player);
+    this.thrower.enabled = !this.rifle.lowered && !this.rifle.state.reloading;
+    this.thrower.update(dt, !dead && this.input.isDown('KeyG'), this.view.eye, this.view.getAimDirection(this._forward), this.player.velocity);
+    this.grenadeSim.update(dt);
     if (this.story && !dead && this.input.consumePress('KeyE')) {
       this.story.interact(this.view.eye, this.view.getAimDirection(this._forward));
     }
@@ -323,19 +360,67 @@ export class Game {
     this.health.reset();
     this.rifle.reset();
     this.enemies.reset();
+    this.impacts.clear();
+    this._clearGrenades();
     if (this.story) this.story.restartFromCheckpoint();
     else this.player.respawn();
     this.view.snap();
+  }
+
+  _startChapter() {
+    const i = this._pendingChapter;
+    this._pendingChapter = undefined;
+    this._resetCombat();
+    this.story.startAt(i);
+    this.view.snap();
+  }
+
+  /** Health, weapon, enemies, grenades and bullet marks back to a clean state. */
+  _resetCombat() {
+    this.deathTime = -1;
+    this.health.reset();
+    this.rifle.reset();
+    this.enemies.reset();
+    this.impacts.clear();
+    this._clearGrenades();
+  }
+
+  _clearGrenades() {
+    this.grenadeSim.clear();
+    this.grenadeView.clear();
+    this.thrower.reset();
+  }
+
+  _hostileGrenades() {
+    const out = this._grenadeList ?? (this._grenadeList = []);
+    out.length = 0;
+    for (const g of this.grenadeSim.items) if (g.live && g.owner === 'hostile') out.push(g);
+    return out;
+  }
+
+  /** A grenade went off: damage (you, enemies, the squad), effects, sound, shake. */
+  _explode(g) {
+    const G = DIFFICULTY.grenades;
+    const pos = g.position;
+    const info = this._playerInfo;
+    this.grenadeView.explode(pos);
+    this.audio.explosion(pos);
+    this.impacts.burst(pos, _up, [0.45, 0.4, 0.33], 26);
+    if (!this.health.dead) {
+      const dmg = this.enemies.explosionDamageAt(pos, info.chest, info.head, G.radius, G.playerDamage);
+      if (dmg > 0) this.health.damage(dmg, pos);
+    }
+    const thrower = g.owner === 'player' ? info : g.thrower?.asTarget ?? null;
+    this.enemies.explode(pos, G.radius, G.enemyDamage, thrower);
+    const d = pos.distanceTo(this.player.position);
+    this.view.addShake(Math.max(0, 1 - d / 28) * 0.8);
   }
 
   /** F2: jump to any mission step (dev tool). Frees the mouse while the menu is open. */
   _toggleStepMenu() {
     const open = this.storyHud.toggleMenu(this.story.steps, this.story.stepIndex, {
       onJump: (i) => {
-        this.deathTime = -1;
-        this.health.reset();
-        this.rifle.reset();
-        this.enemies.reset();
+        this._resetCombat();
         this.story.jumpTo(i);
         this.view.snap();
         this.input.requestLock();
@@ -362,6 +447,7 @@ export class Game {
     this._ammoShowTime = Math.max(0, (this._ammoShowTime ?? 0) - dt);
     hud.ammo.hidden = lowered && this._ammoShowTime <= 0;
     hud.setAmmo(this.rifle.state);
+    hud.setGrenades(this.thrower.count, lowered ? 0 : this.thrower.cfg.max);
     hud.update(dt, {
       player: this.player,
       drawCalls: this.renderer.info.render.calls,
@@ -380,7 +466,7 @@ export class Game {
     w.trigger = this.input.isDown('Mouse0');
     w.aim = this.input.isDown('Mouse2');
     w.reload = this.input.consumePress('KeyR');
-    w.blocked = this.player.sprinting;
+    w.blocked = this.player.sprinting || this.thrower.aiming || this.thrower.busy > 0;
     return w;
   }
 

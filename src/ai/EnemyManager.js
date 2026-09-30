@@ -3,12 +3,16 @@ import { Enemy, NO_TARGET } from './Enemy.js';
 import { ATTACKER, FRIENDLY } from './config.js';
 import { EnemyView, Tracers } from './EnemyView.js';
 import { rayCapsule } from './hitZones.js';
+import { solveThrow } from '../weapons/Grenades.js';
 
 const _a = new Vector3();
 const _b = new Vector3();
 const _p = new Vector3();
 const _q = new Vector3();
 const _d = new Vector3();
+const _go = new Vector3();
+const _gv = new Vector3();
+const _gt = new Vector3();
 const _rayHit = { point: new Vector3(), normal: new Vector3(), distance: 0 };
 
 /**
@@ -45,6 +49,13 @@ export class EnemyManager {
     this.friendlies = [];
     this.friendlyKills = 0;
     this.playerTarget = null; // the player info object from the last update
+    /** GrenadeSim for enemy throws (null = enemies never throw) */
+    this.grenades = null;
+    /** (grenade, thrower) => void: an enemy threw one (teammates shout) */
+    this.onGrenadeThrown = null;
+    this._grenadeGlobal = 4; // seconds until any enemy may throw
+    this._campAnchor = new Vector3(0, -1e6, 0);
+    this.campTime = 0; // how long the player has stayed in one spot
     this._listenerHead = new Vector3();
     this.reset();
   }
@@ -54,9 +65,12 @@ export class EnemyManager {
   }
 
   reset() {
+    this.tracers.clear();
     for (const { view } of this.list) view.dispose();
     this.list.length = 0;
     this.friendlies.length = 0;
+    this._grenadeGlobal = 4;
+    this.campTime = 0;
     for (const c of this.cover.points) c.owner = null;
     for (const s of this.spawns) this.spawn(s.position, s.yaw);
   }
@@ -101,10 +115,90 @@ export class EnemyManager {
   }
 
   /** Spawn a hostile that already knows where the defenders are and fights at once. */
-  spawnAttacker(position, yaw, threatPosition) {
-    const e = this.spawn(position, yaw, ATTACKER);
+  spawnAttacker(position, yaw, threatPosition, config = ATTACKER, via = null) {
+    const e = this.spawn(position, yaw, config);
+    if (via) e.via = via.map((p) => p.clone());
     e.engage(threatPosition);
     return e;
+  }
+
+  /**
+   * An explosion: damage everyone in the radius (falling off with distance, reduced
+   * behind cover). Hostile kills count for whoever threw it.
+   * @returns {number} hostiles killed
+   */
+  explode(position, radius, maxDamage, thrower = null) {
+    let kills = 0;
+    const hurt = (agent) => {
+      if (!agent.alive) return;
+      const t = agent.asTarget;
+      const d = position.distanceTo(t.chest);
+      if (d >= radius) return;
+      let dmg = maxDamage * Math.pow(1 - d / radius, 1.3);
+      _go.set(position.x, position.y + 0.3, position.z);
+      if (!this._clear(_go, t.chest) && !this._clear(_go, t.head)) dmg *= 0.2;
+      if (dmg < 1) return;
+      _d.subVectors(t.chest, position).setY(0);
+      if (_d.lengthSq() < 1e-6) _d.set(1, 0, 0);
+      _d.normalize();
+      const killed = agent.takeDamage(dmg, _d, thrower && thrower.hitTest ? thrower : null);
+      if (killed && agent.faction === 'hostile') {
+        kills++;
+        if (thrower && !thrower.agent) this.kills++;
+        if (this.onEnemyKilled) this.onEnemyKilled(agent, thrower);
+      }
+    };
+    for (const { enemy } of this.list) hurt(enemy);
+    for (const f of this.friendlies) hurt(f);
+    return kills;
+  }
+
+  /** Explosion damage to the player (0 outside the radius or fully behind cover). */
+  explosionDamageAt(position, point, head, radius, maxDamage) {
+    const d = position.distanceTo(point);
+    if (d >= radius) return 0;
+    let dmg = maxDamage * Math.pow(1 - d / radius, 1.3);
+    _go.set(position.x, position.y + 0.3, position.z);
+    if (!this._clear(_go, point) && !this._clear(_go, head)) dmg *= 0.2;
+    return dmg;
+  }
+
+  /** Enemy grenades: who throws, when, at whom (see story/difficulty.js `grenades.enemy`). */
+  _updateGrenades(dt, player) {
+    const p = player.position;
+    // Camping: the player stayed within campRadius of one spot.
+    const any = this.list.find((x) => x.enemy.cfg.grenades);
+    if (!any) return;
+    const g = any.enemy.cfg.grenades;
+    if (Math.hypot(p.x - this._campAnchor.x, p.z - this._campAnchor.z) > g.campRadius) {
+      this._campAnchor.copy(p);
+      this.campTime = 0;
+    } else this.campTime += dt;
+    this._grenadeGlobal -= dt;
+    if (!this.grenades || this._grenadeGlobal > 0) return;
+    for (const { enemy: e } of this.list) {
+      const eg = e.cfg.grenades;
+      if (!eg || !e.alive || e.state !== 'combat' || e.cfg.marksman) continue;
+      e.grenadeCooldown -= dt;
+      e._grenadeCheck -= dt;
+      if (e.grenadeCooldown > 0 || e._grenadeCheck > 0) continue;
+      e._grenadeCheck = eg.checkInterval;
+      const t = e.target && e.target.alive ? e.target : player.alive ? player : null;
+      if (!t) continue;
+      const d = Math.hypot(t.position.x - e.position.x, t.position.z - e.position.z);
+      if (d < eg.range[0] || d > eg.range[1]) continue;
+      const camping = t === player && this.campTime > eg.campTime;
+      if (e.rand() > (camping ? eg.campChance : eg.otherChance)) continue;
+      // Needs a rough idea where the target is (seen recently).
+      if (e.sinceSeen > 6) continue;
+      _gt.copy(t.position);
+      e.throwGrenade(_gt, solveThrow, _go, _gv);
+      const gren = this.grenades.spawn(_go, _gv, 'hostile', e);
+      if (!gren) continue;
+      this._grenadeGlobal = eg.minInterval;
+      if (this.onGrenadeThrown) this.onGrenadeThrown(gren, e);
+      break;
+    }
   }
 
   spawn(position, yaw = 0, config = undefined) {
@@ -206,6 +300,7 @@ export class EnemyManager {
   update(dt, player, playerBody) {
     this._listenerHead.copy(player.head);
     this.playerTarget = player;
+    this._updateGrenades(dt, player);
     const enemies = this.enemies;
     const fr = this.friendlies;
     if (fr.length) {

@@ -177,6 +177,70 @@ export class WeaponAudio {
     }, 1500);
   }
 
+  _panner(position, refDistance = 6) {
+    const panner = this.ctx.createPanner();
+    panner.panningModel = 'HRTF';
+    panner.distanceModel = 'inverse';
+    panner.refDistance = refDistance;
+    panner.rolloffFactor = 1;
+    panner.maxDistance = 800;
+    if (panner.positionX) {
+      panner.positionX.value = position.x;
+      panner.positionY.value = position.y;
+      panner.positionZ.value = position.z;
+    } else {
+      panner.setPosition(position.x, position.y, position.z);
+    }
+    return panner;
+  }
+
+  /** A grenade going off: a sharp crack, a heavy thump and a long rumble off the stone. */
+  explosion(position) {
+    if (!this.ready) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const dist = Math.max(1, Math.hypot(position.x - this._lx, position.y - this._ly, position.z - this._lz));
+    const panner = this._panner(position, 8);
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 600 + 12000 * Math.exp(-dist / 30);
+    lp.connect(panner).connect(this.master);
+    const send = ctx.createGain();
+    send.gain.value = 0.8;
+    lp.connect(send).connect(this.echoBus);
+    this._noise(t, { type: 'highpass', freq: 1800, gain: 1.2, decay: 0.05, out: lp });
+    this._noise(t, { type: 'lowpass', freq: 2500, freqEnd: 120, q: 0.9, gain: 1.6, decay: 0.55, rate: 0.6, out: lp });
+    this._tone(t, { freq: 90, freqEnd: 28, gain: 1.4, decay: 0.6, out: lp });
+    this._noise(t + 0.04, { type: 'lowpass', freq: 400, gain: 0.7, attack: 0.03, decay: 1.6, rate: 0.35, out: lp });
+    // Debris pattering down.
+    for (let i = 0; i < 6; i++) {
+      this._noise(t + 0.3 + Math.random() * 0.9, { type: 'bandpass', freq: 2500 + Math.random() * 2500, q: 4, gain: 0.08, decay: 0.03, out: lp });
+    }
+    setTimeout(() => {
+      panner.disconnect();
+      send.disconnect();
+    }, 3000);
+  }
+
+  /** Pulling the pin and the throw. */
+  grenadeThrow() {
+    if (!this.ready) return;
+    const t = this.ctx.currentTime;
+    this._click(t, 2600, 0.35); // pin
+    this._noise(t + 0.05, { type: 'bandpass', freq: 900, freqEnd: 400, q: 0.8, gain: 0.25, attack: 0.04, decay: 0.2 }); // whoosh
+  }
+
+  /** A grenade hitting the ground somewhere. */
+  grenadeBounce(position) {
+    if (!this.ready) return;
+    const panner = this._panner(position, 3);
+    panner.connect(this.master);
+    const t = this.ctx.currentTime;
+    this._tone(t, { type: 'triangle', freq: 1300 + Math.random() * 400, freqEnd: 900, gain: 0.25, decay: 0.08, out: panner });
+    this._noise(t, { type: 'bandpass', freq: 3000, q: 3, gain: 0.3, decay: 0.03, out: panner });
+    setTimeout(() => panner.disconnect(), 500);
+  }
+
   /** Supersonic crack of a bullet passing close by. */
   crack(position) {
     if (!this.ready) return;

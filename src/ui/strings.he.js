@@ -4,6 +4,7 @@ export const HE = {
   gameTitle: 'משחק הכותל',
   buildLabel: 'אב־טיפוס · שלב 4: אויב ראשון',
   start: 'לחצו כדי להתחיל',
+  chaptersTitle: 'או התחילו מחלק מסוים',
   resume: 'לחצו כדי להמשיך',
   paused: 'המשחק מושהה',
   lockError: 'לא הצלחנו לנעול את העכבר. חכו רגע ולחצו שוב.',

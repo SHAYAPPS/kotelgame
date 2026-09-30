@@ -5,10 +5,13 @@ import { Mission } from './Mission.js';
 import { NpcManager } from './Npc.js';
 import { NpcView } from './NpcView.js';
 import { COUNTERS, SPEAKERS, STORY_UI } from './text.he.js';
+import { AmmoCrate } from './AmmoCrate.js';
+import { DIFFICULTY, attackerConfig, expandWave } from './difficulty.js';
 
 const _t = new Vector3();
 const KILL_LINES = { yonatan: 'down_1', noam: 'down_2', cmd: 'down_3' };
 const THANKS = { man: ['civ_thanks_1', 'civ_thanks_3'], woman: ['civ_thanks_2', 'civ_thanks_4'] };
+const GRENADE_SHOUTS = { yonatan: 'grenade_1', noam: 'grenade_2', cmd: 'grenade_3' };
 
 /**
  * Runs a mission script against the game: implements the mission context (objectives,
@@ -21,7 +24,7 @@ export class StoryDirector {
    *   hud: StoryHud; player: PlayerController; enemies: EnemyManager;
    *   sky: SkyFx (interceptions, optional); view: PlayerCamera (camera shake, optional)
    */
-  constructor({ script, scene, world, nav, player, rifle, enemies, audio, hud, sky = null, view = null }) {
+  constructor({ script, scene, world, nav, player, rifle, enemies, audio, hud, sky = null, view = null, grenades = null, difficulty = DIFFICULTY }) {
     this.script = script;
     this.scene = scene;
     this.nav = nav;
@@ -32,6 +35,11 @@ export class StoryDirector {
     this.audio = audio;
     this.sky = sky;
     this.view = view;
+    this.grenades = grenades; // the player's GrenadeThrower (refilled at crates)
+    this.difficulty = difficulty;
+    /** @type {Map<string, AmmoCrate>} */
+    this.crates = new Map();
+    this._lastGrenadeShout = -Infinity;
     this.ambient = new AmbientAudio(audio);
     this.shelterSpots = (script.shelter?.spots ?? []).map(([x, z]) => {
       const n = nav.nodeAt(x, z);
@@ -52,7 +60,10 @@ export class StoryDirector {
         });
       };
     }
-    if (enemies) enemies.onEnemyKilled = (enemy, killer) => this._onKill(enemy, killer);
+    if (enemies) {
+      enemies.onEnemyKilled = (enemy, killer) => this._onKill(enemy, killer);
+      enemies.onGrenadeThrown = (g) => this._onEnemyGrenade(g);
+    }
     this.views = new Map();
     this.npcs = new NpcManager({
       world,
@@ -94,6 +105,8 @@ export class StoryDirector {
       reset: () => {
         for (const n of this.npcs.list) if (n.brain) this.enemies.removeFriendly?.(n.brain);
         this.enemies.clearHostiles?.();
+        for (const c of this.crates.values()) c.dispose();
+        this.crates.clear();
         this._timed.length = 0;
         this._pendingSpawns = 0;
         this._lastOneCalled = false;
@@ -136,6 +149,7 @@ export class StoryDirector {
       civilians: (what, fast) => this._civilians(what, fast),
       combat: (a) => this._combat(a),
       wave: (a) => this._wave(a),
+      crate: (a) => this._crate(a),
       ambience: (a) => this.ambient.set(a),
       fade: (to, time) => {
         this.fadeTarget = to;
@@ -227,23 +241,85 @@ export class StoryDirector {
     }
   }
 
-  /** Scripted attackers: spawn on a timer, already fighting; radio callouts per group. */
+  /**
+   * Scripted attackers (a wave from difficulty.js): spawn on a timer, already fighting,
+   * each with its role's AI; radio callouts when the first of a spawn group appears.
+   */
   _wave(a) {
+    const d = this.difficulty;
+    const groups = d.waves[a.wave];
+    if (!groups) throw new Error(`Unknown wave "${a.wave}"`);
     const called = new Set();
-    for (const sp of a.spawns) {
+    const floor = ([x, z]) => {
+      const n = this.nav.nodeAt(x, z);
+      return new Vector3(x, n >= 0 ? this.nav.y[n] : 0, z);
+    };
+    for (const sp of expandWave(groups, d)) {
       this._pendingSpawns++;
-      this._after(sp.delay ?? 0, () => {
+      this._after(sp.delay, () => {
         this._pendingSpawns--;
-        const n = this.nav.nodeAt(sp.at[0], sp.at[1]);
-        const pos = new Vector3(sp.at[0], n >= 0 ? this.nav.y[n] : 0, sp.at[1]);
-        this.enemies.spawnAttacker(pos, sp.yaw ?? 0, this.player.position);
-        const c = a.callouts?.[sp.group];
-        if (c && !called.has(sp.group)) {
-          called.add(sp.group);
+        const pos = floor(sp.at);
+        const p = this.player.position;
+        const yaw = Math.atan2(-(p.x - pos.x), -(p.z - pos.z));
+        const via = sp.via ? sp.via.map(floor) : null;
+        this.enemies.spawnAttacker(pos, yaw, p, attackerConfig(sp.role, d), via);
+        const c = a.callouts?.[sp.from];
+        if (c && !called.has(sp.from)) {
+          called.add(sp.from);
           this._after(c.delay ?? 2, () => this.dialogue.play(c.lines));
         }
       });
     }
+  }
+
+  _crate(a) {
+    if (a.remove) {
+      this.crates.get(a.id)?.dispose();
+      this.crates.delete(a.id);
+      return;
+    }
+    const n = this.nav.nodeAt(a.at[0], a.at[1]);
+    const crate = new AmmoCrate({ id: a.id, position: new Vector3(a.at[0], n >= 0 ? this.nav.y[n] : 0, a.at[1]), yaw: a.yaw ?? 0 });
+    this.crates.get(a.id)?.dispose();
+    this.crates.set(a.id, crate);
+    if (this.scene.isObject3D) this.scene.add(crate.view());
+  }
+
+  /** The crate the player is looking at within reach, or null. */
+  crateInReach(eye, dir) {
+    for (const c of this.crates.values()) if (c.inReach(eye, dir)) return c;
+    return null;
+  }
+
+  /** E at a crate: full reserve and grenades. */
+  resupply() {
+    const w = this.rifle.state;
+    if (w) w.reserve = Math.max(w.reserve, this.difficulty.ammo.crateReserve);
+    this.grenades?.refill();
+    this.ambient.play('resupply');
+    this.hud.flashToast?.(STORY_UI.resupplied);
+    this.mission.notify('action:resupply');
+  }
+
+  /** An enemy threw a grenade: the teammate nearest to where it's going shouts. */
+  _onEnemyGrenade(g) {
+    if (this.time - this._lastGrenadeShout < 2.5) return;
+    const p = this.player.position;
+    // Where it will land, roughly: close enough to the player or the squad to matter.
+    let best = null;
+    let bestD = Infinity;
+    for (const id of Object.keys(GRENADE_SHOUTS)) {
+      const n = this.npcs.get(id);
+      if (!n) continue;
+      const dd = Math.hypot(n.position.x - p.x, n.position.z - p.z);
+      if (dd < bestD) {
+        bestD = dd;
+        best = id;
+      }
+    }
+    if (!best) return;
+    this._lastGrenadeShout = this.time;
+    this.dialogue.bark(GRENADE_SHOUTS[best], { next: true });
   }
 
   /** A burst of gunfire somewhere (heard before the attackers are seen). */
@@ -306,6 +382,16 @@ export class StoryDirector {
     this.player.respawn();
   }
 
+  /** Chapter select: start at a step (step 0 plays the opening fade-in and title). */
+  startAt(index) {
+    if (index > 0) return this.jumpTo(index);
+    this.started = true;
+    this.fade = 1;
+    this.fadeTarget = 1;
+    this.mission.jumpTo(0);
+    this.player.respawn();
+  }
+
   restartFromCheckpoint() {
     this.jumpTo(this.mission.checkpointIndex);
   }
@@ -320,6 +406,7 @@ export class StoryDirector {
 
   /** E pressed. */
   interact(eye, dir) {
+    if (this.crateInReach(eye, dir)) return this.resupply();
     const npc = this.npcs.talkTarget(eye, dir);
     if (!npc) return;
     if (npc.frozen) {
@@ -356,6 +443,7 @@ export class StoryDirector {
       fn();
     }
     this.npcs.update(dt, playerInfo, p);
+    for (const c of this.crates.values()) c.pushOut(p.position, p.cfg.radius);
     this.dialogue.update(dt);
     this.mission.update(dt);
   }
@@ -385,8 +473,13 @@ export class StoryDirector {
     }
     this.hud.setFade(this.started ? this.fade : 0);
     this.hud.setSubtitle(this.dialogue.current);
-    const talk = this.npcs.talkTarget(eye, dir);
-    this.hud.setPrompt(talk ? (talk.frozen ? STORY_UI.shelterPrompt : `${STORY_UI.talkPrompt} ${this._speakerName(talk)}`) : null);
+    const w = this.rifle.state;
+    this.hud.setLowAmmo?.(this.crates.size > 0 && !!w && w.ammo + w.reserve <= 45);
+    const crate = this.crateInReach(eye, dir);
+    const talk = crate ? null : this.npcs.talkTarget(eye, dir);
+    this.hud.setPrompt(
+      crate ? STORY_UI.cratePrompt : talk ? (talk.frozen ? STORY_UI.shelterPrompt : `${STORY_UI.talkPrompt} ${this._speakerName(talk)}`) : null,
+    );
     const counter = this.objectiveCounter;
     this.hud.setObjectiveCount(
       counter && this.objectiveText ? COUNTERS[counter] : null,

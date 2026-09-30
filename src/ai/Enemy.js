@@ -143,6 +143,15 @@ export class Enemy {
     this.shotsFired = 0;
     this.lastShotTime = -Infinity;
 
+    // Roles (see story/difficulty.js): a route to run before engaging (flankers), aimed
+    // single shots with a scope glint (marksman), grenades.
+    this.via = null; // Vector3[]
+    this.aimTime = 0;
+    this.glint = 0; // 0..1 while a marksman is lining up a shot at the player
+    this.grenadeCooldown = config.grenades ? rangeRand(rand, config.grenades.cooldown) * 0.5 : Infinity;
+    this._grenadeCheck = rand();
+    this._rushTimer = 0;
+
     // Who he fights: the player info object or another combatant's `asTarget`.
     // null = the `player` argument of update() (the single-target default).
     this.target = null;
@@ -210,7 +219,14 @@ export class Enemy {
   takeHit(zone, dir, attacker) {
     if (!this.alive) return false;
     const c = this.cfg;
-    this.health -= zone === 'head' ? c.headDamage : c.bodyDamage;
+    return this.takeDamage(zone === 'head' ? c.headDamage : c.bodyDamage, dir, attacker, zone);
+  }
+
+  /** Apply damage (bullets via takeHit, explosions directly). Returns true if it killed him. */
+  takeDamage(amount, dir, attacker = null, zone = 'body') {
+    if (!this.alive) return false;
+    const c = this.cfg;
+    this.health -= amount;
     this.lastHitZone = zone;
     if (attacker) {
       if (attacker.hitTest) this.setTarget(attacker); // turn on whoever shot him
@@ -379,6 +395,8 @@ export class Enemy {
     this._move(dt);
     this._updateEye();
     this.asTarget.update();
+    // Scope glint: a marksman lining up on the player (not on a teammate).
+    this.glint = this.cfg.marksman && this.canSeePlayer && !player.agent ? Math.min(1, 0.35 + this.aimTime / this.cfg.aimTime) : 0;
   }
 
   _idle(dt) {
@@ -415,6 +433,8 @@ export class Enemy {
     // Attackers know roughly where the defenders are: after a while without contact
     // they head for their target's real position.
     if (c.assault && this.sinceSeen > c.seekTime && player.alive) this.lastKnown.copy(player.position);
+    if (this.via) return this._followVia(dt, player);
+    if (c.rusher) return this._rush(dt, player);
     const threat = this.lastKnown;
     const distToThreat = this.position.distanceTo(threat);
 
@@ -479,6 +499,74 @@ export class Enemy {
 
     const canShoot = this.mode === 'peeking' || this.mode === 'exposed' || (this.mode === 'moving' && distToThreat < 20);
     if (canShoot) this._shoot(dt, player);
+  }
+
+  /** Flanker: run the route first (shooting at anyone close on the way), then fight. */
+  _followVia(dt, player) {
+    const c = this.cfg;
+    const v = this.via[0];
+    this.mode = 'moving';
+    this.body.wantCrouch = false;
+    if (Math.hypot(v.x - this.position.x, v.z - this.position.z) < 1.5) {
+      this.via.shift();
+      this._stopMoving();
+      if (!this.via.length) {
+        this.via = null;
+        this.mode = 'exposed';
+        this.relocateTimer = 0;
+      }
+      return;
+    }
+    if (!this.moving) {
+      this._goTo(v, c.runSpeed);
+      if (!this.moving) this.via.shift(); // unreachable: skip that point
+      if (this.via && !this.via.length) this.via = null;
+    }
+    if (this.canSeePlayer && player.alive) {
+      this._faceTarget(dt, player.position);
+      if (this.position.distanceTo(player.position) < (c.viaShootRange ?? 20)) this._shoot(dt, player);
+    }
+  }
+
+  /** Rusher: charge straight at the target, firing on the move; stop right on top of it. */
+  _rush(dt, player) {
+    const c = this.cfg;
+    this.mode = 'exposed';
+    this.body.wantCrouch = false;
+    const tp = player.alive ? player.position : this.lastKnown;
+    const d = Math.hypot(tp.x - this.position.x, tp.z - this.position.z);
+    this._rushTimer -= dt;
+    if (d > c.rushStop) {
+      if (this._rushTimer <= 0 || !this.moving) {
+        this._rushTimer = 0.7;
+        this._goTo(tp, c.runSpeed);
+      }
+    } else this._stopMoving();
+    if (this.canSeePlayer) {
+      this._faceTarget(dt, player.position);
+      this._shoot(dt, player);
+    }
+  }
+
+  _faceTarget(dt, p) {
+    this._turnTo(Math.atan2(-(p.x - this.position.x), -(p.z - this.position.z)), dt, 1);
+  }
+
+  /**
+   * Grenade throw at a point: the launch velocity (into `outVelocity`) and origin
+   * (`outOrigin`). The manager decides when; he stops firing for a moment.
+   */
+  throwGrenade(targetPoint, solve, outOrigin, outVelocity) {
+    const g = this.cfg.grenades;
+    outOrigin.copy(this.eye);
+    outOrigin.y += 0.25;
+    const s = g.inaccuracy;
+    _a.set(targetPoint.x + (this.rand() - 0.5) * 2 * s, targetPoint.y, targetPoint.z + (this.rand() - 0.5) * 2 * s);
+    solve(outOrigin, _a, outVelocity);
+    this.grenadeCooldown = rangeRand(this.rand, g.cooldown);
+    this.fireCooldown = Math.max(this.fireCooldown, 0.9);
+    this.burstLeft = 0;
+    this._faceTarget(1, targetPoint);
   }
 
   _takeCover(threat, others) {
@@ -548,19 +636,51 @@ export class Enemy {
   _shoot(dt, player) {
     const c = this.cfg;
     this.fireCooldown -= dt;
-    if (!this.canSeePlayer || this.reaction > 0 || !player.alive) return;
+    if (!player.alive) return;
+    if (c.marksman) return this._marksmanShot(dt, player);
+    let aim;
+    if (this.canSeePlayer) {
+      if (this.reaction > 0) return;
+      // Aim at the chest if visible, otherwise the head.
+      aim = this._los(player.chest) ? player.chest : player.head;
+    } else if (c.suppress && this.hasLastKnown && this.sinceSeen < c.suppressTime && this.mode !== 'hiding' && this.mode !== 'moving') {
+      // Suppressing: keep firing at where the target was (the cover he's behind).
+      aim = _o.set(this.lastKnown.x, this.lastKnown.y + 1.0, this.lastKnown.z);
+    } else return;
     if (this.fireCooldown > 0) return;
     if (this.burstLeft <= 0) {
       this.burstLeft = Math.round(rangeRand(this.rand, c.burst));
       this.fireCooldown = rangeRand(this.rand, c.burstPause) * 0.5;
       return;
     }
-    // Aim at the chest if visible, otherwise the head.
-    const target = this._los(player.chest) ? player.chest : player.head;
-    _dir.subVectors(target, this.muzzle).normalize();
-    const f = MathUtils.clamp(this.losTime / c.spreadTightenTime, 0, 1);
+    const f = this.canSeePlayer ? MathUtils.clamp(this.losTime / c.spreadTightenTime, 0, 1) : 0;
     let spread = MathUtils.lerp(c.maxSpread, c.minSpread, f);
     if (this.moving) spread *= 1.6;
+    this._fireAt(aim, player, spread);
+    this.burstLeft--;
+    this.fireCooldown = this.burstLeft > 0 ? c.fireInterval : rangeRand(this.rand, c.burstPause);
+  }
+
+  /** Marksman: line up (glint), fire one accurate round, work the bolt. */
+  _marksmanShot(dt, player) {
+    const c = this.cfg;
+    if (!this.canSeePlayer || this.reaction > 0) {
+      this.aimTime = Math.max(0, this.aimTime - dt * 2);
+      return;
+    }
+    if (this.fireCooldown > 0) return;
+    this.aimTime += dt;
+    if (this.aimTime < c.aimTime) return;
+    this.aimTime = 0;
+    const aim = this._los(player.chest) ? player.chest : player.head;
+    const f = MathUtils.clamp(this.losTime / c.spreadTightenTime, 0, 1);
+    this._fireAt(aim, player, MathUtils.lerp(c.maxSpread, c.minSpread, f));
+    this.fireCooldown = c.boltTime;
+  }
+
+  _fireAt(aim, player, spread) {
+    const c = this.cfg;
+    _dir.subVectors(aim, this.muzzle).normalize();
     const r = spread * Math.sqrt(this.rand());
     const a = this.rand() * Math.PI * 2;
     _right.crossVectors(_dir, UP).normalize();
@@ -587,8 +707,6 @@ export class Enemy {
     };
     this.shotsFired++;
     this.lastShotTime = this.time;
-    this.burstLeft--;
-    this.fireCooldown = this.burstLeft > 0 ? c.fireInterval : rangeRand(this.rand, c.burstPause);
     if (this.onFire) this.onFire(shot);
   }
 
@@ -616,6 +734,10 @@ export class Enemy {
   _giveUpMove() {
     this.stuckCount = 0;
     this._stopMoving();
+    if (this.via) {
+      this.via.shift();
+      if (!this.via.length) this.via = null;
+    }
     if (this.mode === 'moving' && this.coverPoint) {
       this.badCover = this.coverPoint;
       this.coverPoint.owner = null;

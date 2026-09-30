@@ -15,6 +15,10 @@ import {
   MeshStandardMaterial,
   PlaneGeometry,
   SphereGeometry,
+  Sprite,
+  SpriteMaterial,
+  CanvasTexture,
+  SRGBColorSpace,
   Vector3,
 } from 'three';
 import { ENEMY } from './config.js';
@@ -50,6 +54,36 @@ function assets() {
 }
 
 const _axis = new Vector3();
+const bandMats = new Map(); // role band colors
+
+function bandMaterial(color) {
+  if (!bandMats.has(color)) bandMats.set(color, new MeshStandardMaterial({ color, roughness: 0.9 }));
+  return bandMats.get(color);
+}
+
+let glintMat = null;
+function glintMaterial() {
+  if (glintMat) return glintMat;
+  if (typeof document === 'undefined') return (glintMat = new SpriteMaterial()); // tests (no DOM)
+  // A four-point star flare.
+  const size = 64;
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.15, 'rgba(255,250,220,0.8)');
+  grad.addColorStop(1, 'rgba(255,240,200,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, size, size);
+  g.fillStyle = 'rgba(255,255,240,0.9)';
+  g.fillRect(0, 30, size, 4);
+  g.fillRect(30, 0, 4, size);
+  const tex = new CanvasTexture(c);
+  tex.colorSpace = SRGBColorSpace;
+  glintMat = new SpriteMaterial({ map: tex, transparent: true, blending: AdditiveBlending, depthWrite: false, toneMapped: false, fog: false });
+  return glintMat;
+}
 const UP = new Vector3(0, 1, 0);
 
 /** Placeholder soldier: capsule body with a separate head, a vest and a rifle. */
@@ -69,7 +103,7 @@ export class EnemyView {
     this.vest = new Mesh(a.vest, a.vestMat);
     this.torso.add(this.body, this.vest);
     this.head = new Mesh(a.head, a.skin);
-    this.band = new Mesh(a.band, a.bandMat);
+    this.band = new Mesh(a.band, enemy.cfg.bandColor ? bandMaterial(enemy.cfg.bandColor) : a.bandMat);
     this.band.position.y = 0.03;
     this.head.add(this.band);
     this.gun = new Mesh(a.gun, a.gunMat);
@@ -79,6 +113,12 @@ export class EnemyView {
     this.gun.add(this.flash);
     this.yaw.add(this.torso, this.head, this.gun);
     for (const m of [this.body, this.vest, this.head, this.band, this.gun]) m.castShadow = true;
+
+    if (enemy.cfg.marksman) {
+      this.glint = new Sprite(glintMaterial());
+      this.glint.visible = false;
+      this.root.add(this.glint);
+    }
 
     this.headY = c.headHeight;
     this.fall = 0;
@@ -108,6 +148,22 @@ export class EnemyView {
     }
     this.flash.visible = this.flashTimer > 0;
     this.flashTimer = Math.max(0, this.flashTimer - dt);
+
+    if (this.glint) {
+      // Scope glint toward the player while he lines up a shot; big enough to spot far off.
+      const on = e.alive && e.glint > 0;
+      this.glint.visible = on;
+      if (on) {
+        const t = e.target?.position ?? e.lastKnown;
+        const d = Math.max(5, Math.hypot(t.x - e.position.x, t.z - e.position.z));
+        const tw = 0.75 + 0.25 * Math.sin(e.time * 17);
+        const size = (0.3 + d * 0.034) * e.glint * tw;
+        this.glint.scale.set(size, size, 1);
+        const s = Math.sin(e.facing);
+        const co = Math.cos(e.facing);
+        this.glint.position.set(-s * 0.45 + co * 0.1, this.headY - 0.03, -co * 0.45 - s * 0.1);
+      }
+    }
 
     if (!e.alive) {
       // Fall over away from the killing shot, accelerating like a dropped body, then stay down.
@@ -154,6 +210,13 @@ export class Tracers {
     it.d.copy(dir);
     it.len = distance;
     it.t = 0;
+  }
+
+  /** Drop every tracer in flight. */
+  clear() {
+    for (const it of this.items) it.t = -1;
+    this.col.fill(0);
+    this.lines.geometry.attributes.color.needsUpdate = true;
   }
 
   update(dt) {

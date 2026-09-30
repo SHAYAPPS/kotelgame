@@ -689,3 +689,127 @@
 .ammo[hidden] {
   display: none;
 }
+
+.low-ammo {
+  position: absolute;
+  bottom: 178px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 12px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #ffcf7a;
+  background: rgb(0 0 0 / 45%);
+  border-radius: 4px;
+  animation: low-ammo-pulse 1.2s ease-in-out infinite;
+}
+
+.low-ammo[hidden] {
+  display: none;
+}
+
+@keyframes low-ammo-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* Grenades left, under the ammo counter */
+.grenades {
+  display: flex;
+  gap: 5px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.grenades i {
+  width: 10px;
+  height: 13px;
+  border-radius: 45% 45% 40% 40%;
+  background: #c9d1a0;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 70%);
+}
+
+.grenades i.used {
+  background: rgb(255 255 255 / 18%);
+}
+
+/* Enemy grenade nearby: an icon around the crosshair pointing toward it */
+.grenade-warning {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.grenade-warning[hidden] {
+  display: none;
+}
+
+.grenade-warning .icon {
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  margin: -17px 0 0 -17px;
+  border-radius: 50%;
+  background: rgb(160 20 10 / 75%);
+  border: 2px solid #ffd0b0;
+  box-shadow: 0 0 14px rgb(255 60 30 / 80%);
+  animation: grenade-pulse 0.4s ease-in-out infinite alternate;
+}
+
+.grenade-warning .icon::after {
+  content: '';
+  position: absolute;
+  left: 11px;
+  top: 7px;
+  width: 12px;
+  height: 17px;
+  border-radius: 45% 45% 40% 40%;
+  background: #ffe6d0;
+}
+
+.grenade-warning .arrow {
+  position: absolute;
+  width: 0;
+  height: 0;
+  margin: -7px 0 0 -6px;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 12px solid #ff6a4a;
+}
+
+@keyframes grenade-pulse {
+  to {
+    box-shadow: 0 0 26px 6px rgb(255 60 30 / 95%);
+    background: rgb(200 30 10 / 90%);
+  }
+}
+
+.overlay-chapters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.overlay-chapter {
+  padding: 7px 10px;
+  font: inherit;
+  font-size: 13px;
+  text-align: right;
+  color: #f2ead8;
+  background: rgb(255 255 255 / 7%);
+  border: 1px solid rgb(226 207 156 / 35%);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.overlay-chapter:hover,
+.overlay-chapter:focus-visible {
+  background: rgb(226 207 156 / 20%);
+  border-color: #e2cf9c;
+}

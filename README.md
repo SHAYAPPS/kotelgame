@@ -13,6 +13,10 @@ npm run dev     # then open http://localhost:5173
 npm test        # physics / collision / weapon / AI / mission tests
 ```
 
+The start screen lists the mission's parts: click one to start there instead of from the
+beginning. Difficulty (wave sizes, spawn timing, enemy accuracy, grenade frequency, ammo)
+is tuned in `src/story/difficulty.js`.
+
 ## Controls
 
 | Key | Action |
@@ -22,7 +26,8 @@ npm test        # physics / collision / weapon / AI / mission tests
 | Left click | Fire (hold for full auto) |
 | Right click (hold) | Aim down sights |
 | R | Reload (weapon lowered: check the magazine) |
-| E | Talk to the highlighted NPC / send a frozen civilian to shelter |
+| G (hold, release) | Frag grenade: hold to aim (the arc shows), release to throw |
+| E | Talk to the highlighted NPC / send a frozen civilian to shelter / take ammo at a crate |
 | Space | Jump (while crouched: stand up) |
 | Shift (hold) | Sprint, forward only |
 | C | Crouch on / off |

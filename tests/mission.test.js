@@ -14,6 +14,9 @@ import { PLAYER } from '../src/player/config.js';
 import { ENEMY } from '../src/ai/config.js';
 import { CoverPoints } from '../src/ai/CoverPoints.js';
 import { EnemyManager } from '../src/ai/EnemyManager.js';
+import { GrenadeSim } from '../src/weapons/Grenades.js';
+import { GrenadeThrower } from '../src/weapons/GrenadeThrower.js';
+import { DIFFICULTY, expandWave } from '../src/story/difficulty.js';
 
 const DT = 1 / 120;
 
@@ -201,9 +204,21 @@ test('mission 1 routes, reach points and checkpoints are walkable and connected'
   }
   // A few spots are enough to prove the hall is connected (every path search is slow-ish).
   for (const [x, z] of MISSION1.shelter.spots.filter((_, i) => i % 17 === 0)) check(x, z, 'shelter spot');
-  const wave = MISSION1.steps.flatMap((st) => st.do ?? []).find((a) => a.type === 'wave');
-  for (const sp of wave.spawns) {
-    check(sp.at[0], sp.at[1], `wave spawn (${sp.group})`);
+  for (const [name, points] of Object.entries(DIFFICULTY.spawns)) for (const at of points) spawnOk(at, name);
+  for (const [name, route] of Object.entries(DIFFICULTY.routes)) for (const [x, z] of route) check(x, z, `${name} route`);
+  for (const [name, groups] of Object.entries(DIFFICULTY.waves)) assert.ok(expandWave(groups).length > 0, `wave ${name}`);
+  // Ammo crates stand on open floor (their footprint is walkable).
+  for (const a of MISSION1.steps.flatMap((st) => st.do ?? []).filter((x) => x.type === 'crate' && !x.remove)) {
+    for (const [dx, dz] of [[0, 0], [0.5, 0], [-0.5, 0], [0, 0.3], [0, -0.3]]) {
+      const n = nav.nodeAt(a.at[0] + dx, a.at[1] + dz);
+      const q = n >= 0 ? nav.nodePosition(n, new Vector3()) : null;
+      assert.ok(q && Math.hypot(q.x - a.at[0] - dx, q.z - a.at[1] - dz) < 0.5, `crate ${a.id} footprint on open floor`);
+    }
+    check(a.at[0] + 1.2, a.at[1], `crate ${a.id} reachable`);
+  }
+  function spawnOk(at, name) {
+    const sp = { at };
+    check(sp.at[0], sp.at[1], `wave spawn (${name})`);
     // A body dropped there stands on the floor (not wedged into a wall and pushed through it).
     const n = nav.nodeAt(sp.at[0], sp.at[1]);
     const body = new PlayerController(world, { ...PLAYER, radius: ENEMY.radius });
@@ -223,8 +238,10 @@ function fakeHud() {
 test('mission 1 plays through with a scripted player', () => {
   const player = new PlayerController(world);
   player.setSpawn(level.spawn.position, level.spawn.yaw);
-  const rifle = { mode: 'ready', onMagCheck: null, get lowered() { return this.mode === 'lowered'; } };
+  const rifle = { mode: 'ready', onMagCheck: null, state: { ammo: 30, reserve: 150 }, get lowered() { return this.mode === 'lowered'; } };
   const scene = { add() {} };
+  const grenadeSim = new GrenadeSim(world, { fuse: DIFFICULTY.grenades.fuse });
+  const thrower = new GrenadeThrower({ sim: grenadeSim, config: DIFFICULTY.grenades.player });
   const enemies = new EnemyManager({
     scene,
     world,
@@ -235,6 +252,12 @@ test('mission 1 plays through with a scripted player', () => {
     health: { damage() {} }, // the scripted player can't die
     spawns: [],
   });
+  enemies.grenades = grenadeSim;
+  let explosions = 0;
+  grenadeSim.onExplode = (g) => {
+    explosions++;
+    enemies.explode(g.position, DIFFICULTY.grenades.radius, DIFFICULTY.grenades.enemyDamage, g.owner === 'player' ? info : g.thrower?.asTarget);
+  };
   const story = new StoryDirector({
     script: MISSION1,
     scene,
@@ -245,7 +268,14 @@ test('mission 1 plays through with a scripted player', () => {
     enemies,
     audio: { ready: false },
     hud: fakeHud(),
+    grenades: thrower,
   });
+  let enemyGrenades = 0;
+  const onThrown = enemies.onGrenadeThrown;
+  enemies.onGrenadeThrown = (g, e) => {
+    enemyGrenades++;
+    onThrown(g, e);
+  };
   const info = {
     position: player.position,
     head: new Vector3(),
@@ -262,6 +292,7 @@ test('mission 1 plays through with a scripted player', () => {
     info.head.set(player.position.x, player.position.y + 1.65, player.position.z);
     info.chest.set(player.position.x, player.position.y + 1.3, player.position.z);
     enemies.update(DT, info, player);
+    grenadeSim.update(DT);
     story.update(DT, info);
   };
   const run = (seconds, controls = () => idle) => {
@@ -358,14 +389,77 @@ test('mission 1 plays through with a scripted player', () => {
   assert.equal(enemies.friendlies.length, 0, 'squad back to story NPCs');
   assert.equal(story.npcs.civiliansOutside, 0, `every civilian sheltered (${outsideAtContact} were still outside at contact)`);
   teleport(-50, 0.1, 5);
-  runUntil(() => at('part2_end'), 90);
-  assert.ok(at('part2_end'), `debrief finished (${where()}, cmd arrived ${cmd.arrived})`);
+  runUntil(() => at('defense_orders'), 90);
+  assert.ok(at('defense_orders'), `debrief finished (${where()}, cmd arrived ${cmd.arrived})`);
   console.log(`# squad: ${shots} shots, ${squadKills} kills; ${outsideAtContact} civilians outside at contact`);
+
+  // Part 3: take the line at the low wall, resupply at the crate.
+  teleport(-28.3, 0.1, -3.5);
+  runUntil(() => at('defense_prep'), 60);
+  assert.ok(at('defense_prep'), where());
+  const crate = story.crates.get('crate1');
+  assert.ok(crate, 'ammo crate at the line');
+  rifle.state.reserve = 0;
+  thrower.count = 0;
+  const lookAt = (pt) => {
+    const e = player.position.clone().add(new Vector3(0, 1.66, 0));
+    return [e, new Vector3().subVectors(pt, e).normalize()];
+  };
+  teleport(crate.position.x - 1.3, 0.1, crate.position.z);
+  run(0.2);
+  story.interact(...lookAt(crate.position.clone().add(new Vector3(0, 0.3, 0))));
+  assert.equal(rifle.state.reserve, DIFFICULTY.ammo.crateReserve, 'E at the crate refills the reserve');
+  assert.equal(thrower.count, DIFFICULTY.grenades.player.max, 'and the grenades');
+  // The crate is solid: walking into it doesn't go through.
+  player.yaw = -Math.PI / 2; // east, into the crate
+  run(1.5, () => ({ ...idle, forward: 1 }));
+  assert.ok(player.position.x < crate.position.x - 0.5, `the crate blocks the player (x ${player.position.x.toFixed(2)})`);
+  teleport(-28.3, 0.1, -3.5);
+
+  // Waves: let the AI fight for a while (the scripted player stands still, so it gets
+  // grenades thrown at it), then finish off whoever is left.
+  const fight = (id, seconds) => {
+    runUntil(() => !at(id), seconds);
+    for (let k = 0; k < 20 && at(id); k++) {
+      for (const e of enemies.enemies) if (e.alive) enemies.hit({ enemy: e, zone: 'head' }, new Vector3(1, 0, 0), info);
+      run(2);
+    }
+  };
+  runUntil(() => at('wave1'), 30);
+  assert.equal(story.mission.checkpointIndex, story.mission.indexOf('wave1'), 'checkpoint before wave 1');
+  assert.equal(enemies.friendlies.length, 3, 'squad fighting');
+  fight('wave1', 40);
+  assert.ok(at('between1'), `wave 1 over (${where()})`);
+  runUntil(() => at('wave2'), 30);
+  const w2 = [];
+  run(8);
+  for (const e of enemies.enemies) w2.push(e.cfg.role);
+  assert.ok(w2.includes('suppressor') && w2.includes('flanker'), `wave 2 has suppressors and flankers (${w2})`);
+  fight('wave2', 40);
+  assert.ok(at('overrun'), `wave 2 over, the line is overrun (${where()})`);
+  assert.ok(story.crates.get('crate2'), 'second crate');
+  teleport(-10, 0.1, -22);
+  fight('overrun', 20);
+  assert.ok(at('position2'), `fell back to the second position (${where()})`);
+  assert.equal(story.mission.checkpointIndex, story.mission.indexOf('position2'));
+  runUntil(() => at('wave3'), 30);
+  run(12);
+  const roles = enemies.enemies.map((e) => e.cfg.role);
+  assert.ok(roles.includes('marksman') && roles.includes('rusher'), `wave 3 has a marksman and rushers (${roles})`);
+  fight('wave3', 40);
+  assert.ok(at('lull'), `wave 3 over (${where()})`);
+  runUntil(() => at('part3_end'), 90);
+  assert.ok(at('part3_end'), `the attack pauses, part 3 ends (${where()})`);
+  assert.ok(enemyGrenades > 0, 'enemies threw grenades at the camping player');
+  console.log(`# part 3: ${enemyGrenades} enemy grenades, ${explosions} explosions, squad kills ${enemies.friendlyKills}`);
 
   // F2-style jumps and checkpoint restarts.
   story.jumpTo(story.mission.indexOf('at_wall'));
   assert.ok(Math.hypot(player.position.x + 14, player.position.z + 12.8) < 0.5, 'player at the wall checkpoint');
   assert.ok(story.npcs.get('cmd').position.x > -13, 'commander placed at the wall');
+  story.jumpTo(story.mission.indexOf('wave2'));
+  assert.ok(story.crates.get('crate1') && !story.crates.get('crate2'), 'jump to wave 2: first crate only');
+  assert.equal(enemies.friendlies.length, 3, 'jump to wave 2: squad in combat');
   story.jumpTo(story.mission.indexOf('after_talk'));
   assert.equal(story.npcs.civiliansOutside, 0, 'fast-forward past contact: civilians in the shelter');
   assert.equal(story.enemiesLeft, 0, 'fast-forward past contact: no attackers');
