@@ -15,9 +15,24 @@ export class Hud {
     this.root = document.createElement('div');
     this.root.className = 'hud';
     this.root.hidden = true;
-    const crosshair = document.createElement('div');
-    crosshair.className = 'crosshair';
-    this.root.append(crosshair);
+    this.crosshair = document.createElement('div');
+    this.crosshair.className = 'crosshair';
+    for (let i = 0; i < 5; i++) this.crosshair.append(document.createElement('i'));
+    this.root.append(this.crosshair);
+    this._gap = -1;
+    this._crosshairOpacity = -1;
+
+    this.ammo = document.createElement('div');
+    this.ammo.className = 'ammo';
+    this.ammo.dir = 'rtl';
+    this.ammoCount = document.createElement('div');
+    this.ammoCount.className = 'ammo-count';
+    this.ammoCount.dir = 'ltr';
+    this.ammoStatus = document.createElement('div');
+    this.ammoStatus.className = 'ammo-status';
+    this.ammo.append(this.ammoCount, this.ammoStatus);
+    this.root.append(this.ammo);
+    this._ammoKey = '';
 
     this.debug = document.createElement('pre');
     this.debug.className = 'debug';
@@ -37,6 +52,38 @@ export class Hud {
 
   setPlaying(playing) {
     this.root.hidden = !playing;
+  }
+
+  /** @param {number} gapPx distance of the ticks from the center @param {number} opacity */
+  setCrosshair(gapPx, opacity) {
+    const gap = Math.round(gapPx);
+    if (gap !== this._gap) {
+      this._gap = gap;
+      this.crosshair.style.setProperty('--gap', `${gap}px`);
+    }
+    const o = Math.round(opacity * 20) / 20;
+    if (o !== this._crosshairOpacity) {
+      this._crosshairOpacity = o;
+      this.crosshair.style.opacity = String(o);
+    }
+  }
+
+  /** @param {import('../weapons/WeaponState.js').WeaponState} weapon */
+  setAmmo(weapon) {
+    const low = weapon.ammo <= Math.floor(weapon.cfg.magazineSize / 4);
+    let status = '';
+    if (weapon.reloading) status = HE.ammo.reloading;
+    else if (weapon.ammo === 0 && weapon.reserve === 0) status = HE.ammo.empty;
+    else if (low && weapon.reserve > 0) status = HE.ammo.reloadHint;
+    const key = `${weapon.ammo}|${weapon.reserve}|${status}`;
+    if (key === this._ammoKey) return;
+    this._ammoKey = key;
+    this.ammoCount.replaceChildren(String(weapon.ammo), ' ');
+    const reserve = document.createElement('small');
+    reserve.textContent = `/ ${weapon.reserve}`;
+    this.ammoCount.append(reserve);
+    this.ammoStatus.textContent = status;
+    this.ammo.classList.toggle('low', low);
   }
 
   /**

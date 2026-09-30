@@ -26,8 +26,8 @@ A browser-based 3D first-person story shooter.
 ## Roadmap
 
 1. [x] Movement: first-person controller, tried out on a greybox test range
-2. [ ] Gun  <- next
-3. [ ] Greybox Kotel
+2. [x] Gun: hitscan rifle with ADS, recoil, impacts, reload, procedural sound
+3. [ ] Greybox Kotel  <- next
 4. [ ] First enemy
 5. [ ] Opening story beat
 6. [ ] Realism pass
@@ -36,7 +36,7 @@ A browser-based 3D first-person story shooter.
 
 - `npm install`: install dependencies (Node >= 20.19)
 - `npm run dev`: dev server at http://localhost:5173
-- `npm test`: physics and collision tests (Node's built-in test runner, no browser needed)
+- `npm test`: physics, collision and weapon-logic tests (Node's built-in test runner, no browser needed)
 - `npm run build`: production build into `dist/`
 - `npm run preview`: serve the production build locally
 
@@ -65,9 +65,24 @@ A browser-based 3D first-person story shooter.
 - `src/world/greybox.js`: procedural 1 m grid texture, color palette, box/ramp geometry with UVs in meters.
 - `src/world/TestRange.js`: movement test course (green = step onto, amber = jump,
   red = crouch-jump, blue = crouch under, teal = walkable ramp, dark red = too steep).
+- `src/weapons/`: the rifle.
+  - `config.js`: all weapon tuning (fire rate, magazine, reload time, spread, recoil, ADS).
+  - `WeaponState.js`: magazine / fire-rate / reload / aim logic (pure, unit-tested).
+  - `Recoil.js`: view kick that springs back to the aim point (pure, unit-tested); the rifle
+    writes it into `PlayerCamera.offsetPitch/offsetYaw`, plus `fovScale`/`lookScale` for ADS.
+  - `Rifle.js`: ties it together; hitscan via `CollisionWorld.raycast` from the eye along
+    `PlayerCamera.getAimDirection()` plus a spread cone. `rifle.onHit(hit, dir)` is the hook
+    for damaging enemies later.
+  - `Viewmodel.js`: placeholder rifle + hands in its own scene/camera, drawn after the world
+    with a cleared depth buffer (no wall clipping). Model origin = rear sight, so the ADS pose
+    puts it on the view axis. Poses: hip, ADS, sprint, reload; sway, bob, shot kick, muzzle flash.
+  - `Impacts.js`: pooled bullet-hole decals (one InstancedMesh) and sparks (one Points).
+  - `WeaponAudio.js`: Web Audio procedural shot / dry-fire / reload sounds; `unlock()` must be
+    called from a user gesture (the start click).
 - `src/ui/`: Hebrew strings (`strings.he.js`), start/pause overlay (mouse sensitivity, saved in
-  localStorage), HUD (crosshair + debug readout; toggle with the backquote key, shown by default in dev).
-- `tests/`: `node:test` suites for the controller and collision world (`tests/helpers.js` builds
+  localStorage), HUD (spread-sized crosshair, ammo counter, debug readout; toggle the readout
+  with the backquote key, shown by default in dev).
+- `tests/`: `node:test` suites for the controller, collision world and weapon logic (`tests/helpers.js` builds
   test worlds and simulates input).
 
 ## Conventions
@@ -93,4 +108,9 @@ A browser-based 3D first-person story shooter.
 - Dev builds expose `window.__game` for console debugging and automated checks
   (e.g. `__game.setActive(true)` plays without pointer lock).
 - Headless Chromium (Playwright) renders with SwiftShader: fine for screenshots and logic checks,
-  meaningless for FPS numbers.
+  meaningless for FPS numbers. At ~5 FPS the frame-time cap makes game time run slower than real
+  time. Under pointer lock, Playwright's synthetic mouse events report bogus large movements
+  (the view jumps); drive input via `__game.input.held` / `.pressed` instead.
+- Two render passes per frame (world, then viewmodel), so `renderer.info.autoReset` is off and
+  `Game.frame()` resets it.
+- Viewmodel materials use low metalness: without an environment map, metals render black.

@@ -109,6 +109,7 @@ export class PlayerController {
    * @param {number} dt
    * @param {{forward: number, right: number, jump: boolean, sprint: boolean, crouch: boolean}} input
    *   forward/right are in [-1, 1]. jump and crouch are "pressed since last step". sprint is held.
+   *   Optional moveScale multiplies the target speed (default 1).
    */
   update(dt, input) {
     const cfg = this.cfg;
@@ -149,7 +150,8 @@ export class PlayerController {
       fx /= inputLen;
       rx /= inputLen;
     }
-    const speed = this.crouched ? cfg.crouchSpeed : this.sprinting ? cfg.sprintSpeed : cfg.walkSpeed;
+    const baseSpeed = this.crouched ? cfg.crouchSpeed : this.sprinting ? cfg.sprintSpeed : cfg.walkSpeed;
+    const speed = baseSpeed * (input.moveScale ?? 1); // e.g. slower while aiming down sights
     const sin = Math.sin(this.yaw);
     const cos = Math.cos(this.yaw);
     // forward = (-sin, 0, -cos), right = (cos, 0, -sin)

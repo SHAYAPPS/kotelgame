@@ -22,6 +22,8 @@ export const PALETTE = {
   steep: 0x93504c, // dark red: too steep to walk
   crate: 0xa77d50,
   boundary: 0x85817a,
+  target: 0xe9e3d3, // shooting targets
+  targetCenter: 0xc9442f,
 };
 
 /** 1 m x 1 m prototype grid tile, generated on a canvas (no external assets). */

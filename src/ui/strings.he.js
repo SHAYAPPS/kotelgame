@@ -2,7 +2,7 @@
 
 export const HE = {
   gameTitle: 'משחק הכותל',
-  buildLabel: 'אב־טיפוס · שלב 1: תנועה',
+  buildLabel: 'אב־טיפוס · שלב 2: נשק',
   start: 'לחצו כדי להתחיל',
   resume: 'לחצו כדי להמשיך',
   paused: 'המשחק מושהה',
@@ -11,6 +11,9 @@ export const HE = {
   controls: [
     { keys: ['W', 'A', 'S', 'D'], label: 'תנועה' },
     { keys: ['עכבר'], label: 'הסתכלות' },
+    { keys: ['לחיצה שמאלית'], label: 'ירי (להחזיק לאוטומטי)' },
+    { keys: ['לחיצה ימנית'], label: 'כינון בכוונת' },
+    { keys: ['R'], label: 'החלפת מחסנית' },
     { keys: ['רווח'], label: 'קפיצה' },
     { keys: ['Shift'], label: 'ריצה (להחזיק)' },
     { keys: ['C'], label: 'התכופפות (הפעלה / ביטול)' },
@@ -18,6 +21,11 @@ export const HE = {
     { keys: ['`'], label: 'נתוני ביצועים' },
   ],
   sensitivity: 'רגישות עכבר',
+  ammo: {
+    reloading: 'מחליף מחסנית…',
+    reloadHint: 'R להחלפת מחסנית',
+    empty: 'אין תחמושת',
+  },
   hud: {
     fps: 'FPS',
     speed: 'מהירות',

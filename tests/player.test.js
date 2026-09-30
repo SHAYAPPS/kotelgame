@@ -111,3 +111,9 @@ test('sprinting cancels crouch; crouching while sprinting ends the sprint', () =
   assert.equal(p.crouched, true);
   assert.equal(p.sprinting, false);
 });
+
+test('moveScale slows movement (aiming down sights)', () => {
+  const p = makePlayer(makeWorld());
+  simulate(p, { forward: 1, moveScale: 0.6 }, 1);
+  assert.ok(Math.abs(p.horizontalSpeed - PLAYER.walkSpeed * 0.6) < 1e-6);
+});

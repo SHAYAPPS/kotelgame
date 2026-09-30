@@ -35,6 +35,13 @@ export class PlayerCamera {
     this.roll = 0;
     this.fov = config.fov;
 
+    // Set by the weapon every frame: recoil offsets on top of the look angles,
+    // a world-FOV multiplier (aim down sights) and a mouse sensitivity multiplier.
+    this.offsetPitch = 0;
+    this.offsetYaw = 0;
+    this.fovScale = 1;
+    this.lookScale = 1;
+
     this.eye = new Vector3();
     this.prevEye = new Vector3();
 
@@ -45,7 +52,7 @@ export class PlayerCamera {
   }
 
   look(dx, dy) {
-    const k = this.cfg.lookRadiansPerPixel * this.sensitivity;
+    const k = this.cfg.lookRadiansPerPixel * this.sensitivity * this.lookScale;
     this.yaw = (this.yaw - dx * k) % TWO_PI;
     this.pitch = MathUtils.clamp(this.pitch - dy * k, -MAX_PITCH, MAX_PITCH);
   }
@@ -121,12 +128,29 @@ export class PlayerCamera {
     );
   }
 
+  /** Pitch actually shown (look + recoil), clamped short of straight up/down. */
+  get viewPitch() {
+    return MathUtils.clamp(this.pitch + this.offsetPitch, -MAX_PITCH, MAX_PITCH);
+  }
+
+  get viewYaw() {
+    return this.yaw + this.offsetYaw;
+  }
+
+  /** Unit vector the view (and the crosshair) points along, including recoil. */
+  getAimDirection(out) {
+    const p = this.viewPitch;
+    const y = this.viewYaw;
+    return out.set(-Math.sin(y) * Math.cos(p), Math.sin(p), -Math.cos(y) * Math.cos(p));
+  }
+
   render(alpha) {
     const cam = this.camera;
     cam.position.lerpVectors(this.prevEye, this.eye, alpha);
-    cam.rotation.set(this.pitch, this.yaw, this.roll);
-    if (Math.abs(cam.fov - this.fov) > 1e-3) {
-      cam.fov = this.fov;
+    cam.rotation.set(this.viewPitch, this.viewYaw, this.roll);
+    const fov = this.fov * this.fovScale;
+    if (Math.abs(cam.fov - fov) > 1e-3) {
+      cam.fov = fov;
       cam.updateProjectionMatrix();
     }
   }

@@ -10,7 +10,7 @@ Requires Node.js 20.19 or newer.
 ```bash
 npm install
 npm run dev     # then open http://localhost:5173
-npm test        # physics / collision tests
+npm test        # physics / collision / weapon tests
 ```
 
 ## Controls
@@ -19,6 +19,9 @@ npm test        # physics / collision tests
 | --- | --- |
 | W A S D | Move |
 | Mouse | Look (click the start button to lock the pointer) |
+| Left click | Fire (hold for full auto) |
+| Right click (hold) | Aim down sights |
+| R | Reload |
 | Space | Jump (while crouched: stand up) |
 | Shift (hold) | Sprint, forward only |
 | C | Crouch on / off |

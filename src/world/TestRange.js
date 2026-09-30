@@ -74,6 +74,15 @@ export function createTestRange(material) {
     box(x, 0, z, 0.6, 3, 0.6, PALETTE.concrete);
   }
 
+  // I. Shooting targets on stands, turned to face the spawn.
+  for (const [x, z] of [[-24, -6], [-28, -18], [-20, -34], [26, -24], [22, -40]]) {
+    const yaw = Math.atan2(-x, 8 - z); // local +Z (the face with the center plate) toward the spawn
+    box(x, 0, z, 0.08, 0.9, 0.08, PALETTE.concrete, yaw);
+    const board = box(x, 0.9, z, 0.7, 0.9, 0.06, PALETTE.target, yaw);
+    const center = box(0, 0.34, 0.035, 0.22, 0.22, 0.02, PALETTE.targetCenter);
+    board.add(center);
+  }
+
   // G. Boundary walls.
   const edge = 50;
   box(0, 0, -edge, edge * 2 + 1, 3, 1, PALETTE.boundary);

@@ -37,6 +37,12 @@ export class Input {
     window.addEventListener('keyup', (e) => this.held.delete(e.code));
     window.addEventListener('blur', () => this.clear());
     document.addEventListener('mousemove', (e) => this._onMouseMove(e));
+    // Mouse buttons share the key sets as 'Mouse0' (left), 'Mouse1', 'Mouse2' (right).
+    document.addEventListener('mousedown', (e) => this._onMouseDown(e));
+    document.addEventListener('mouseup', (e) => this.held.delete(`Mouse${e.button}`));
+    document.addEventListener('contextmenu', (e) => {
+      if (this.enabled) e.preventDefault();
+    });
     document.addEventListener('pointerlockchange', () => this._onLockChange());
     document.addEventListener('pointerlockerror', (e) => this.onLockError(e));
   }
@@ -96,6 +102,14 @@ export class Input {
     if (NO_DEFAULT.has(e.code)) e.preventDefault();
     if (!e.repeat && !this.held.has(e.code)) this.pressed.add(e.code);
     this.held.add(e.code);
+  }
+
+  _onMouseDown(e) {
+    if (!this.enabled || !this.locked) return;
+    const code = `Mouse${e.button}`;
+    if (!this.held.has(code)) this.pressed.add(code);
+    this.held.add(code);
+    e.preventDefault();
   }
 
   _onMouseMove(e) {

@@ -147,16 +147,94 @@
   display: none;
 }
 
+/* Crosshair: four ticks; --gap (px) is set from the current bullet spread. */
 .crosshair {
+  --gap: 12px;
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 4px;
-  height: 4px;
-  margin: -2px 0 0 -2px;
-  border-radius: 50%;
-  background: rgb(255 255 255 / 90%);
-  box-shadow: 0 0 0 1px rgb(0 0 0 / 55%);
+  width: 0;
+  height: 0;
+  transition: opacity 90ms linear;
+}
+
+.crosshair i {
+  position: absolute;
+  background: rgb(255 255 255 / 92%);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 50%);
+}
+
+.crosshair i:nth-child(1),
+.crosshair i:nth-child(2) {
+  width: 2px;
+  height: 9px;
+  left: -1px;
+}
+
+.crosshair i:nth-child(1) {
+  bottom: var(--gap);
+}
+
+.crosshair i:nth-child(2) {
+  top: var(--gap);
+}
+
+.crosshair i:nth-child(3),
+.crosshair i:nth-child(4) {
+  width: 9px;
+  height: 2px;
+  top: -1px;
+}
+
+.crosshair i:nth-child(3) {
+  right: var(--gap);
+}
+
+.crosshair i:nth-child(4) {
+  left: var(--gap);
+}
+
+.crosshair i:nth-child(5) {
+  width: 2px;
+  height: 2px;
+  left: -1px;
+  top: -1px;
+}
+
+/* Ammo counter, bottom right (Call of Duty layout). */
+.ammo {
+  position: absolute;
+  right: 28px;
+  bottom: 24px;
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  color: #f2ead8;
+  text-shadow: 0 1px 3px rgb(0 0 0 / 70%);
+}
+
+.ammo-count {
+  font-size: 44px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.ammo-count small {
+  font-size: 20px;
+  font-weight: 600;
+  color: #cfc6b0;
+}
+
+.ammo-status {
+  min-height: 1.3em;
+  font-size: 15px;
+  font-weight: 700;
+  color: #e2cf9c;
+}
+
+.ammo.low .ammo-count {
+  color: #ff9d7e;
 }
 
 .debug {
