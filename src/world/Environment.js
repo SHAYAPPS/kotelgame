@@ -19,11 +19,15 @@ const GROUND_BELOW = new Color(0x9c9a92);
  * cost nothing per frame; call refreshShadows() if static geometry changes.
  */
 export class Environment {
-  constructor(scene, renderer, { shadowCenter = [0, 0, 0], shadowExtent = 50 } = {}) {
+  constructor(
+    scene,
+    renderer,
+    { shadowCenter = [0, 0, 0], shadowExtent = 50, shadowMapSize = 2048, sunOffset = [35, 70, 45], fog = [60, 320] } = {},
+  ) {
     this.scene = scene;
     this.renderer = renderer;
 
-    scene.fog = new Fog(SKY_HORIZON.clone(), 60, 320);
+    scene.fog = new Fog(SKY_HORIZON.clone(), fog[0], fog[1]);
 
     this.sky = new Mesh(
       new SphereGeometry(500, 32, 16),
@@ -68,13 +72,13 @@ export class Environment {
     const hemi = new HemisphereLight(0xdde9f5, 0x9a8f7c, 2.0);
     scene.add(hemi);
 
-    // Sun from behind the spawn's right shoulder, so the faces you see are lit.
+    // sunOffset: where the sun sits relative to the shadow center (its direction).
     const sun = new DirectionalLight(0xfff0db, 2.4);
     const [cx, cy, cz] = shadowCenter;
-    sun.position.set(cx + 35, cy + 70, cz + 45);
+    sun.position.set(cx + sunOffset[0], cy + sunOffset[1], cz + sunOffset[2]);
     sun.target.position.set(cx, cy, cz);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.mapSize.set(shadowMapSize, shadowMapSize);
     sun.shadow.bias = -0.0004;
     sun.shadow.normalBias = 0.03;
     sun.shadow.radius = 2;
@@ -84,7 +88,7 @@ export class Environment {
     cam.top = shadowExtent;
     cam.bottom = -shadowExtent;
     cam.near = 1;
-    cam.far = 200;
+    cam.far = Math.hypot(...sunOffset) + shadowExtent * 2;
     scene.add(sun, sun.target);
     this.sun = sun;
 
