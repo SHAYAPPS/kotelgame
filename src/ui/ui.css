@@ -914,3 +914,23 @@
   border-color: #e2cf9c;
   font-weight: 700;
 }
+
+/* Screenshot saved (P). */
+.shot-toast {
+  position: fixed;
+  top: 16px;
+  right: 50%;
+  z-index: 60;
+  transform: translateX(50%);
+  padding: 5px 14px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #f1e6c8;
+  background: rgb(0 0 0 / 55%);
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+.shot-toast[hidden] {
+  display: none;
+}

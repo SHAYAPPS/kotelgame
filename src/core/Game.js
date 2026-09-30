@@ -34,6 +34,7 @@ import { PlayerHealth } from '../player/PlayerHealth.js';
 import { DamageOverlay } from '../ui/DamageOverlay.js';
 import { HE } from '../ui/strings.he.js';
 import { Hud, num } from '../ui/Hud.js';
+import { Screenshot } from '../ui/Screenshot.js';
 import { StoryHud } from '../ui/StoryHud.js';
 import { StoryDirector } from '../story/StoryDirector.js';
 import { MISSION1 } from '../story/mission1.js';
@@ -235,9 +236,12 @@ export class Game {
       this.damage.showHitmarker(killed);
       this.audio.hitmarker(zone === 'head');
     };
-    // Dev tools: F1 = AI debug view + FPS readout, K = spawn an enemy.
+    this.screenshot = new Screenshot(renderer.domElement);
+    // Dev tools: F1 = AI debug view + FPS readout, K = spawn an enemy. P = screenshot.
     window.addEventListener('keydown', (e) => {
-      if (e.code === 'F1') {
+      if (e.code === 'KeyP' && !e.repeat) {
+        this.screenshot.request();
+      } else if (e.code === 'F1') {
         e.preventDefault();
         if (e.repeat) return;
         this.debugDraw.toggle();
@@ -400,6 +404,7 @@ export class Game {
     const r = this.renderer;
     r.info.reset();
     this.post.render(dt);
+    this.screenshot.capture();
   }
 
   _fixedStep(dt) {

@@ -306,6 +306,9 @@ A browser-based 3D first-person story shooter.
 - `src/ui/`: Hebrew strings (`strings.he.js`), start/pause overlay (mouse sensitivity, saved in
   localStorage), HUD (spread-sized crosshair, ammo counter, debug readout; toggle the readout
   with the backquote key, shown by default in dev).
+- `src/ui/Screenshot.js`: P saves the 3D view (with the weapon, no HUD) as a PNG, read back
+  right after `post.render()`. The dev server writes it to `screenshots/game/` (the
+  `/__screenshot` endpoint in `vite.config.js`); a production build downloads it.
 - `tests/`: `node:test` suites for the controller, collision world, weapon logic and the Kotel
   level's walkable routes / out-of-bounds (`tests/kotel.test.js`), the mission runner and a scripted
   Mission 1 playthrough (`tests/mission.test.js`) (`tests/helpers.js` builds
