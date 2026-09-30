@@ -13,12 +13,13 @@ import { loadFBX } from './lib/fbx.mjs';
 import { extractSkeleton, mergeMeshes, inverseBinds, wrapUVs } from './lib/rig.mjs';
 import { buildAtlas, rasterize, dilate, isSkin } from './lib/atlas.mjs';
 import { removeHidden } from './lib/hidden.mjs';
+import { addSkirt, fabricTile, skinParts } from './lib/clothes.mjs';
 import { buildLods } from './lib/lod.mjs';
 import { writeCharacter } from './lib/glb.mjs';
 import { encodeLibrary } from './lib/animbin.mjs';
 import { sampleClip, removeDrift, alignFootPhase, closeLoop, crossfadeLoop, handTargets, peakSpeedTime, worldPos } from './lib/anim.mjs';
 import { encodeKTX2 } from './ktx2.mjs';
-import { CHARACTERS, CLIPS, CLIP_SOURCES, PART } from './characters.config.mjs';
+import { CHARACTERS, CLIPS, CLIP_SOURCES, PART, PART_COUNT } from './characters.config.mjs';
 import { writeCredits } from './credits.mjs';
 
 const SRC = new URL('../../assets-src/mixamo/', import.meta.url);
@@ -230,8 +231,14 @@ async function buildCharacter(id, cfg) {
   const t0 = Date.now();
   const root = await loadFBX(path(new URL(`characters/${cfg.src}.fbx`, SRC)));
   const skeleton = extractSkeleton(root, { height: cfg.height });
+  // A shirt under a suit jacket is its own part (white shirt, dark suit).
+  let hasSuit = false;
+  root.traverse((o) => {
+    if (o.isMesh && /Suit/i.test(o.name)) hasSuit = true;
+  });
   const partOf = (mesh, mat) => {
     if (cfg.hairMaterial && cfg.hairMaterial.test(mat.name)) return PART.hair;
+    if (hasSuit && /Shirt/i.test(mesh.name)) return PART.shirt;
     for (const [re, p] of cfg.parts ?? []) if (re.test(mesh.name)) return p;
     return PART.fixed;
   };
@@ -264,6 +271,45 @@ async function buildCharacter(id, cfg) {
     removed = r.removed;
   }
 
+  // Bare arms / legs as parts of their own (the game can dress them).
+  let skinInfo = '';
+  if (cfg.skinParts && cfg.body) {
+    const r = skinParts(geo, index, skeleton, (i) => cfg.body.test(geo.meshName[i]), PART);
+    index = r.index;
+    skinInfo = `  skin: arms ${r.arms} legs ${r.legs} tris`;
+  }
+  // Women: a long skirt with its own fabric cell in the atlas.
+  if (cfg.skirt) {
+    const bonePos = (n) => new THREE.Vector3().setFromMatrixPosition(skeleton.bones.find((b) => b.name === n).world);
+    const hips = bonePos('Hips');
+    const ankle = Math.max(bonePos('LeftFoot').y, bonePos('RightFoot').y);
+    const hasBottom = geo.part.some((p) => p === PART.bottom);
+    let pantsTop = -Infinity;
+    for (const i of index) if (geo.part[i] === PART.bottom) pantsTop = Math.max(pantsTop, geo.position[i * 3 + 1]);
+    const top = Math.min(hips.y + 0.12, Math.max(hips.y + 0.03, hasBottom ? pantsTop : hips.y + 0.07));
+    // Measure everything below the waist except a top / jacket hanging over the skirt (unless
+    // the top mesh also holds the shorts: then it has to go inside).
+    const skip = new Set([PART.hair, PART.shoes, ...(hasBottom ? [PART.top, PART.shirt] : [])]);
+    const tile = await fabricTile();
+    const mat = geo.materials.push({ name: 'Skirt' }) - 1;
+    matTexture[mat] = textures.push({ key: 'skirt', color: tile.color, normal: tile.normal, size: 128 }) - 1;
+    const tris = addSkirt(geo, index, skeleton, {
+      part: PART.skirt,
+      mat,
+      top,
+      hem: ankle + 0.045,
+      knee: (bonePos('LeftLeg').y + bonePos('RightLeg').y) / 2,
+      center: [hips.x, hips.z],
+      include: (i) => !skip.has(geo.part[i]),
+      ...cfg.skirt,
+    });
+    const merged = new Uint32Array(index.length + tris.length);
+    merged.set(index);
+    merged.set(tris, index.length);
+    index = merged;
+    skinInfo += `  skirt ${tris.length / 3} tris (waist ${top.toFixed(2)} hem ${(ankle + 0.045).toFixed(2)})`;
+  }
+
   const atlas = await buildAtlas(textures, geo, matTexture, { normalScale: cfg.normalScale ?? 0.5 });
   geo.uvAtlas = atlas.uv;
   const { W, H } = atlas;
@@ -272,7 +318,7 @@ async function buildCharacter(id, cfg) {
   const maskMat = new Uint8Array(W * H);
   const maskPart = new Uint8Array(W * H);
   for (let m = 0; m < geo.materials.length; m++) rasterize(maskMat, W, H, atlas.uv, index, (a) => geo.mat[a] === m, m + 1);
-  for (let p = 0; p <= 5; p++) rasterize(maskPart, W, H, atlas.uv, index, (a) => geo.part[a] === p, p + 1);
+  for (let p = 0; p < PART_COUNT; p++) rasterize(maskPart, W, H, atlas.uv, index, (a) => geo.part[a] === p, p + 1);
   dilate(maskMat, W, H, 3);
   dilate(maskPart, W, H, 3);
   if (cfg.despeckle) despeckle(atlas.color, W, H, maskMat, geo.materials, cfg.despeckle);
@@ -282,7 +328,7 @@ async function buildCharacter(id, cfg) {
   if (head) delete head._pts;
   // Mean linear luminance per part (the game's tints recolor relative to it).
   const lin = (c) => ((c /= 255) <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
-  const partLum = [0, 0, 0, 0, 0, 0].map((_, p) => {
+  const partLum = Array.from({ length: PART_COUNT }, (_, p) => {
     let sum = 0;
     let n = 0;
     for (let i = 0; i < W * H; i += 7) {
@@ -338,7 +384,7 @@ async function buildCharacter(id, cfg) {
   });
   await writeFile(new URL(`${id}.glb`, OUT), glb);
   console.log(
-    `${id.padEnd(15)} ${(glb.length / 1024).toFixed(0).padStart(5)} KB  tris ${geo.index.length / 3} -> ${info.tris.join('/')} (hidden ${removed})  atlas ${W}x${H} (${(colorKTX2.length / 1024).toFixed(0)} KB) normal ${atlas.nW}x${atlas.nH} (${(normalKTX2.length / 1024).toFixed(0)} KB)${hasAlpha ? ' +alpha' : ''}${wrappedTris ? ` wrapped ${wrappedTris} tris` : ''}  verts ${final.count}  h ${info.height}${skeleton.aliases ? `  aliased ${skeleton.aliases} bones (drift ${skeleton.aliasDrift.toFixed(4)})` : ''}  bindDrift ${geo.bindDrift.toExponential(1)}${atlas.wrapped ? `  WRAPPED UVs ${atlas.wrapped}` : ''}  ${((Date.now() - t0) / 1000).toFixed(1)}s`,
+    `${id.padEnd(15)} ${(glb.length / 1024).toFixed(0).padStart(5)} KB  tris ${geo.index.length / 3} -> ${info.tris.join('/')} (hidden ${removed})  atlas ${W}x${H} (${(colorKTX2.length / 1024).toFixed(0)} KB) normal ${atlas.nW}x${atlas.nH} (${(normalKTX2.length / 1024).toFixed(0)} KB)${hasAlpha ? ' +alpha' : ''}${wrappedTris ? ` wrapped ${wrappedTris} tris` : ''}${skinInfo}  verts ${final.count}  h ${info.height}${skeleton.aliases ? `  aliased ${skeleton.aliases} bones (drift ${skeleton.aliasDrift.toFixed(4)})` : ''}  bindDrift ${geo.bindDrift.toExponential(1)}${atlas.wrapped ? `  WRAPPED UVs ${atlas.wrapped}` : ''}  ${((Date.now() - t0) / 1000).toFixed(1)}s`,
   );
   return info;
 }

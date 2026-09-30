@@ -11,7 +11,7 @@ import {
   Vector4,
 } from 'three';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
-import { CHARACTER, FAR_LAYER } from './config.js';
+import { CHARACTER, FAR_LAYER, PARTS } from './config.js';
 import { setWorldQuaternion, solveTwoBone } from './ik.js';
 import { createRifle } from './weapons.js';
 
@@ -65,11 +65,17 @@ export class CharacterModel {
     };
     this.bones = new Map(skeleton.bones.map((b) => [b.name, b]));
 
-    // Per-person material (same shader program): part tints.
-    this.tints = Array.from({ length: 6 }, () => new Vector4(1, 1, 1, 0));
+    // Per-person material (same shader program): part tints. `flat` per part: 0 keeps the
+    // texture's shading under the tint, 1 a flat color (bare skin dressed as sleeves or
+    // trousers, see outfits.js).
+    this.tints = Array.from({ length: PARTS }, () => new Vector4(1, 1, 1, 0));
+    this.flat = new Array(PARTS).fill(0);
+    this.inflate = new Array(PARTS).fill(0); // geometry units, see setInflate()
+    this.hide = new Array(PARTS).fill(0); // 1 = part not drawn (e.g. hair under a headscarf)
     if (tints) for (const [part, c] of Object.entries(tints)) this.tints[+part].set(c[0], c[1], c[2], c[3] ?? 1);
     const material = this.lods[0].material.clone();
-    patchMaterial(material, this.tints, this.info.partLum ?? [0.3, 0.3, 0.3, 0.3, 0.3, 0.3]);
+    const lum = Array.from({ length: PARTS }, (_, i) => this.info.partLum?.[i] ?? 0.3);
+    patchMaterial(material, this.tints, lum, this.flat, this.inflate, this.hide);
     for (const m of this.lods) {
       m.material = material;
       m.castShadow = true;
@@ -261,6 +267,11 @@ export class CharacterModel {
     }
   }
 
+  /** Push a part's surface out along its normals (m): skin dressed as sleeves / trousers. */
+  setInflate(part, meters) {
+    this.inflate[part] = meters / (this.type.unit || 1);
+  }
+
   /**
    * Jump to the last frame of a one-shot clip at full weight (every other slot out) and pose
    * it now: a body about to freeze ends fully fallen even if its updates lagged behind (far
@@ -436,15 +447,26 @@ const _sphere = new Sphere(new Vector3(), 1.3);
  * Per-part recolor on top of the atlas (shared shader, per-person uniforms): the texel's
  * luminance times the tint color, relative to the part's mean luminance.
  */
-function patchMaterial(material, tints, partLum) {
+function patchMaterial(material, tints, partLum, flat, inflate, hide) {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uTint = { value: tints };
     shader.uniforms.uPartLum = { value: partLum };
+    shader.uniforms.uFlat = { value: flat };
+    shader.uniforms.uInflate = { value: inflate };
+    shader.uniforms.uHide = { value: hide };
+    // Per part: pushed out along the normal (dressed skin), or collapsed to a point (hidden).
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute float _part;\nvarying float vPart;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPart = _part;');
+      .replace('#include <common>', `#include <common>\nattribute float _part;\nvarying float vPart;\nuniform float uInflate[${PARTS}];\nuniform float uHide[${PARTS}];`)
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+        vPart = _part;
+        int part = int(_part + 0.5);
+        transformed += normal * uInflate[part];
+        if (uHide[part] > 0.5) transformed = vec3(0.0);`,
+      );
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform vec4 uTint[6];\nuniform float uPartLum[6];\nvarying float vPart;')
+      .replace('#include <common>', `#include <common>\nuniform vec4 uTint[${PARTS}];\nuniform float uPartLum[${PARTS}];\nuniform float uFlat[${PARTS}];\nvarying float vPart;`)
       .replace(
         '#include <map_fragment>',
         `#include <map_fragment>
@@ -453,7 +475,8 @@ function patchMaterial(material, tints, partLum) {
           vec4 t = uTint[p];
           if (t.a > 0.0) {
             float l = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
-            diffuseColor.rgb = mix(diffuseColor.rgb, t.rgb * (l / max(uPartLum[p], 0.02)), t.a);
+            float rel = mix(l / max(uPartLum[p], 0.02), 1.0, uFlat[p]);
+            diffuseColor.rgb = mix(diffuseColor.rgb, t.rgb * rel, t.a);
           }
         }`,
       );

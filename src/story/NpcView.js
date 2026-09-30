@@ -18,6 +18,7 @@ import {
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { NPC } from './Npc.js';
 import { characters } from '../characters/registry.js';
+import { dressPerson } from '../characters/wardrobe.js';
 import { soldierState } from '../ai/EnemyView.js';
 
 const SKIN = [0xc79a78, 0xa87b5a, 0xe0b596, 0x8d6246, 0xd2a282];
@@ -207,17 +208,11 @@ class PlaceholderFigure {
   }
 }
 
-// Which character plays whom. Squad members by name; civilians by kind, cycling through
-// the fitting models so neighbors differ.
+// Which character plays whom. Squad members by name; civilians by kind (wardrobe.js CAST),
+// each one dressed unlike the people already standing near them.
 const SQUAD = { cmd: 'squad_swat', yonatan: 'squad_steve', noam: 'squad_swatguy' };
-const BY_KIND = {
-  worshipper: ['civ_brian', 'civ_joe', 'civ_josh'],
-  worshipperWoman: ['civ_martha', 'civ_kate', 'civ_elizabeth', 'civ_megan'],
-  tourist: ['civ_remy', 'civ_bryce', 'civ_sophie', 'civ_megan', 'civ_elizabeth', 'civ_lewis'],
-  guide: ['civ_bryce'],
-  civilian: ['civ_lewis', 'civ_josh', 'civ_kate', 'civ_martha', 'civ_brian', 'civ_megan', 'civ_sophie'],
-};
-const kindCount = new Map();
+const NEIGHBORHOOD = 9; // m
+const dressed = new Set(); // civilian views with a model (their looks, for the next picks)
 
 /**
  * A story NPC: the animated character (squad member or civilian) driven by its animator,
@@ -246,15 +241,24 @@ export class NpcView {
     if (!lib?.ready) return false;
     const n = this.npc;
     let id = null;
+    let outfit = null;
     if (this.soldier) id = SQUAD[n.id] ?? lib.ids('squad')[Math.floor(this.rand() * 3) % lib.ids('squad').length];
     else {
-      const list = (BY_KIND[n.kind] ?? BY_KIND.civilian).filter((x) => lib.has(x));
-      const k = kindCount.get(n.kind) ?? Math.floor(this.rand() * 7);
-      kindCount.set(n.kind, k + 1);
-      id = list.length ? list[k % list.length] : lib.ids('civilian')[0];
+      const neighbors = [];
+      for (const v of dressed) {
+        const d = Math.hypot(v.npc.position.x - n.position.x, v.npc.position.z - n.position.z);
+        if (d < NEIGHBORHOOD) neighbors.push({ sig: v.look, near: 1 - d / NEIGHBORHOOD });
+      }
+      const pick = dressPerson(n.kind, neighbors, (x) => (lib.has(x) ? lib.types.get(x).info : null), this.rand);
+      id = pick?.id ?? lib.ids('civilian')[0];
+      outfit = pick?.outfit ?? null;
     }
     if (!id || !lib.has(id)) return false;
-    ({ model: this.model, animator: this.animator } = this.soldier ? lib.soldier(id, { rand: this.rand }) : lib.civilian(id, n.kind, { rand: this.rand }));
+    ({ model: this.model, animator: this.animator } = this.soldier ? lib.soldier(id, { rand: this.rand }) : lib.civilian(id, n.kind, { rand: this.rand, outfit }));
+    if (!this.soldier && outfit) {
+      this.look = outfit.sig;
+      dressed.add(this);
+    }
     this.root.add(this.model.root);
     n.hitShape = this.model.hit;
     if (this.placeholder) {
@@ -307,6 +311,7 @@ export class NpcView {
   }
 
   dispose() {
+    dressed.delete(this);
     if (this.model) this.model.dispose();
     this.root.removeFromParent();
     this.placeholder?.dispose();

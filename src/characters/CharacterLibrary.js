@@ -1,4 +1,4 @@
-import { AnimationClip, AnimationUtils, Vector3, VectorKeyframeTrack } from 'three';
+import { AnimationClip, AnimationUtils, Matrix4, Vector3, VectorKeyframeTrack } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { decodeClips } from './animLibrary.js';
@@ -25,6 +25,12 @@ export class CharacterType {
       bone(`${side}Arm`).getWorldPosition(_a).distanceTo(bone(`${side}ForeArm`).getWorldPosition(_b)) +
       bone(`${side}ForeArm`).getWorldPosition(_a).distanceTo(bone(`${side}Hand`).getWorldPosition(_b));
     this.armRatio = armLen('Right') / anims.sourceArm;
+    // Meters per geometry unit at rest (the GLB's positions are quantized into a unit box):
+    // world = mesh.matrixWorld * bindMatrixInverse * (bone.matrixWorld * boneInverse) * bindMatrix.
+    const sm = this.scene.getObjectByProperty('isSkinnedMesh', true);
+    const bm = new Matrix4().multiplyMatrices(sm.skeleton.bones[0].matrixWorld, sm.skeleton.boneInverses[0]);
+    const rest = new Matrix4().copy(sm.matrixWorld).multiply(sm.bindMatrixInverse).multiply(bm).multiply(sm.bindMatrix);
+    this.unit = _a.setFromMatrixColumn(rest, 0).length();
     this.clips = new Map();
     for (const [name, clip] of sourceClips) {
       const tracks = clip.tracks.map((t) => {
@@ -39,6 +45,98 @@ export class CharacterType {
     this._variants = new Map();
     this.meta = anims.clips;
     this.rifle = anims.rifle;
+    this._shell = null;
+  }
+
+  /**
+   * How far the hair stands off the skull around a direction (Head-bone frame, in the space
+   * of the skull ellipsoid measured by the converter: center at the forehead ring, radii
+   * rx / crown / rz), as a scale on that ellipsoid: 1 = bald. Never below the scalp (checked
+   * over `skinCone`); on the hair at its `q` quantile (a few strands may poke out), unless
+   * `withHair` is off (the hair is hidden, e.g. under a headscarf).
+   * Kippot, hats and scarves sit on it.
+   * @param {{ x: number, y: number, z: number }} dir unit direction in ellipsoid space
+   */
+  hairScale(dir, cone = 0.35, q = 0.85, skinCone = cone + 0.4, withHair = true) {
+    const shell = this._shellData();
+    if (!shell) return 1;
+    let skin = 1;
+    const cs = Math.cos(skinCone);
+    const S = shell.skin;
+    for (let i = 0; i < S.n; i++) {
+      if (S.dir[i * 3] * dir.x + S.dir[i * 3 + 1] * dir.y + S.dir[i * 3 + 2] * dir.z >= cs && S.rho[i] > skin) skin = S.rho[i];
+    }
+    if (!withHair) return skin + 0.02;
+    const hair = this._scratch;
+    hair.length = 0;
+    const ch = Math.cos(cone);
+    const Hr = shell.hair;
+    for (let i = 0; i < Hr.n; i++) {
+      if (Hr.dir[i * 3] * dir.x + Hr.dir[i * 3 + 1] * dir.y + Hr.dir[i * 3 + 2] * dir.z >= ch) hair.push(Hr.rho[i]);
+    }
+    hair.sort((a, b) => a - b);
+    const onHair = hair.length >= 6 ? hair[Math.floor((hair.length - 1) * q)] : 1;
+    return Math.max(skin + 0.02, onHair);
+  }
+
+  /** Hair and scalp points around the head as directions + radii on the skull ellipsoid. */
+  _shellData() {
+    if (this._shell !== null) return this._shell;
+    const h = this.info.head;
+    if (!h?.ring) return (this._shell = undefined);
+    const { y: cy, cz, rx, rz } = h.ring;
+    const ry = Math.max(0.04, h.topY - cy);
+    const conv = (pts) => {
+      const n = pts.length / 3;
+      const dir = new Float32Array(n * 3);
+      const rho = new Float32Array(n);
+      for (let i = 0; i < n; i++) {
+        const dx = pts[i * 3] / rx;
+        const dy = (pts[i * 3 + 1] - cy) / ry;
+        const dz = (pts[i * 3 + 2] - cz) / rz;
+        const r = Math.hypot(dx, dy, dz) || 1;
+        dir[i * 3] = dx / r;
+        dir[i * 3 + 1] = dy / r;
+        dir[i * 3 + 2] = dz / r;
+        rho[i] = r;
+      }
+      return { n, dir, rho };
+    };
+    this._scratch = [];
+    return (this._shell = { hair: conv(this._headPoints(4)), skin: conv(this._headPoints(0)) });
+  }
+
+  /** Rest positions of one part's vertices that follow the head, in the Head bone's frame. */
+  _headPoints(partId) {
+    const sm = this.scene.getObjectByProperty('isSkinnedMesh', true);
+    const g = sm.geometry;
+    const part = g.getAttribute('_part');
+    const si = g.getAttribute('skinIndex');
+    const sw = g.getAttribute('skinWeight');
+    const bones = sm.skeleton.bones;
+    const head = bones.findIndex((b) => b.name === 'Head');
+    const top = bones.findIndex((b) => b.name === 'HeadTop_End');
+    if (!part || head < 0) return new Float32Array(0);
+    const inv = new Matrix4().copy(bones[head].matrixWorld).invert();
+    const out = [];
+    const used = new Uint8Array(part.count);
+    for (let k = 0; k < g.index.count; k++) used[g.index.getX(k)] = 1; // LOD0's own vertices
+    for (let i = 0; i < part.count; i++) {
+      if (!used[i] || Math.round(part.getX(i)) !== partId) continue;
+      let best = -1;
+      let bw = -1;
+      for (let k = 0; k < 4; k++) {
+        const w = sw.getComponent(i, k);
+        if (w > bw) {
+          bw = w;
+          best = si.getComponent(i, k);
+        }
+      }
+      if (best !== head && best !== top) continue;
+      sm.getVertexPosition(i, _a).applyMatrix4(sm.matrixWorld).applyMatrix4(inv);
+      out.push(_a.x, _a.y, _a.z);
+    }
+    return new Float32Array(out);
   }
 
   /**
@@ -138,10 +236,10 @@ export class CharacterLibrary {
     return { model, animator: new SoldierAnimator(model, { world, rand }) };
   }
 
-  /** A dressed civilian (clothes by NPC kind) and its animator. */
-  civilian(id, kind, { rand = Math.random } = {}) {
+  /** A dressed civilian (a wardrobe outfit, else one for the NPC kind) and its animator. */
+  civilian(id, kind, { rand = Math.random, outfit = null } = {}) {
     const model = this.create(id);
-    dressCharacter(model, { kind, rand });
+    dressCharacter(model, { kind, rand, outfit });
     return { model, animator: new CivilianAnimator(model, { kind, rand }) };
   }
 

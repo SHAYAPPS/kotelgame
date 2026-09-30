@@ -38,3 +38,9 @@ export const FAR_LAYER = 1;
 
 // Default tint (per part slot, see the converter's PART): [r, g, b, amount]
 export const NO_TINT = [1, 1, 1, 0];
+
+// Clothing part ids (the `_part` vertex attribute; same as scripts/assets/characters.config.mjs
+// PART): shirt = a shirt under a suit jacket, skirt = generated for the women, arms / legs =
+// bare skin that an outfit can dress (sleeves, trousers, tights).
+export const PART = { fixed: 0, top: 1, bottom: 2, shoes: 3, hair: 4, extra: 5, shirt: 6, skirt: 7, arms: 8, legs: 9 };
+export const PARTS = 10;

@@ -15,6 +15,7 @@ import {
   PMREMGenerator,
   Scene,
   SRGBColorSpace,
+  Vector3,
   WebGLRenderer,
 } from 'three';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
@@ -69,7 +70,8 @@ const ids = params.get('ids')?.split(',') ?? [...lib.types.keys()].filter((id) =
 const spacing = 1.15;
 const models = ids.map((id, i) => {
   const m = lib.create(id, {});
-  dressCharacter(m, { variant: i, kind: params.get('outfit') ?? (m.info.role === 'civilian' ? 'tourist' : null), rand: seeded(i + 1) });
+  // outfit=none: the model as converted (no tints, hats or gear).
+  if (params.get('outfit') !== 'none') dressCharacter(m, { variant: i, kind: params.get('outfit') ?? (m.info.role === 'civilian' ? 'tourist' : null), rand: seeded(i + 1) });
   m.root.position.x = (i - (ids.length - 1) / 2) * spacing;
   scene.add(m.root);
   return m;
@@ -104,9 +106,21 @@ const cams = {
   far: [3, 1.7, -32, 0, 1.0, 0],
 };
 function setCam(name) {
+  if (name === 'face' || name === 'faces') return faceCam(name === 'faces' ? -1 : 0);
   const c = cams[name] ?? cams.front;
   camera.position.set(c[0], c[1], c[2]);
   controls.target.set(c[3], c[4], c[5]);
+  controls.update();
+}
+
+// Close-up of one model's face (i), or of all heads in a row (i = -1).
+function faceCam(i = 0) {
+  for (const m of models) m.update(0, null, true);
+  const heads = (i < 0 ? models : [models[i]]).map((m) => m.bones.get('Head').getWorldPosition(new Vector3()));
+  const c = heads.reduce((a, b) => a.add(b), new Vector3()).divideScalar(heads.length);
+  const spread = i < 0 ? (models.length - 1) * spacing : 0;
+  camera.position.set(c.x, c.y + 0.1, c.z - 0.5 - spread * 0.9);
+  controls.target.set(c.x, c.y + 0.08, c.z);
   controls.update();
 }
 setCam(params.get('cam') ?? 'front');
@@ -141,4 +155,4 @@ addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
 });
-window.__preview = { lib, models, setClip, setCam, scene, camera, renderer, ready: true };
+window.__preview = { lib, models, setClip, setCam, faceCam, scene, camera, controls, renderer, ready: true };

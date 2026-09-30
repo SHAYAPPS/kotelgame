@@ -372,6 +372,7 @@
   "civ_brian": {
    "file": "civ_brian.glb",
    "source": "Brian",
+   "credit": "clothes recolored per person in game",
    "role": "civilian",
    "sex": "m",
    "height": 1.75,
@@ -414,28 +415,33 @@
     0,
     1,
     2,
-    3
+    3,
+    8
    ],
    "partLum": [
-    0.2651,
+    0.2732,
     0.4959,
     0.0747,
     0.2193,
     0.3,
+    0.3,
+    0.3,
+    0.3,
+    0.2363,
     0.3
    ],
    "tris": [
     9999,
     3199,
-    1098
+    1100
    ],
    "alpha": false,
-   "vest": false,
-   "credit": "clothes recolored per person in game"
+   "vest": false
   },
   "civ_joe": {
    "file": "civ_joe.glb",
    "source": "Joe",
+   "credit": "clothes recolored per person in game",
    "role": "civilian",
    "sex": "m",
    "height": 1.778,
@@ -480,28 +486,34 @@
     2,
     3,
     4,
-    5
+    5,
+    6,
+    8
    ],
    "partLum": [
-    0.1542,
-    0.0613,
+    0.1545,
+    0.0127,
     0.035,
     0.0095,
     0.0195,
-    0.0178
+    0.0178,
+    0.3918,
+    0.3,
+    0.1348,
+    0.3
    ],
    "tris": [
-    9997,
-    3198,
+    9999,
+    3200,
     1100
    ],
    "alpha": true,
-   "vest": false,
-   "credit": "clothes recolored per person in game"
+   "vest": false
   },
   "civ_josh": {
    "file": "civ_josh.glb",
    "source": "Josh",
+   "credit": "clothes recolored per person in game",
    "role": "civilian",
    "sex": "m",
    "height": 1.782,
@@ -546,28 +558,34 @@
     2,
     3,
     4,
-    5
+    5,
+    6,
+    8
    ],
    "partLum": [
     0.1767,
-    0.0294,
+    0.018,
     0.0841,
     0.0312,
     0.0045,
-    0.0063
+    0.0063,
+    0.1163,
+    0.3,
+    0.1732,
+    0.3
    ],
    "tris": [
     9997,
-    3200,
+    3199,
     1099
    ],
    "alpha": true,
-   "vest": false,
-   "credit": "clothes recolored per person in game"
+   "vest": false
   },
   "civ_lewis": {
    "file": "civ_lewis.glb",
    "source": "Lewis",
+   "credit": "clothes recolored per person in game",
    "role": "civilian",
    "sex": "m",
    "height": 1.757,
@@ -616,6 +634,10 @@
     0.3,
     0.3,
     0.0025,
+    0.3,
+    0.3,
+    0.3,
+    0.3,
     0.3
    ],
    "tris": [
@@ -624,12 +646,12 @@
     1100
    ],
    "alpha": true,
-   "vest": false,
-   "credit": "clothes recolored per person in game"
+   "vest": false
   },
   "civ_remy": {
    "file": "civ_remy.glb",
    "source": "Remy",
+   "credit": "clothes recolored per person in game",
    "role": "civilian",
    "sex": "m",
    "height": 1.78,
@@ -673,28 +695,34 @@
     1,
     2,
     3,
-    4
+    4,
+    8,
+    9
    ],
    "partLum": [
-    0.368,
+    0.3265,
     0.055,
     0.1402,
     0.6048,
     0.1712,
-    0.3
+    0.3,
+    0.3,
+    0.3,
+    0.5052,
+    0.4061
    ],
    "tris": [
     10000,
-    3199,
+    3200,
     1100
    ],
    "alpha": false,
-   "vest": false,
-   "credit": "clothes recolored per person in game"
+   "vest": false
   },
   "civ_bryce": {
    "file": "civ_bryce.glb",
    "source": "Bryce",
+   "credit": "clothes recolored per person in game",
    "role": "civilian",
    "sex": "m",
    "height": 1.791,
@@ -738,28 +766,34 @@
     1,
     2,
     3,
-    4
+    4,
+    8,
+    9
    ],
    "partLum": [
-    0.1802,
+    0.1852,
     0.1089,
     0.2567,
     0.3844,
     0.0134,
-    0.3
+    0.3,
+    0.3,
+    0.3,
+    0.1553,
+    0.1877
    ],
    "tris": [
     10000,
-    3200,
-    1099
+    3199,
+    1100
    ],
    "alpha": true,
-   "vest": false,
-   "credit": "clothes recolored per person in game"
+   "vest": false
   },
   "civ_martha": {
    "file": "civ_martha.glb",
    "source": "Martha",
+   "credit": "clothes recolored per person in game",
    "role": "civilian",
    "sex": "f",
    "height": 1.752,
@@ -788,13 +822,13 @@
    },
    "chest": {
     "min": [
-     -0.1476,
+     -0.1495,
      -0.1987,
-     -0.0649
+     -0.0641
     ],
     "max": [
-     0.1465,
-     0.1889,
+     0.1467,
+     0.1819,
      0.168
     ]
    },
@@ -803,28 +837,35 @@
     1,
     2,
     3,
-    4
+    4,
+    6,
+    7,
+    8
    ],
    "partLum": [
-    0.1274,
-    0.0861,
+    0.1268,
+    0.0519,
     0.2455,
-    0.3243,
+    0.3238,
     0.0062,
+    0.3,
+    0.508,
+    0.3051,
+    0.1478,
     0.3
    ],
    "tris": [
-    10000,
-    3199,
-    1100
+    10800,
+    3400,
+    1149
    ],
    "alpha": true,
-   "vest": false,
-   "credit": "clothes recolored per person in game"
+   "vest": false
   },
   "civ_kate": {
    "file": "civ_kate.glb",
    "source": "Kate",
+   "credit": "clothes recolored per person in game",
    "role": "civilian",
    "sex": "f",
    "height": 1.751,
@@ -853,12 +894,12 @@
    },
    "chest": {
     "min": [
-     -0.1366,
-     -0.1527,
+     -0.1384,
+     -0.1565,
      -0.0779
     ],
     "max": [
-     0.1408,
+     0.1426,
      0.2922,
      0.1741
     ]
@@ -868,28 +909,35 @@
     1,
     2,
     3,
-    4
+    4,
+    7,
+    8,
+    9
    ],
    "partLum": [
-    0.214,
+    0.207,
     0.0441,
     0.1326,
     0.0724,
-    0.0608,
-    0.3
+    0.0612,
+    0.3,
+    0.3,
+    0.3051,
+    0.2715,
+    0.1084
    ],
    "tris": [
-    10000,
-    3192,
-    1099
+    10800,
+    3400,
+    1149
    ],
    "alpha": true,
-   "vest": false,
-   "credit": "clothes recolored per person in game"
+   "vest": false
   },
   "civ_elizabeth": {
    "file": "civ_elizabeth.glb",
    "source": "Elizabeth",
+   "credit": "clothes recolored per person in game",
    "role": "civilian",
    "sex": "f",
    "height": 1.779,
@@ -933,28 +981,35 @@
     1,
     2,
     3,
-    4
+    4,
+    7,
+    8,
+    9
    ],
    "partLum": [
-    0.1241,
-    0.5458,
+    0.1232,
+    0.5455,
     0.084,
     0.1276,
     0.0027,
-    0.3
+    0.3,
+    0.3,
+    0.3051,
+    0.1259,
+    0.1323
    ],
    "tris": [
-    10826,
-    3200,
-    1100
+    11100,
+    3400,
+    1150
    ],
    "alpha": true,
-   "vest": false,
-   "credit": "clothes recolored per person in game"
+   "vest": false
   },
   "civ_sophie": {
    "file": "civ_sophie.glb",
    "source": "Sophie",
+   "credit": "clothes recolored per person in game",
    "role": "civilian",
    "sex": "f",
    "height": 1.763,
@@ -983,8 +1038,8 @@
    },
    "chest": {
     "min": [
-     -0.1821,
-     -0.1581,
+     -0.1816,
+     -0.1544,
      -0.1146
     ],
     "max": [
@@ -997,28 +1052,35 @@
     0,
     1,
     3,
-    4
+    4,
+    7,
+    8,
+    9
    ],
    "partLum": [
-    0.2363,
-    0.2987,
+    0.2157,
+    0.2988,
     0.3,
-    0.5664,
-    0.2375,
-    0.3
+    0.565,
+    0.2374,
+    0.3,
+    0.3,
+    0.3051,
+    0.2048,
+    0.2624
    ],
    "tris": [
-    9997,
-    3199,
-    1099
+    10799,
+    3400,
+    1150
    ],
    "alpha": true,
-   "vest": false,
-   "credit": "clothes recolored per person in game"
+   "vest": false
   },
   "civ_megan": {
    "file": "civ_megan.glb",
    "source": "Megan",
+   "credit": "clothes recolored per person in game",
    "role": "civilian",
    "sex": "f",
    "height": 1.746,
@@ -1047,14 +1109,14 @@
    },
    "chest": {
     "min": [
-     -0.1337,
+     -0.134,
      -0.1493,
-     -0.067
+     -0.0657
     ],
     "max": [
      0.1327,
-     0.1727,
-     0.1666
+     0.1729,
+     0.1673
     ]
    },
    "parts": [
@@ -1062,24 +1124,29 @@
     1,
     2,
     3,
-    4
+    4,
+    7,
+    8
    ],
    "partLum": [
-    0.2053,
-    0.6078,
+    0.1877,
+    0.6079,
     0.0296,
-    0.3839,
-    0.0583,
+    0.3836,
+    0.0588,
+    0.3,
+    0.3,
+    0.3051,
+    0.2596,
     0.3
    ],
    "tris": [
-    9975,
-    3197,
-    1100
+    10789,
+    3397,
+    1150
    ],
    "alpha": true,
-   "vest": false,
-   "credit": "clothes recolored per person in game"
+   "vest": false
   }
  },
  "version": 1,

@@ -3,7 +3,10 @@
 // Sources: assets-src/mixamo/ (see DOWNLOADS.md). Colors are 0-255 sRGB.
 
 // Tint / part slots (vertex attribute `_part`): the game can recolor slots 1-5 per person.
-export const PART = { fixed: 0, top: 1, bottom: 2, shoes: 3, hair: 4, extra: 5 };
+// Per-vertex part ids (the game tints each part per person): shirt = a shirt under a suit
+// jacket; skirt = generated (women); arms / legs = bare skin the game may dress.
+export const PART = { fixed: 0, top: 1, bottom: 2, shoes: 3, hair: 4, extra: 5, shirt: 6, skirt: 7, arms: 8, legs: 9 };
+export const PART_COUNT = 10;
 
 const partsFuse = [
   [/Hair/i, PART.hair],
@@ -19,7 +22,9 @@ const OLIVE = [96, 101, 66]; // IDF-style olive drab (a little grey)
 const OLIVE_DARK = [66, 70, 46];
 const CHARCOAL = [34, 34, 36];
 
-const civilian = { role: 'civilian', size: 1024, hair: 512, normalScale: 0.5, lods: [10000, 3200, 1100], parts: partsFuse, drop: DROP, body: /_?Body1?$|^Body$/i, cover: COVER };
+const civilian = { role: 'civilian', size: 1024, hair: 512, normalScale: 0.5, lods: [10000, 3200, 1100], parts: partsFuse, drop: DROP, body: /_?Body1?$|^Body$/i, cover: COVER, skinParts: true };
+// Women at the Kotel: a long skirt over whatever the model wears below the waist.
+const woman = { ...civilian, sex: 'f', skirt: {}, lods: [10800, 3400, 1150] };
 
 export const CHARACTERS = {
   // The squad: olive uniforms, vests and helmets.
@@ -66,11 +71,11 @@ export const CHARACTERS = {
   civ_lewis: { ...civilian, src: 'Lewis', sex: 'm', parts: [], hairMaterial: /hair/i },
   civ_remy: { ...civilian, src: 'Remy', sex: 'm', drop: /Eyelash|^Eyes$/i, size: 1024, sizes: { Bodymat: 1024 }, smallSize: 512 },
   civ_bryce: { ...civilian, src: 'Bryce', sex: 'm' },
-  civ_martha: { ...civilian, src: 'Martha', sex: 'f' },
-  civ_kate: { ...civilian, src: 'Kate', sex: 'f' },
-  civ_elizabeth: { ...civilian, src: 'Elizabeth', sex: 'f' },
-  civ_sophie: { ...civilian, src: 'Sophie', sex: 'f' },
-  civ_megan: { ...civilian, src: 'Megan', sex: 'f' },
+  civ_martha: { ...woman, src: 'Martha' },
+  civ_kate: { ...woman, src: 'Kate' },
+  civ_elizabeth: { ...woman, src: 'Elizabeth' },
+  civ_sophie: { ...woman, src: 'Sophie' },
+  civ_megan: { ...woman, src: 'Megan' },
 };
 
 // Clips shipped in anims.bin (a few downloads are not used: see DOWNLOADS.md).

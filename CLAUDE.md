@@ -239,7 +239,9 @@ A browser-based 3D first-person story shooter.
 - `src/ui/GrenadeWarning.js`: icon around the crosshair toward enemy grenades within 9 m.
 - `src/characters/`: the animated people (Mixamo). Assets in `public/assets/characters/`:
   one `<id>.glb` per character (skinned mesh whose 3 primitives are LOD0-2 sharing one vertex
-  buffer, one material: color + normal atlas in KTX2, `_part` vertex attribute for tints),
+  buffer, one material: color + normal atlas in KTX2, `_part` vertex attribute: `PART` in
+  `config.js`: fixed, top, bottom, shoes, hair, extra (belt/tie), shirt (under a suit),
+  skirt (generated), arms / legs (bare skin an outfit can dress)),
   `anims.bin` (every clip, see below) and `manifest.json` (roles, head/chest measurements,
   clip data: loop, measured locomotion speed, IK, grenade release time, death fall direction).
   - `CharacterLibrary.js`: loads it all (the TextureLibrary's KTX2 loader, three's
@@ -249,7 +251,9 @@ A browser-based 3D first-person story shooter.
   - `animLibrary.js`: decodes `anims.bin` into three clips (bone quaternions, hips position,
     IK targets `ikHandR` / `ikHandL`).
   - `CharacterModel.js`: one character: `SkeletonUtils.clone`, LODs on one skeleton, a
-    per-person material (part tints in the shader), weighted slots over an AnimationMixer
+    per-person material (per part: `tints`, `flat` (tint without the texture's shading),
+    `setInflate` (push out along the normals: skin dressed as sleeves / trousers), `hide`
+    (collapsed in the vertex shader: hair under a headscarf)), weighted slots over an AnimationMixer
     (`fade`, `setWeight`; modes base / upper (overrides the upper body) / add / addUpper),
     a shared locomotion `phase`, spine aim pitch, two-bone arm IK (`ik.js`: right hand where
     the source clip held it vs Spine2, left hand on the handguard vs the right hand), bone
@@ -268,24 +272,39 @@ A browser-based 3D first-person story shooter.
     throttled updates lagged), then the body freezes and stays down).
   - `CivilianAnimator.js`: idles by kind, praying (desynchronized), walk / run (scared upper
     body while fleeing), frozen cowering, panic, nervous waiting in the shelter, talking.
-  - `outfits.js` (who wears what: rifles, vest, role-colored headbands, kippot, hats,
-    headscarves, per-person tints), `attachments.js`, `weapons.js` (M4 / AK from boxes).
+  - `wardrobe.js` (pure): the civilians' looks. Men: Kotel visitors (white shirts, dark
+    trousers or jeans; bare legs dressed as trousers), haredim (black suit, white shirt, black
+    hat), suits, tourists' t-shirts; every man has a black hat or a kippah (black velvet,
+    white, or knitted with a patterned band). Women: long skirts, long sleeves over bare arms,
+    tights; worshipers mostly in a headscarf. `CAST` = which models play each NPC kind,
+    `dressPerson(kind, neighbors)` picks a model and outfit unlike the people nearby
+    (`likeness`). `outfits.js` applies an outfit (and arms squad / enemies);
+    `attachments.js`: kippah (a cap laid on the skull ellipsoid scaled to the hair), black
+    hat, headscarf (a tichel over the scalp, hair hidden), headband, vest. Head wear sits on
+    `CharacterType.hairScale(dir)`: how far hair / scalp stand off the skull, measured from
+    the rest-pose mesh at load. `weapons.js` (M4 / AK from boxes).
   - `EnemyView.js` / `story/NpcView.js` / `ai/TruckView.js` (the gunner) build the models
     once the library is ready; until then (and in tests) the old placeholder figures.
+    NpcView dresses each civilian through `dressPerson` with the civilians already built
+    within 9 m.
     Hit zones: views set `agent.hitShape = model.hit`; `Enemy.raycast` / `Npc.raycast` then
     use `modelHitTest` (head sphere + body capsule from feet/hips to the neck, same radii as
     before), and other agents aim at the model's head. F1 draws the zones (magenta).
 - `scripts/assets/characters.mjs` (+ `characters.config.mjs`, `lib/`): the converter. FBX via
   three's FBXLoader in Node (`lib/fbx.mjs`, embedded textures captured) -> skeleton in meters
   with duplicate bone hierarchies merged (`lib/rig.mjs`) -> meshes merged and welded ->
-  hidden skin under clothes removed (`lib/hidden.mjs`) -> texture atlas + recolors (olive /
+  hidden skin under clothes removed (`lib/hidden.mjs`) -> civilians' clothing parts
+  (`lib/clothes.mjs`: bare arm / leg skin as parts, split at the borders; the women's long
+  skirt: rings sized from the body, skinned to the hips / thighs / shins, own fabric tile;
+  a shirt under a suit is its own part) -> texture atlas + recolors (olive /
   dark / "SWAT" lettering removed / painted balaclava or face wrap) (`lib/atlas.mjs`) ->
   LODs with meshoptimizer (`lib/lod.mjs`) -> GLB (`lib/glb.mjs`). Clips (`lib/anim.mjs`):
   sampled at 30 fps (slow idles 15 fps, long ones cut to crossfaded 8 s loops), root motion
   measured then removed for locomotion (speed in the manifest), cycles shifted so the left
   foot plants at phase 0, IK hand targets baked from the source skeleton; packed by
   `lib/animbin.mjs` (meshopt codec, quaternion / exponential filters).
-- `dev/characters.html`: the character preview (dev only, not in the build).
+- `dev/characters.html`: the character preview (dev only, not in the build); `outfit=none`
+  shows a model as converted, `cam=face` / `faces` close-ups.
 - Start screen: chapter buttons (`MISSION1.chapters`) start the mission at a part (`story.startAt`).
 - Weapons: 1 = rifle, 2 = launcher (once owned), or the mouse wheel (`Game._updateWeapons`: lower,
   swap the viewmodel, raise). `src/weapons/Launcher.js` (pure: one loaded, auto reload, ADS) +
