@@ -1,0 +1,17 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+*.local
+
+# logs
+npm-debug.log*
+*.log
+
+# editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
