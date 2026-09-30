@@ -29,9 +29,9 @@ A browser-based 3D first-person story shooter.
 2. [x] Gun: hitscan rifle with ADS, recoil, impacts, reload, procedural sound
 3. [x] Greybox Kotel: 1:1 plaza layout (reference: `docs/kotel-reference.md`)
 4. [x] First enemy: perception, cover AI, navmesh, hitscan + tracers; player health
-5. [ ] Opening story beat  <- in progress
+5. [x] Opening story beat
    - [x] Part 1: mission system + the calm shift (ends on the radio chatter, before the sirens)
-   - [ ] Part 2: sirens and the attack
+   - [x] Part 2: sirens, civilians to shelter, first contact (ends on "to be continued")
 6. [ ] Realism pass
 
 ## Commands
@@ -111,27 +111,53 @@ A browser-based 3D first-person story shooter.
     Hit zones: head sphere + body capsule (`hitZones.js`).
   - `EnemyManager.js`: spawns/resets, routes enemy shots (tracers, positional sound, player
     damage, impacts, near-miss cracks), player bullets -> `raycast()`/`hit()`, body separation.
+    Factions: `addFriendly(body)` puts the same AI (`FRIENDLY` config: can't die, a bit less
+    accurate, picks cover within 16 m of the player = its `anchor`, relocates when it sees nobody)
+    on a story NPC's body. Every agent re-picks its `target` a few times a second (closest in
+    sight; hostiles slightly prefer the player). A target is the player info object or another
+    agent's `asTarget` (`CombatTarget`); shots between agents go through `takeHit`.
+    `spawnAttacker()` spawns a hostile already in combat; `onEnemyKilled(enemy, killer)`.
   - `EnemyView.js`: placeholder soldier (capsule body + separate head), crouch, muzzle flash,
     death fall; `Tracers`.
   - `DebugDraw.js`: F1 overlay (navmesh points, cover points, vision cones, paths, state labels).
 - `src/story/`: the mission system (pure logic except the views/audio) and Mission 1.
   - `Mission.js`: a script is a list of steps; each step runs `do` actions on entry and waits for
     its `until` trigger (`reach`, `talk`, `timer`, `enemiesDead`, `dialogueDone`, `arrived`,
-    `action`, `all`/`any`). Actions: objective, hint, dialogue, npc (spawn/route/place/face/
-    talkable), populate, weapon, sound, ambience, fade, title, endCard, checkpoint.
+    `action`, `civiliansSheltered`, `all`/`any`). Actions: objective (optional `counter`),
+    hint, dialogue, npc (spawn/route/place/face/talkable/escort), populate, weapon, sound,
+    ambience (crowd/birds/siren/panic), fade, title, endCard, checkpoint, sky (barrage level),
+    civilians (panic/runAll), combat (squad on/off the combat AI), wave (timed attacker spawns
+    with radio callouts per group). A fast-forwarded `wave` spawns nothing (that fight was won);
+    a fast `runAll` puts every civilian straight into the shelter.
     `jumpTo(i)` replays the earlier steps' state actions in fast mode (no dialogue, NPCs placed at
     their route ends) and enters step i; checkpoints restart this way. `fail()` freezes it.
-  - `mission1.js`: Mission 1's steps, squad routes, checkpoints and crowd groups
-    (worshipers, crossers, tour group). `text.he.js`: **all** dialogue, speakers, objectives,
+  - `mission1.js`: Mission 1's steps, squad routes, checkpoints, crowd groups (worshipers,
+    crossers, tour group, bystanders who freeze at the sirens), the shelter spots (the hall under
+    Wilson's Arch) and the first wave (southern entrance + top of the western stairs). `text.he.js`: **all** dialogue, speakers, objectives,
     hints and cards (placeholder Hebrew; edit text there only).
-  - `Dialogue.js`: queued subtitle lines with reading-time durations.
+  - `Dialogue.js`: queued subtitle lines with reading-time durations; `bark()` for callouts
+    (dropped when lines are waiting; `{ next: true }` jumps the queue). A line with
+    `radio: true` (or a radio speaker) is shown and heard as radio.
   - `Npc.js`: NPCs on `PlayerController` bodies walking navmesh routes; a `leash` makes the
     squad wait (looking back) only when the player lags behind; tour members follow a leader;
     `NpcManager` spawns, separates bodies, finds the E talk target, ray-tests friendly fire.
-  - `NpcView.js`: placeholder figures (one merged vertex-colored mesh per kind), pray/walk/idle loops.
-  - `AmbientAudio.js`: generated crowd murmur, birds, radio squelch, objective chime.
+    Emergency: `panic()` (civilians flee to shelter spots with staggered reactions, bystanders
+    freeze until E), `escort` (squad keeps near the player), `brain` (the combat AI drives the
+    body; the NPC only mirrors it).
+  - `NpcView.js`: placeholder figures (one merged vertex-colored mesh per kind), pray/walk/idle
+    loops, crouch; soldiers raise the rifle and show a muzzle flash while their AI fights.
+  - `AmbientAudio.js`: generated crowd murmur (panic shouts), birds, the rising-and-falling
+    siren (three horns into the echo bus), distant booms, radio lines (garbled synthesized voice
+    through a band-pass + distortion, with squelches), charging handle, objective chime.
   - `StoryDirector.js`: the mission context; tutorial events (move/sprint/crouch/mag check),
-    E to talk, friendly fire -> fail -> restart at the last checkpoint, F2 jumps.
+    E to talk / send a frozen civilian off, friendly fire -> fail -> restart at the last
+    checkpoint, F2 jumps, the objective counters, kill callouts, booms + camera shake timed by
+    the speed of sound.
+- `src/world/SkyFx.js`: rocket barrage over the city (pooled interceptor trails, flashes, smoke
+  puffs, horizon impacts); `onFlash(distance, strength)`.
+- `WeaponAudio.echoBus`: the plaza reverb (generated impulse response: stone reflections + tail);
+  distant gunshots, your shots, the siren, shouts and booms send into it.
+- `PlayerCamera.addShake(amount)`: view-only shake (the aim is unaffected).
 - `src/ui/StoryHud.js`: objective, waypoint with distance, subtitles, key hints, talk prompt,
   title/end cards, fade, mission-failed screen, checkpoint toast, the F2 step menu.
 - Weapon modes: `rifle.mode = 'lowered'` (can't fire; R checks the magazine and fires
@@ -139,7 +165,8 @@ A browser-based 3D first-person story shooter.
 - `src/player/PlayerHealth.js`: CoD-style regenerating health + hit direction records (pure).
 - `src/ui/DamageOverlay.js`: red edges, hit flash, direction arcs, hit marker, death fade.
 - Game loop order per fixed step: player -> camera -> rifle (shots hit enemies, then NPCs
-  (friendly fire), then the world; shots are heard) -> enemies -> story -> health. Death: fade out, `Game.restart()` after 3.2 s.
+  (friendly fire), then the world; shots are heard) -> enemies (hostiles and the squad's combat
+  AI) -> story -> health. Death: fade out, `Game.restart()` after 3.2 s.
 - `src/ui/`: Hebrew strings (`strings.he.js`), start/pause overlay (mouse sensitivity, saved in
   localStorage), HUD (spread-sized crosshair, ammo counter, debug readout; toggle the readout
   with the backquote key, shown by default in dev).

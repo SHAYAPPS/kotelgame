@@ -42,6 +42,10 @@ export class PlayerCamera {
     this.fovScale = 1;
     this.lookScale = 1;
 
+    // Camera shake ("trauma" 0..1, decays): explosions. View only, the aim is unaffected.
+    this.shake = 0;
+    this._shakeTime = 0;
+
     this.eye = new Vector3();
     this.prevEye = new Vector3();
 
@@ -68,9 +72,16 @@ export class PlayerCamera {
     this.prevEye.copy(this.eye);
   }
 
+  /** Add camera shake (0..1). */
+  addShake(amount) {
+    this.shake = Math.min(1, this.shake + amount);
+  }
+
   fixedUpdate(dt) {
     const p = this.player;
     const cfg = this.cfg;
+    this.shake = Math.max(0, this.shake - dt * 0.9);
+    this._shakeTime += dt;
 
     if (p.teleported) {
       this.yaw = p.yaw;
@@ -147,7 +158,18 @@ export class PlayerCamera {
   render(alpha) {
     const cam = this.camera;
     cam.position.lerpVectors(this.prevEye, this.eye, alpha);
-    cam.rotation.set(this.viewPitch, this.viewYaw, this.roll);
+    if (this.shake > 0) {
+      // Smooth pseudo-noise from mixed sines; amplitude grows with trauma squared.
+      const a = this.shake * this.shake * 0.03;
+      const t = this._shakeTime;
+      cam.rotation.set(
+        this.viewPitch + a * (Math.sin(t * 37) * 0.6 + Math.sin(t * 23.3) * 0.4),
+        this.viewYaw + a * (Math.sin(t * 29.1) * 0.6 + Math.sin(t * 41.7) * 0.4),
+        this.roll + a * 0.5 * Math.sin(t * 31.9),
+      );
+    } else {
+      cam.rotation.set(this.viewPitch, this.viewYaw, this.roll);
+    }
     const fov = this.fov * this.fovScale;
     if (Math.abs(cam.fov - fov) > 1e-3) {
       cam.fov = fov;

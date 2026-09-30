@@ -1,5 +1,6 @@
 import { Vector3 } from 'three';
-import { Enemy } from './Enemy.js';
+import { Enemy, NO_TARGET } from './Enemy.js';
+import { ATTACKER, FRIENDLY } from './config.js';
 import { EnemyView, Tracers } from './EnemyView.js';
 import { rayCapsule } from './hitZones.js';
 
@@ -7,10 +8,16 @@ const _a = new Vector3();
 const _b = new Vector3();
 const _p = new Vector3();
 const _q = new Vector3();
+const _d = new Vector3();
+const _rayHit = { point: new Vector3(), normal: new Vector3(), distance: 0 };
 
 /**
  * Owns the enemies: spawns them, steps their AI, routes their shots (tracers,
  * positional sound, damage to the player, impacts) and answers the player's bullets.
+ *
+ * Factions: hostiles fight the player and the friendly combatants; friendlies (story
+ * squad members driven by the same AI, see `addFriendly`) fight the hostiles. Each
+ * agent's target is re-picked a few times a second: the closest one in sight.
  */
 export class EnemyManager {
   /**
@@ -32,6 +39,12 @@ export class EnemyManager {
     this.headshots = 0;
     /** (hit: { enemy, zone, killed }) => void */
     this.onEnemyHit = null;
+    /** (enemy, killer) => void: any hostile killed, by the player or a friendly */
+    this.onEnemyKilled = null;
+    /** @type {Enemy[]} friendly combatants (their views belong to the story) */
+    this.friendlies = [];
+    this.friendlyKills = 0;
+    this.playerTarget = null; // the player info object from the last update
     this._listenerHead = new Vector3();
     this.reset();
   }
@@ -43,16 +56,64 @@ export class EnemyManager {
   reset() {
     for (const { view } of this.list) view.dispose();
     this.list.length = 0;
+    this.friendlies.length = 0;
     for (const c of this.cover.points) c.owner = null;
     for (const s of this.spawns) this.spawn(s.position, s.yaw);
   }
 
-  spawn(position, yaw = 0) {
+  /** Remove every hostile (keeps friendlies). */
+  clearHostiles() {
+    for (const { enemy, view } of this.list) {
+      if (enemy.coverPoint) enemy.coverPoint.owner = null;
+      view.dispose();
+    }
+    this.list.length = 0;
+  }
+
+  /**
+   * Put a friendly combatant on an existing body (a story squad member).
+   * @returns {Enemy} its AI; `removeFriendly` hands the body back.
+   */
+  addFriendly(body, yaw = 0) {
+    const f = new Enemy(
+      {
+        world: this.world,
+        nav: this.nav,
+        cover: this.cover,
+        config: FRIENDLY,
+        faction: 'friendly',
+        body,
+        onFire: (shot) => this._onEnemyFire(shot),
+      },
+      body.position,
+      yaw,
+    );
+    this.friendlies.push(f);
+    return f;
+  }
+
+  removeFriendly(f) {
+    const i = this.friendlies.indexOf(f);
+    if (i < 0) return;
+    this.friendlies.splice(i, 1);
+    if (f.coverPoint) f.coverPoint.owner = null;
+    f.body.wantCrouch = false;
+  }
+
+  /** Spawn a hostile that already knows where the defenders are and fights at once. */
+  spawnAttacker(position, yaw, threatPosition) {
+    const e = this.spawn(position, yaw, ATTACKER);
+    e.engage(threatPosition);
+    return e;
+  }
+
+  spawn(position, yaw = 0, config = undefined) {
     const enemy = new Enemy(
       {
         world: this.world,
         nav: this.nav,
         cover: this.cover,
+        config,
         onFire: (shot) => this._onEnemyFire(shot),
       },
       position,
@@ -105,6 +166,7 @@ export class EnemyManager {
     if (killed) {
       this.kills++;
       if (target.zone === 'head') this.headshots++;
+      if (this.onEnemyKilled) this.onEnemyKilled(target.enemy, player);
     }
     if (this.onEnemyHit) this.onEnemyHit({ enemy: target.enemy, zone: target.zone, killed });
     return killed;
@@ -113,7 +175,17 @@ export class EnemyManager {
   _onEnemyFire(shot) {
     this.tracers.add(shot.origin, shot.dir, shot.distance);
     this.audio.shotAt(shot.origin);
-    if (shot.hitPlayer) {
+    const victim = shot.hitPlayer ? shot.target.agent : null;
+    if (victim) {
+      // One combatant hit another.
+      const wasAlive = victim.alive;
+      victim.takeHit(shot.zone ?? 'body', shot.dir, shot.shooter.asTarget);
+      if (wasAlive && !victim.alive) {
+        if (shot.shooter.faction === 'friendly') this.friendlyKills++;
+        if (victim.faction === 'hostile' && this.onEnemyKilled) this.onEnemyKilled(victim, shot.shooter);
+      }
+      if (shot.hitWorld) this.impacts.add(shot.point, shot.normal, shot.dir);
+    } else if (shot.hitPlayer) {
       this.health.damage(shot.damage, shot.origin);
     } else {
       if (shot.hitWorld) this.impacts.add(shot.point, shot.normal, shot.dir);
@@ -133,8 +205,22 @@ export class EnemyManager {
    */
   update(dt, player, playerBody) {
     this._listenerHead.copy(player.head);
+    this.playerTarget = player;
     const enemies = this.enemies;
-    for (const e of enemies) e.update(dt, player, enemies);
+    const fr = this.friendlies;
+    if (fr.length) {
+      // Two factions: pick targets, and everyone avoids everyone's cover spots.
+      for (const e of enemies) if (e.alive) this._retarget(e, dt, player, fr, true);
+      for (const f of fr) {
+        f.anchor = player.alive ? player.position : null;
+        this._retarget(f, dt, null, enemies, false);
+      }
+      const all = enemies.concat(fr);
+      for (const e of enemies) e.update(dt, player, all);
+      for (const f of fr) f.update(dt, NO_TARGET, all);
+    } else {
+      for (const e of enemies) e.update(dt, player, enemies);
+    }
 
     // Bodies don't overlap: push the player and enemies apart horizontally.
     const minD = 0.62;
@@ -163,6 +249,48 @@ export class EnemyManager {
         }
       }
     }
+  }
+
+  /**
+   * Re-pick an agent's target a few times a second: the closest opponent in sight
+   * (hostiles slightly prefer the player), else keep the current one, else the closest.
+   */
+  _retarget(agent, dt, player, opponents, hostile) {
+    agent._retargetTimer = (agent._retargetTimer ?? 0) - dt;
+    const cur = agent.target;
+    const curValid = cur && cur.alive;
+    if (curValid && agent._retargetTimer > 0) return;
+    agent._retargetTimer = 0.35 + agent.rand() * 0.25;
+    let best = null;
+    let bestScore = Infinity;
+    let nearest = null;
+    let nearestD = Infinity;
+    const consider = (t, weight) => {
+      if (!t.alive) return;
+      const d = agent.eye.distanceTo(t.chest) * weight;
+      if (d < nearestD) {
+        nearestD = d;
+        nearest = t;
+      }
+      if (d > agent.cfg.visionRange || d >= bestScore) return;
+      if (!this._clear(agent.eye, t.chest) && !this._clear(agent.eye, t.head)) return;
+      // Stick with the current target unless another is clearly closer.
+      bestScore = t === cur ? d * 0.7 : d;
+      best = t;
+    };
+    if (player && player.alive) consider(player, 0.8);
+    for (const o of opponents) if (o.alive) consider(o.asTarget, 1);
+    const pick = best ?? (curValid ? cur : nearest);
+    if (pick) agent.setTarget(pick);
+    else agent.target = hostile ? null : NO_TARGET;
+  }
+
+  _clear(from, to) {
+    _d.subVectors(to, from);
+    const len = _d.length();
+    if (len < 1e-3) return true;
+    _d.divideScalar(len);
+    return this.world.raycast(from, _d, len - 0.05, _rayHit) === null;
   }
 
   /** Per rendered frame: views and tracers. */

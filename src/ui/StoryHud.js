@@ -24,7 +24,10 @@ export class StoryHud {
     this.objective = el('div', 'objective');
     this.objectiveLabel = el('span', 'objective-label', STORY_UI.objectivePrefix);
     this.objectiveText = el('span', 'objective-text');
-    this.objective.append(this.objectiveLabel, this.objectiveText);
+    this.objectiveCount = el('span', 'objective-count');
+    this.objectiveCount.hidden = true;
+    this.objective.append(this.objectiveLabel, this.objectiveText, this.objectiveCount);
+    this._countKey = null;
     this.objective.hidden = true;
 
     this.marker = el('div', 'waypoint');
@@ -89,6 +92,15 @@ export class StoryHud {
     }
   }
 
+  /** Counter under the objective ("civilians left: 7"), or hidden with label null. */
+  setObjectiveCount(label, n) {
+    const key = label ? `${label}|${n}` : null;
+    if (key === this._countKey) return;
+    this._countKey = key;
+    this.objectiveCount.hidden = !label;
+    if (label) this.objectiveCount.textContent = `${label}: \u2066${n}\u2069`;
+  }
+
   setHint(id) {
     this.hint.hidden = !id;
     if (!id) return;
@@ -100,12 +112,15 @@ export class StoryHud {
     this.hint.append(keys, el('span', null, h.text));
   }
 
-  setPrompt(name) {
-    this.prompt.hidden = !name;
-    if (!name) return;
+  /** "[E] <label>" near the crosshair, or hidden with null. */
+  setPrompt(label) {
+    if (label === this._promptLabel) return;
+    this._promptLabel = label;
+    this.prompt.hidden = !label;
+    if (!label) return;
     this.prompt.replaceChildren();
     const k = el('kbd', null, 'E');
-    this.prompt.append(k, el('span', null, `${STORY_UI.talkPrompt} ${name}`));
+    this.prompt.append(k, el('span', null, label));
   }
 
   /** @param {{ id, name, color, radio, text } | null} line */

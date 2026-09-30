@@ -52,6 +52,36 @@ export const ENEMY = {
   repathInterval: 1.0,
 };
 
+// Squad members fighting on the player's side (story NPCs driven by the same AI).
+// They can't die (plot armor) and are a little less deadly than the player, so the
+// player does most of the work.
+export const FRIENDLY = {
+  ...ENEMY,
+  invulnerable: true,
+  regen: 20, // health per second
+  awarenessRate: 6,
+  reactionTime: 0.9,
+  burst: [2, 4],
+  burstPause: [0.9, 1.8],
+  maxSpread: (8 * Math.PI) / 180,
+  minSpread: (2 * Math.PI) / 180,
+  spreadTightenTime: 5,
+  coverSearchRadius: 16, // around the player (their anchor): the squad fights at your side
+  preferredRange: [8, 30],
+  seekTime: 4, // no enemy in sight this long: move to a spot that has one
+  holdCombat: true, // never wander off searching
+};
+
+// Scripted attackers (story waves): they came to take the plaza, so they never give up;
+// with nobody in sight they push toward the defenders from cover to cover.
+export const ATTACKER = {
+  ...ENEMY,
+  holdCombat: true,
+  seekTime: 6,
+  assault: true,
+  travelCost: 0.12, // cover score per meter away: low, so they advance
+};
+
 export const NAV = {
   cell: 0.5,
   topY: 26, // probe floors from here down

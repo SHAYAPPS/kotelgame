@@ -10,6 +10,10 @@ import { createKotelLevel } from '../src/world/kotel/KotelLevel.js';
 import { CollisionWorld } from '../src/world/CollisionWorld.js';
 import { NavGrid } from '../src/ai/NavGrid.js';
 import { PlayerController } from '../src/player/PlayerController.js';
+import { PLAYER } from '../src/player/config.js';
+import { ENEMY } from '../src/ai/config.js';
+import { CoverPoints } from '../src/ai/CoverPoints.js';
+import { EnemyManager } from '../src/ai/EnemyManager.js';
 
 const DT = 1 / 120;
 
@@ -190,6 +194,23 @@ test('mission 1 routes, reach points and checkpoints are walkable and connected'
   }
   for (const c of MISSION1.groups.crossers) for (const [x, z] of c.route) check(x, z, 'crosser route');
   for (const [x, z] of MISSION1.groups.tour.guide.route) check(x, z, 'tour route');
+  for (const b of MISSION1.groups.bystanders) check(b.at[0], b.at[1], 'bystander');
+  for (const [x, z] of MISSION1.shelter.spots) {
+    const n = nav.nodeAt(x, z);
+    assert.ok(n >= 0 && nav.y[n] < 0.5, `shelter spot (${x}, ${z}) is on the hall floor`);
+  }
+  // A few spots are enough to prove the hall is connected (every path search is slow-ish).
+  for (const [x, z] of MISSION1.shelter.spots.filter((_, i) => i % 17 === 0)) check(x, z, 'shelter spot');
+  const wave = MISSION1.steps.flatMap((st) => st.do ?? []).find((a) => a.type === 'wave');
+  for (const sp of wave.spawns) {
+    check(sp.at[0], sp.at[1], `wave spawn (${sp.group})`);
+    // A body dropped there stands on the floor (not wedged into a wall and pushed through it).
+    const n = nav.nodeAt(sp.at[0], sp.at[1]);
+    const body = new PlayerController(world, { ...PLAYER, radius: ENEMY.radius });
+    body.setSpawn(new Vector3(sp.at[0], nav.y[n], sp.at[1]), 0);
+    for (let i = 0; i < 60; i++) body.update(DT, { forward: 0, right: 0, jump: false, sprint: false, crouch: false });
+    assert.ok(Math.abs(body.position.y - nav.y[n]) < 0.2, `attacker spawn (${sp.at}) keeps its footing (y ${body.position.y.toFixed(2)})`);
+  }
 });
 
 function fakeHud() {
@@ -203,26 +224,51 @@ test('mission 1 plays through with a scripted player', () => {
   const player = new PlayerController(world);
   player.setSpawn(level.spawn.position, level.spawn.yaw);
   const rifle = { mode: 'ready', onMagCheck: null, get lowered() { return this.mode === 'lowered'; } };
+  const scene = { add() {} };
+  const enemies = new EnemyManager({
+    scene,
+    world,
+    nav,
+    cover: new CoverPoints(world, nav).generate(),
+    audio: { ready: false, shotAt() {}, crack() {} },
+    impacts: { add() {} },
+    health: { damage() {} }, // the scripted player can't die
+    spawns: [],
+  });
   const story = new StoryDirector({
     script: MISSION1,
-    scene: { add() {} },
+    scene,
     world,
     nav,
     player,
     rifle,
-    enemies: { enemies: [] },
+    enemies,
     audio: { ready: false },
     hud: fakeHud(),
   });
-  const info = { position: player.position };
+  const info = {
+    position: player.position,
+    head: new Vector3(),
+    chest: new Vector3(),
+    speed: 0,
+    crouched: false,
+    firing: false,
+    alive: true,
+    hitTest: () => -1,
+  };
   const idle = { forward: 0, right: 0, jump: false, sprint: false, crouch: false };
-  let t = 0;
+  const step = (controls) => {
+    player.update(DT, controls);
+    info.head.set(player.position.x, player.position.y + 1.65, player.position.z);
+    info.chest.set(player.position.x, player.position.y + 1.3, player.position.z);
+    enemies.update(DT, info, player);
+    story.update(DT, info);
+  };
   const run = (seconds, controls = () => idle) => {
-    for (let i = 0; i < seconds / DT; i++) {
-      player.update(DT, controls());
-      story.update(DT, info);
-      t += DT;
-    }
+    for (let i = 0; i < seconds / DT; i++) step(controls());
+  };
+  const runUntil = (until, maxSeconds) => {
+    for (let i = 0; i < maxSeconds / DT && !until(); i++) step(idle);
   };
   // Walks straight at a point (or at a moving target, e.g. to tag along behind an NPC).
   const walkTo = (x, z, until, maxSeconds = 90, stopAt = 1.2) => {
@@ -233,11 +279,15 @@ test('mission 1 plays through with a scripted player', () => {
       const dz = tz - player.position.z;
       const near = Math.hypot(dx, dz) < stopAt;
       player.yaw = Math.atan2(-dx, -dz);
-      player.update(DT, near ? idle : { ...idle, forward: 1 });
-      story.update(DT, info);
+      step(near ? idle : { ...idle, forward: 1 });
     }
   };
+  const teleport = (x, y, z) => {
+    player.spawnPoint.set(x, y, z);
+    player.respawn();
+  };
   const at = (id) => story.mission.step.id === id;
+  const where = () => `step ${story.mission.step.id}`;
 
   story.start();
   assert.equal(rifle.mode, 'lowered', 'weapon lowered for the shift');
@@ -250,7 +300,7 @@ test('mission 1 plays through with a scripted player', () => {
   const dir = new Vector3().subVectors(cmd.position.clone().add(new Vector3(0, 1.4, 0)), eye).normalize();
   story.interact(eye, dir);
   run(0.1);
-  assert.ok(at('briefing'), `talked to the commander (step ${story.mission.step.id})`);
+  assert.ok(at('briefing'), `talked to the commander (${where()})`);
   run(40);
   assert.ok(at('tut_sprint'));
   run(1.2, () => ({ ...idle, forward: 1, sprint: true }));
@@ -263,18 +313,70 @@ test('mission 1 plays through with a scripted player', () => {
   assert.ok(at('patrol_wall'));
   player.wantCrouch = false;
 
-  // Follow the squad to the wall.
+  // Follow the squad to the wall, then up to the terraces.
   const followCmd = () => [cmd.position.x, cmd.position.z];
   walkTo(followCmd, null, () => at('at_wall'), 120, 2.5);
-  assert.ok(at('at_wall'), `reached the wall with the squad (step ${story.mission.step.id}, cmd at ${cmd.position.x.toFixed(1)}, ${cmd.position.z.toFixed(1)}, player at ${player.position.x.toFixed(1)}, ${player.position.z.toFixed(1)})`);
+  assert.ok(at('at_wall'), `reached the wall with the squad (${where()}, cmd at ${cmd.position.x.toFixed(1)}, ${cmd.position.z.toFixed(1)}, player at ${player.position.x.toFixed(1)}, ${player.position.z.toFixed(1)})`);
   run(30);
   walkTo(followCmd, null, () => at('radio'), 150, 2.5);
-  assert.ok(at('radio'), `reached the terraces (step ${story.mission.step.id})`);
-  run(80);
-  assert.ok(at('part1_end'), `radio chatter finished, part 1 ends (step ${story.mission.step.id})`);
+  assert.ok(at('radio'), `reached the terraces (${where()})`);
 
-  // F2-style jump and checkpoint restart put the player at the checkpoint.
+  // Part 2: sirens, weapons ready.
+  runUntil(() => at('weapons_ready'), 90);
+  assert.ok(at('weapons_ready'), `radio chatter cut off by the sirens (${where()})`);
+  assert.equal(rifle.mode, 'ready', 'weapon raised');
+  assert.equal(story.mission.checkpointIndex, story.mission.indexOf('weapons_ready'), 'checkpoint at weapons ready');
+  runUntil(() => at('shelter'), 30);
+  assert.ok(at('shelter'), where());
+
+  // Four bystanders froze; send each one off with E.
+  const frozen = story.npcs.list.filter((n) => n.frozen);
+  assert.equal(frozen.length, 4, 'bystanders froze');
+  for (const f of frozen) {
+    teleport(f.position.x + 1.5, f.position.y + 0.1, f.position.z);
+    run(0.3);
+    const e = player.position.clone().add(new Vector3(0, 1.66, 0));
+    const d = new Vector3().subVectors(f.position.clone().add(new Vector3(0, 1.1, 0)), e).normalize();
+    story.interact(e, d);
+    assert.ok(!f.frozen, 'E sends a frozen civilian running');
+  }
+  runUntil(() => at('contact'), 95);
+  assert.ok(at('contact'), `first contact (${where()})`);
+  const outsideAtContact = story.npcs.civiliansOutside;
+
+  // First contact: the squad fights with the combat AI.
+  assert.equal(enemies.friendlies.length, 3, 'squad switched to combat AI');
+  runUntil(() => story.enemiesLeft === 0, 150);
+  const shots = enemies.friendlies.reduce((n, f) => n + f.shotsFired, 0);
+  assert.ok(enemies.enemies.length >= 4 && enemies.enemies.length <= 6, `4-6 attackers (${enemies.enemies.length})`);
+  assert.ok(shots > 0, 'the squad fired at the attackers');
+  const squadKills = enemies.friendlyKills;
+  // The scripted player never shoots: finish off whoever is left.
+  for (const e of enemies.enemies) if (e.alive) enemies.hit({ enemy: e, zone: 'head' }, new Vector3(1, 0, 0), info);
+  run(0.1);
+  assert.ok(at('after_wave'), `wave cleared (${where()})`);
+  assert.equal(enemies.friendlies.length, 0, 'squad back to story NPCs');
+  assert.equal(story.npcs.civiliansOutside, 0, `every civilian sheltered (${outsideAtContact} were still outside at contact)`);
+  teleport(-50, 0.1, 5);
+  runUntil(() => at('part2_end'), 90);
+  assert.ok(at('part2_end'), `debrief finished (${where()}, cmd arrived ${cmd.arrived})`);
+  console.log(`# squad: ${shots} shots, ${squadKills} kills; ${outsideAtContact} civilians outside at contact`);
+
+  // F2-style jumps and checkpoint restarts.
   story.jumpTo(story.mission.indexOf('at_wall'));
   assert.ok(Math.hypot(player.position.x + 14, player.position.z + 12.8) < 0.5, 'player at the wall checkpoint');
   assert.ok(story.npcs.get('cmd').position.x > -13, 'commander placed at the wall');
+  story.jumpTo(story.mission.indexOf('after_talk'));
+  assert.equal(story.npcs.civiliansOutside, 0, 'fast-forward past contact: civilians in the shelter');
+  assert.equal(story.enemiesLeft, 0, 'fast-forward past contact: no attackers');
+  assert.equal(enemies.friendlies.length, 0);
+  story.jumpTo(story.mission.indexOf('contact'));
+  assert.equal(enemies.friendlies.length, 3, 'jump to contact: squad in combat');
+  assert.ok(story.enemiesLeft >= 4, 'jump to contact: the wave comes again');
+  run(3);
+  assert.ok(enemies.enemies.length > 0, 'attackers spawning');
+  story.restartFromCheckpoint();
+  assert.equal(story.mission.step.id, 'weapons_ready', 'death during contact restarts at weapons ready');
+  assert.equal(enemies.enemies.length, 0, 'restart clears the attackers');
+  assert.equal(enemies.friendlies.length, 0, 'restart clears the squad AI');
 });

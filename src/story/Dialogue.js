@@ -33,6 +33,23 @@ export class Dialogue {
     if (!this.current) this._next();
   }
 
+  /**
+   * A combat callout: plays when there is room, never interrupts, and is dropped when
+   * lines are already waiting (callouts go stale fast). Returns whether it was queued.
+   */
+  bark(id, { next = false } = {}) {
+    if (!this.lines[id]) throw new Error(`Unknown dialogue line "${id}"`);
+    if (next) {
+      // A direct reply: jumps the queue (plays right after the current line).
+      if (!this.current) this.play([id]);
+      else if (this.queue[0] !== id) this.queue.unshift(id);
+      return true;
+    }
+    if (this.queue.length > 0) return false;
+    this.play([id]);
+    return true;
+  }
+
   clear() {
     this.queue.length = 0;
     this.current = null;
@@ -57,7 +74,7 @@ export class Dialogue {
       speaker: line.speaker,
       name: sp.name,
       color: sp.color,
-      radio: !!sp.radio,
+      radio: !!(line.radio ?? sp.radio),
       text: line.text,
       time: 0,
       duration: line.duration ?? lineDuration(line.text),

@@ -12,15 +12,18 @@
  *   { dialogueDone: true }             subtitle queue finished
  *   { arrived: 'npcId' }               that NPC finished its route
  *   { action: 'sprint' | 'crouch' | 'magCheck' | 'move' }  player did it during this step
+ *   { civiliansSheltered: true }       no civilian left outside the shelter
  *   { all: [trigger, ...] } / { any: [trigger, ...] }
  *   (no until: the step ends immediately after its actions)
  *
  * Actions (`do`), each { type, ... } and applied through the context (`ctx`):
- *   objective { text, target: [x, y, z] | { npc } | null }, hint { hint | null },
+ *   objective { text, target: [x, y, z] | { npc } | { frozen, fallback } | null, counter },
+ *   hint { hint | null },
  *   dialogue { lines, interrupt }, npc { id, spawn | place | route | face | talkable | idle },
  *   weapon { mode: 'lowered' | 'ready' }, sound { id }, ambience { crowd, birds },
  *   fade { to, time }, title { card }, endCard { card }, checkpoint { at: [x, y, z], yaw },
- *   populate { group }
+ *   populate { group }, sky { barrage }, civilians { do: 'panic' | 'runAll' },
+ *   combat { squad: [ids], on, threat }, wave { spawns, callouts }, sound { id, at }
  *
  * `jumpTo(i)` fast-forwards: it replays the state-setting actions of every earlier step
  * instantly (NPCs are placed where their routes end, timed/presentational actions are
@@ -123,6 +126,7 @@ export class Mission {
     if (t.dialogueDone) return c.dialogueIdle();
     if (t.arrived) return c.npcArrived(t.arrived);
     if (t.action) return this.events.has(`action:${t.action}`);
+    if (t.civiliansSheltered) return c.civiliansOutside() === 0;
     throw new Error(`Unknown trigger ${JSON.stringify(t)}`);
   }
 
@@ -131,7 +135,7 @@ export class Mission {
     const c = this.ctx;
     switch (a.type) {
       case 'objective':
-        return c.objective(a.text ?? null, a.target ?? null, fast);
+        return c.objective(a.text ?? null, a.target ?? null, fast, a.counter ?? null);
       case 'hint':
         return fast ? c.hint(null) : c.hint(a.hint ?? null);
       case 'dialogue':
@@ -141,9 +145,18 @@ export class Mission {
       case 'populate':
         return c.populate(a.group);
       case 'weapon':
-        return c.weapon(a.mode);
+        return c.weapon(a.mode, fast);
       case 'sound':
-        return fast ? undefined : c.sound(a.id);
+        return fast ? undefined : c.sound(a.id, a.at ?? null);
+      case 'sky':
+        return c.sky(a.barrage ?? 0);
+      case 'civilians':
+        return c.civilians(a.do, fast);
+      case 'combat':
+        return c.combat(a, fast);
+      case 'wave':
+        // Fast-forwarding past a fight means it was won: nobody to spawn.
+        return fast ? undefined : c.wave(a);
       case 'ambience':
         return c.ambience(a);
       case 'fade':

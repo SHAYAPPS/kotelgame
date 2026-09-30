@@ -15,6 +15,7 @@ export const NPC = {
   arrive: 0.5,
   talkRange: 2.8,
   talkAngle: 0.5, // radians off the view center
+  runSpeed: 3.6, // fleeing to shelter
 };
 
 /** Kinds decide the look and whether hitting them is a civilian or a teammate hit. */
@@ -38,7 +39,8 @@ export class Npc {
     this.speaker = speaker;
     this.pray = pray;
     this.rand = rand;
-    this.body = new PlayerController(world, { ...PLAYER, radius: NPC.radius, walkSpeed: 2.4 });
+    // walkSpeed is the cap (running to shelter); routes scale it down to walking pace.
+    this.body = new PlayerController(world, { ...PLAYER, radius: NPC.radius, walkSpeed: 4.2 });
     this.body.setSpawn(position, yaw);
     this.facing = yaw;
     this.faceTarget = null; // 'player' | null
@@ -56,6 +58,61 @@ export class Npc {
     this._pause = 0;
     this._stuck = 0;
     this._lastPos = position.clone();
+
+    // Emergency behaviour
+    this.brain = null; // combat AI (ai/Enemy.js, friendly faction) driving this body
+    this.freezes = false; // a bystander who freezes when the sirens start
+    this.frozen = false; // standing frozen: the player presses E to send them off
+    this.fleeing = false;
+    this.sheltered = false;
+    this.shelterSpot = null; // Vector3
+    this._fleeDelay = -1;
+    this.escort = 0; // > 0: stay within this distance of the player (squad in an emergency)
+    this._escortTimer = 0;
+  }
+
+  /** Civilians count for the shelter objective; the squad does not. */
+  get isCivilian() {
+    return !this.isTeammate;
+  }
+
+  /** Run to a shelter spot after `delay` seconds (panic reaction time). */
+  flee(spot, delay = 0) {
+    this.shelterSpot = spot;
+    this.follow = null;
+    this.pray = false;
+    this.frozen = false;
+    this.talkable = false;
+    this.body.wantCrouch = false;
+    this.faceTarget = null;
+    this._fleeDelay = delay;
+    this.route = null;
+    this.arrived = true;
+  }
+
+  /** Freeze in place (cowering) until the player sends them off. */
+  freeze() {
+    this.follow = null;
+    this.pray = false;
+    this.route = null;
+    this.arrived = true;
+    this.frozen = true;
+    this.talkable = true;
+    this.body.wantCrouch = true;
+  }
+
+  /** Put straight into the shelter (fast-forwarding a mission). */
+  shelterNow(spot) {
+    this.shelterSpot = spot;
+    this.follow = null;
+    this.pray = false;
+    this.frozen = false;
+    this.talkable = false;
+    this._fleeDelay = -1;
+    this.fleeing = false;
+    this.sheltered = true;
+    this.body.wantCrouch = false;
+    this.place(spot.x, spot.y, spot.z, Math.PI / 2);
   }
 
   get position() {
@@ -130,6 +187,25 @@ export class Npc {
   /** @param {number} dt @param {{ position: Vector3 }} player */
   update(dt, player) {
     this.time += dt;
+    if (this.brain) {
+      // The combat AI moves the body (EnemyManager steps it); just mirror it.
+      this.facing = this.brain.facing;
+      this.speed = this.body.horizontalSpeed;
+      return;
+    }
+    if (this._fleeDelay >= 0) {
+      this._fleeDelay -= dt;
+      if (this._fleeDelay < 0) {
+        const s = this.shelterSpot;
+        this.setRoute({ points: [[s.x, s.z]], speed: NPC.runSpeed * (0.85 + this.rand() * 0.3), face: Math.PI / 2 });
+        this.fleeing = true;
+      }
+    }
+    if (this.fleeing && this.arrived) {
+      this.fleeing = false;
+      this.sheltered = true;
+    }
+    if (this.escort > 0) this._updateEscort(dt, player);
     const ctl = this._ctl;
     ctl.forward = 0;
     let moveYaw = null;
@@ -192,6 +268,22 @@ export class Npc {
     }
     this.body.update(dt, ctl);
     this.speed = this.body.horizontalSpeed;
+  }
+
+  /** Keep up with the player: run when far behind, stop and watch when close. */
+  _updateEscort(dt, player) {
+    const p = player.position;
+    const d = Math.hypot(p.x - this.position.x, p.z - this.position.z);
+    this._escortTimer -= dt;
+    if (d > this.escort && this._escortTimer <= 0) {
+      this._escortTimer = 1.2;
+      const n = this.nav.nodeAt(p.x, p.z);
+      if (n >= 0) this.setRoute({ points: [[p.x, p.z]], speed: d > 14 ? NPC.runSpeed : 2.2 });
+    } else if (d < this.escort * 0.6 && this.route) {
+      this.route = null;
+      this.arrived = true;
+    }
+    if (!this.route || this.arrived) this.faceTarget = 'player';
   }
 
   /** Is the player farther from where we are heading than we are? */
@@ -284,7 +376,13 @@ export class NpcManager {
           // Stagger the loops so crossers don't move in lockstep.
           npc._pause = this.rand() * 6;
         } else {
-          this.spawn({ kind: d.kind, at: d.at, yaw: d.yaw ?? 0, pray: !!d.pray });
+          let at = d.at;
+          if (at.length === 2) {
+            const n = this.nav.nodeAt(at[0], at[1]);
+            at = [at[0], n >= 0 ? this.nav.y[n] : 0, at[1]];
+          }
+          const npc = this.spawn({ kind: d.kind, at, yaw: d.yaw ?? 0, pray: !!d.pray });
+          npc.freezes = !!d.freezes;
         }
       }
       return;
@@ -302,6 +400,62 @@ export class NpcManager {
         m.follow = { leader: guide, dx: col * 1.1 + (this.rand() - 0.5) * 0.4, dz: 1.8 + row * 1.2 + this.rand() * 0.4 };
       }
     }
+  }
+
+  /** Civilians still outside the shelter. */
+  get civiliansOutside() {
+    let n = 0;
+    for (const c of this.list) if (c.isCivilian && !c.sheltered) n++;
+    return n;
+  }
+
+  /** Frozen civilian closest to a point, or null. */
+  nearestFrozen(pos) {
+    let best = null;
+    let bestD = Infinity;
+    for (const c of this.list) {
+      if (!c.frozen) continue;
+      const d = Math.hypot(c.position.x - pos.x, c.position.z - pos.z);
+      if (d < bestD) {
+        bestD = d;
+        best = c;
+      }
+    }
+    return best;
+  }
+
+  /**
+   * Sirens: every civilian runs for the shelter spots (staggered reactions, which also
+   * spreads the path searches over a few seconds), bystanders freeze instead.
+   * @param {Vector3[]} spots
+   */
+  panic(spots, { maxDelay = 2.5 } = {}) {
+    let k = 0;
+    for (const c of this.list) {
+      if (!c.isCivilian || c.sheltered || c.fleeing) continue;
+      const spot = spots[k++ % spots.length];
+      if (c.freezes) {
+        c.shelterSpot = spot;
+        c.freeze();
+      } else c.flee(spot, 0.2 + this.rand() * maxDelay);
+    }
+  }
+
+  /** Everyone still outside runs now (frozen ones included). */
+  runAll(spots, { maxDelay = 1 } = {}) {
+    let k = 0;
+    for (const c of this.list) {
+      if (!c.isCivilian || c.sheltered) continue;
+      const spot = c.shelterSpot ?? spots[k % spots.length];
+      k++;
+      if (!c.fleeing && c._fleeDelay < 0) c.flee(spot, this.rand() * maxDelay);
+    }
+  }
+
+  /** Fast-forward: every civilian is already in the shelter. */
+  shelterAll(spots) {
+    let k = 0;
+    for (const c of this.list) if (c.isCivilian) c.shelterNow(spots[k++ % spots.length]);
   }
 
   update(dt, player, playerBody) {

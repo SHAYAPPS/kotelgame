@@ -35,8 +35,53 @@ export class WeaponAudio {
       this.noise = ctx.createBuffer(1, len, ctx.sampleRate);
       const data = this.noise.getChannelData(0);
       for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+
+      // Echo bus: the stone plaza. A generated impulse response (slapback off the wall
+      // and the terraces, then a long diffuse tail); sounds send part of their signal here.
+      this.echo = ctx.createGain();
+      const verb = ctx.createConvolver();
+      verb.buffer = this._plazaImpulse(ctx);
+      const wet = ctx.createGain();
+      wet.gain.value = 0.55;
+      this.echo.connect(verb).connect(wet).connect(this.master);
     }
     if (this.ctx.state === 'suspended') this.ctx.resume();
+  }
+
+  /** Stereo impulse response: discrete stone reflections plus a decaying tail. */
+  _plazaImpulse(ctx) {
+    const rate = ctx.sampleRate;
+    const len = Math.floor(rate * 2.6);
+    const buf = ctx.createBuffer(2, len, rate);
+    const taps = [
+      [0.045, 0.5, 0.2],
+      [0.11, 0.42, 0.6],
+      [0.19, 0.34, 0.35],
+      [0.29, 0.26, 0.8],
+      [0.42, 0.18, 0.5],
+    ];
+    for (let ch = 0; ch < 2; ch++) {
+      const d = buf.getChannelData(ch);
+      let lp = 0;
+      for (let i = 0; i < len; i++) {
+        const t = i / rate;
+        // Duller as it decays (a one-pole lowpass on the noise).
+        const n = Math.random() * 2 - 1;
+        lp += (n - lp) * (0.5 * Math.exp(-t / 0.9) + 0.08);
+        d[i] = lp * 0.35 * Math.exp(-t / 0.6) * Math.min(1, t / 0.03);
+      }
+      for (const [t, g, pan] of taps) {
+        const side = ch === 0 ? 1 - pan : pan;
+        const i = Math.floor((t + (ch ? 0.004 : 0)) * rate);
+        for (let k = 0; k < 240; k++) d[i + k] += (Math.random() * 2 - 1) * g * side * Math.exp(-k / 60);
+      }
+    }
+    return buf;
+  }
+
+  /** Where the echo send goes (the master when there is no echo bus). */
+  get echoBus() {
+    return this.echo ?? this.master;
   }
 
   get ready() {
@@ -80,7 +125,10 @@ export class WeaponAudio {
 
   shot() {
     if (!this.ready) return;
-    this._shotLayers(this.ctx.currentTime, this.master, 1);
+    const t = this.ctx.currentTime;
+    this._shotLayers(t, this.master, 1);
+    // The crack comes back off the stone.
+    this._noise(t, { type: 'bandpass', freq: 1400, q: 0.5, gain: 0.5, decay: 0.12, out: this.echoBus });
   }
 
   /** The layered gunshot (crack, body, thump, tail) into `out`. */
@@ -118,8 +166,15 @@ export class WeaponAudio {
     lowpass.type = 'lowpass';
     lowpass.frequency.value = 900 + 15000 * Math.exp(-dist / 45);
     lowpass.connect(panner).connect(this.master);
+    // Echo send: farther shots are more echo than direct sound.
+    const send = ctx.createGain();
+    send.gain.value = Math.min(0.9, 0.25 + dist / 90) * Math.min(1, 12 / dist + 0.3);
+    lowpass.connect(send).connect(this.echoBus);
     this._shotLayers(t, lowpass, 1.1, 0.18 + Math.min(0.5, dist / 120));
-    setTimeout(() => panner.disconnect(), 1500);
+    setTimeout(() => {
+      panner.disconnect();
+      send.disconnect();
+    }, 1500);
   }
 
   /** Supersonic crack of a bullet passing close by. */

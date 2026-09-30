@@ -413,6 +413,15 @@
   font-weight: 700;
 }
 
+.objective-count {
+  font-size: 14px;
+  color: #ffd58a;
+}
+
+.objective-count[hidden] {
+  display: none;
+}
+
 .objective.fresh {
   animation: objective-in 1.4s ease-out;
 }

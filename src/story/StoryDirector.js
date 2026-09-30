@@ -4,9 +4,11 @@ import { Dialogue } from './Dialogue.js';
 import { Mission } from './Mission.js';
 import { NpcManager } from './Npc.js';
 import { NpcView } from './NpcView.js';
-import { SPEAKERS, STORY_UI } from './text.he.js';
+import { COUNTERS, SPEAKERS, STORY_UI } from './text.he.js';
 
 const _t = new Vector3();
+const KILL_LINES = { yonatan: 'down_1', noam: 'down_2', cmd: 'down_3' };
+const THANKS = { man: ['civ_thanks_1', 'civ_thanks_3'], woman: ['civ_thanks_2', 'civ_thanks_4'] };
 
 /**
  * Runs a mission script against the game: implements the mission context (objectives,
@@ -15,17 +17,42 @@ const _t = new Vector3();
  */
 export class StoryDirector {
   /**
-   * @param {{ script, scene, world, nav, player, rifle, enemies, audio, hud }} deps
-   *   hud: StoryHud; player: PlayerController; enemies: EnemyManager
+   * @param {{ script, scene, world, nav, player, rifle, enemies, audio, hud, sky?, view? }} deps
+   *   hud: StoryHud; player: PlayerController; enemies: EnemyManager;
+   *   sky: SkyFx (interceptions, optional); view: PlayerCamera (camera shake, optional)
    */
-  constructor({ script, scene, world, nav, player, rifle, enemies, audio, hud }) {
+  constructor({ script, scene, world, nav, player, rifle, enemies, audio, hud, sky = null, view = null }) {
     this.script = script;
     this.scene = scene;
+    this.nav = nav;
     this.player = player;
     this.rifle = rifle;
     this.enemies = enemies;
     this.hud = hud;
+    this.audio = audio;
+    this.sky = sky;
+    this.view = view;
     this.ambient = new AmbientAudio(audio);
+    this.shelterSpots = (script.shelter?.spots ?? []).map(([x, z]) => {
+      const n = nav.nodeAt(x, z);
+      return new Vector3(x, n >= 0 ? nav.y[n] : 0, z);
+    });
+    this.time = 0;
+    this._timed = []; // [{ t, fn }] game-time callbacks (spawns, callouts, volleys)
+    this._pendingSpawns = 0;
+    this._lastKillBark = -Infinity;
+    this._lastOneCalled = false;
+    this.objectiveCounter = null;
+    if (sky) {
+      // Interception flash: the boom arrives later (sound travels 343 m/s) with a shake.
+      sky.onFlash = (distance, strength) => {
+        this._after(distance / 343, () => {
+          this.ambient.boom(distance, strength);
+          if (this.view) this.view.addShake(Math.min(0.6, strength * 90 / Math.max(distance, 90)));
+        });
+      };
+    }
+    if (enemies) enemies.onEnemyKilled = (enemy, killer) => this._onKill(enemy, killer);
     this.views = new Map();
     this.npcs = new NpcManager({
       world,
@@ -42,7 +69,7 @@ export class StoryDirector {
     });
     this.dialogue = new Dialogue({
       onLine: (line) => {
-        if (line.radio) this.ambient.play('radioIn');
+        if (line.radio) this.ambient.radioLine(line.duration);
       },
     });
 
@@ -65,6 +92,14 @@ export class StoryDirector {
   _context() {
     return {
       reset: () => {
+        for (const n of this.npcs.list) if (n.brain) this.enemies.removeFriendly?.(n.brain);
+        this.enemies.clearHostiles?.();
+        this._timed.length = 0;
+        this._pendingSpawns = 0;
+        this._lastOneCalled = false;
+        this.objectiveCounter = null;
+        this.ambient.set({ siren: 0, panic: false });
+        if (this.sky) this.sky.setBarrage(0);
         this.npcs.clear();
         this.dialogue.clear();
         this.hud.setHint(null);
@@ -77,12 +112,14 @@ export class StoryDirector {
         this.failed = null;
       },
       playerDistance: (x, z) => Math.hypot(this.player.position.x - x, this.player.position.z - z),
-      enemiesAlive: () => this.enemies.enemies.filter((e) => e.alive).length,
+      enemiesAlive: () => this.enemiesLeft,
+      civiliansOutside: () => this.npcs.civiliansOutside,
       dialogueIdle: () => this.dialogue.idle,
       npcArrived: (id) => this.npcs.get(id)?.arrived ?? true,
-      objective: (text, target, fast) => {
+      objective: (text, target, fast, counter) => {
         this.objectiveText = text;
         this.objectiveTarget = target;
+        this.objectiveCounter = counter;
         this.hud.setObjective(text);
         if (text && !fast) this.ambient.play('chime');
       },
@@ -90,10 +127,15 @@ export class StoryDirector {
       dialogue: (lines, interrupt) => this.dialogue.play(lines, { interrupt }),
       npc: (a, fast) => this._npcAction(a, fast),
       populate: (group) => this.npcs.populate(this.script.groups[group]),
-      weapon: (mode) => {
+      weapon: (mode, fast) => {
+        if (mode === 'ready' && this.rifle.mode !== 'ready' && !fast) this.ambient.play('charge');
         this.rifle.mode = mode;
       },
-      sound: (id) => this.ambient.play(id),
+      sound: (id, at) => (id === 'gunfire' ? this._volley(at) : this.ambient.play(id)),
+      sky: (level) => this.sky?.setBarrage(level),
+      civilians: (what, fast) => this._civilians(what, fast),
+      combat: (a) => this._combat(a),
+      wave: (a) => this._wave(a),
       ambience: (a) => this.ambient.set(a),
       fade: (to, time) => {
         this.fadeTarget = to;
@@ -119,6 +161,18 @@ export class StoryDirector {
     const npc = this.npcs.get(a.id);
     if (!npc) throw new Error(`Mission refers to unknown NPC "${a.id}"`);
     if (a.talkable !== undefined) npc.talkable = a.talkable;
+    if (a.escort !== undefined) {
+      npc.escort = a.escort ?? 0;
+      npc.route = null;
+      npc.arrived = true;
+      if (fast && npc.escort > 0) {
+        // Fast-forward: already next to the player's restart point.
+        const sp = this.player.spawnPoint;
+        const k = this.npcs.list.filter((n) => n.escort > 0).indexOf(npc);
+        const ang = k * 2.1 + 0.6;
+        npc.place(sp.x + Math.cos(ang) * 2.5, sp.y, sp.z + Math.sin(ang) * 2.5, 0);
+      }
+    }
     if (a.face === 'player') npc.faceTarget = 'player';
     if (a.place) npc.place(...a.place);
     if (a.route) {
@@ -130,6 +184,99 @@ export class StoryDirector {
         npc.setRoute(a.route);
       }
     }
+  }
+
+  /** Hostiles alive plus the ones still due to spawn. */
+  get enemiesLeft() {
+    let n = this._pendingSpawns;
+    for (const e of this.enemies.enemies) if (e.alive) n++;
+    return n;
+  }
+
+  _after(seconds, fn) {
+    this._timed.push({ t: this.time + seconds, fn });
+  }
+
+  _civilians(what, fast) {
+    const spots = this.shelterSpots;
+    if (what === 'panic') this.npcs.panic(spots);
+    else if (what === 'runAll') {
+      if (fast) this.npcs.shelterAll(spots);
+      else this.npcs.runAll(spots);
+    } else throw new Error(`Unknown civilians action "${what}"`);
+  }
+
+  /** Squad members switch between story NPC behaviour and the combat AI. */
+  _combat(a) {
+    for (const id of a.squad) {
+      const npc = this.npcs.get(id);
+      if (!npc) throw new Error(`Mission refers to unknown NPC "${id}"`);
+      if (a.on && !npc.brain) {
+        npc.escort = 0;
+        npc.route = null;
+        npc.arrived = true;
+        npc.faceTarget = null;
+        npc.brain = this.enemies.addFriendly(npc.body, npc.facing);
+        if (a.threat) npc.brain.engage(_t.set(a.threat[0], a.threat[1], a.threat[2]));
+      } else if (!a.on && npc.brain) {
+        this.enemies.removeFriendly(npc.brain);
+        npc.brain = null;
+        npc.route = null;
+        npc.arrived = true;
+      }
+    }
+  }
+
+  /** Scripted attackers: spawn on a timer, already fighting; radio callouts per group. */
+  _wave(a) {
+    const called = new Set();
+    for (const sp of a.spawns) {
+      this._pendingSpawns++;
+      this._after(sp.delay ?? 0, () => {
+        this._pendingSpawns--;
+        const n = this.nav.nodeAt(sp.at[0], sp.at[1]);
+        const pos = new Vector3(sp.at[0], n >= 0 ? this.nav.y[n] : 0, sp.at[1]);
+        this.enemies.spawnAttacker(pos, sp.yaw ?? 0, this.player.position);
+        const c = a.callouts?.[sp.group];
+        if (c && !called.has(sp.group)) {
+          called.add(sp.group);
+          this._after(c.delay ?? 2, () => this.dialogue.play(c.lines));
+        }
+      });
+    }
+  }
+
+  /** A burst of gunfire somewhere (heard before the attackers are seen). */
+  _volley(at) {
+    const p = new Vector3(at[0], at[1], at[2]);
+    let t = 0;
+    for (let burst = 0; burst < 4; burst++) {
+      const n = 3 + Math.floor(Math.random() * 4);
+      for (let i = 0; i < n; i++) {
+        this._after(t, () => this.audio.shotAt?.(p));
+        t += 0.09 + Math.random() * 0.03;
+      }
+      t += 0.3 + Math.random() * 0.6;
+    }
+  }
+
+  _onKill(enemy, killer) {
+    const left = this.enemiesLeft;
+    if (left === 0) return;
+    if (left === 1 && !this._lastOneCalled) {
+      this._lastOneCalled = true;
+      this.dialogue.bark('last_one');
+      return;
+    }
+    if (this.time - this._lastKillBark < 3) return;
+    let line = null;
+    if (killer && killer.faction === 'friendly') {
+      const npc = this.npcs.list.find((n) => n.brain === killer);
+      line = npc && KILL_LINES[npc.id];
+    } else if (Math.random() < 0.6) {
+      line = Math.random() < 0.5 ? 'down_player_1' : 'down_player_2';
+    }
+    if (line && this.dialogue.bark(line)) this._lastKillBark = this.time;
   }
 
   get steps() {
@@ -175,6 +322,14 @@ export class StoryDirector {
   interact(eye, dir) {
     const npc = this.npcs.talkTarget(eye, dir);
     if (!npc) return;
+    if (npc.frozen) {
+      // Snap a frozen civilian out of it: off to the shelter.
+      npc.flee(npc.shelterSpot ?? this.shelterSpots[0], 0.25);
+      const lines = npc.kind === 'worshipperWoman' ? THANKS.woman : THANKS.man;
+      this.dialogue.bark(lines[Math.floor(Math.random() * lines.length)], { next: true });
+      this.mission.notify('action:sendCivilian');
+      return;
+    }
     npc.faceTarget = 'player';
     this.mission.notify(`talk:${npc.id}`);
   }
@@ -191,6 +346,15 @@ export class StoryDirector {
     if (this._sprintTime > 0.8) this.mission.notify('action:sprint');
     if (p.crouched) this.mission.notify('action:crouch');
 
+    this.time += dt;
+    if (this.sky) this.sky.update(dt);
+    const due = this._timed;
+    for (let i = 0; i < due.length; i++) {
+      if (due[i].t > this.time) continue;
+      const { fn } = due[i];
+      due.splice(i--, 1);
+      fn();
+    }
     this.npcs.update(dt, playerInfo, p);
     this.dialogue.update(dt);
     this.mission.update(dt);
@@ -201,6 +365,11 @@ export class StoryDirector {
     const t = this.objectiveTarget;
     if (!t || !this.objectiveText) return null;
     if (Array.isArray(t)) return this._targetPos.set(t[0], t[1] + 1.6, t[2]);
+    if (t.frozen) {
+      const f = this.npcs.nearestFrozen(this.player.position);
+      if (f) return this._targetPos.set(f.position.x, f.position.y + 2, f.position.z);
+      return t.fallback ? this._targetPos.set(t.fallback[0], t.fallback[1] + 1.6, t.fallback[2]) : null;
+    }
     const npc = this.npcs.get(t.npc);
     return npc ? this._targetPos.set(npc.position.x, npc.position.y + 2.2, npc.position.z) : null;
   }
@@ -209,6 +378,7 @@ export class StoryDirector {
   frameUpdate(dt, camera, eye, dir) {
     for (const v of this.views.values()) v.update(dt);
     this.ambient.update(dt);
+    if (this.sky) this.sky.frame(camera);
     if (this.fade !== this.fadeTarget) {
       const step = this.fadeSpeed * dt;
       this.fade = this.fade < this.fadeTarget ? Math.min(this.fadeTarget, this.fade + step) : Math.max(this.fadeTarget, this.fade - step);
@@ -216,7 +386,12 @@ export class StoryDirector {
     this.hud.setFade(this.started ? this.fade : 0);
     this.hud.setSubtitle(this.dialogue.current);
     const talk = this.npcs.talkTarget(eye, dir);
-    this.hud.setPrompt(talk ? this._speakerName(talk) : null);
+    this.hud.setPrompt(talk ? (talk.frozen ? STORY_UI.shelterPrompt : `${STORY_UI.talkPrompt} ${this._speakerName(talk)}`) : null);
+    const counter = this.objectiveCounter;
+    this.hud.setObjectiveCount(
+      counter && this.objectiveText ? COUNTERS[counter] : null,
+      counter === 'civilians' ? this.npcs.civiliansOutside : counter === 'enemies' ? this.enemiesLeft : 0,
+    );
     this.hud.update(dt, this.objectivePosition(), camera, this.player.position);
   }
 

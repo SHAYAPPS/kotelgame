@@ -22,6 +22,63 @@ function rangeRand(rand, [lo, hi]) {
 }
 
 /**
+ * How another combatant looks to an AI (the same shape as the player info object the
+ * game passes in): position, head/chest points, speed, crouched, firing, alive, hitTest.
+ */
+export class CombatTarget {
+  constructor(agent) {
+    this.agent = agent;
+    this.position = agent.body.position;
+    this.head = new Vector3();
+    this.chest = new Vector3();
+    this.zone = 'body'; // zone of the last successful hitTest
+  }
+
+  get alive() {
+    return this.agent.alive;
+  }
+
+  get crouched() {
+    return this.agent.crouched;
+  }
+
+  get speed() {
+    return this.agent.body.horizontalSpeed;
+  }
+
+  get firing() {
+    return this.agent.time - this.agent.lastShotTime < 0.3;
+  }
+
+  /** Refresh head / chest points (after the agent moved). */
+  update() {
+    const c = this.agent.cfg;
+    const p = this.position;
+    this.head.set(p.x, p.y + (this.crouched ? c.crouchHeadHeight : c.headHeight), p.z);
+    this.chest.set(p.x, p.y + (this.crouched ? 0.75 : 1.25), p.z);
+  }
+
+  hitTest(origin, dir, maxDist) {
+    const h = this.agent.raycast(origin, dir, maxDist);
+    if (!h) return -1;
+    this.zone = h.zone;
+    return h.distance;
+  }
+}
+
+/** Nobody to fight (a friendly with no enemies left). */
+export const NO_TARGET = {
+  position: new Vector3(),
+  head: new Vector3(),
+  chest: new Vector3(),
+  alive: false,
+  crouched: false,
+  speed: 0,
+  firing: false,
+  hitTest: () => -1,
+};
+
+/**
  * One enemy soldier: perception (vision cone + line of sight, hearing), a small state
  * machine (idle -> alerted -> combat -> dead), cover use (move, hide, peek, relocate)
  * and hitscan shooting. Pure logic: the view (EnemyView) reads its fields to draw.
@@ -35,16 +92,19 @@ export class Enemy {
    * @param {Vector3} position feet
    * @param {number} yaw facing
    */
-  constructor({ world, nav, cover, rand = Math.random, onFire = null, config = ENEMY }, position, yaw = 0) {
+  constructor({ world, nav, cover, rand = Math.random, onFire = null, config = ENEMY, faction = 'hostile', body = null }, position, yaw = 0) {
+    config ??= ENEMY;
     this.cfg = config;
+    this.faction = faction; // 'hostile' | 'friendly'
     this.world = world;
     this.nav = nav;
     this.cover = cover;
     this.rand = rand;
     this.onFire = onFire;
 
-    this.body = new PlayerController(world, { ...PLAYER, walkSpeed: config.runSpeed, radius: config.radius });
-    this.body.setSpawn(position, yaw);
+    // A friendly squad member drives its story NPC's existing body.
+    this.body = body ?? new PlayerController(world, { ...PLAYER, walkSpeed: config.runSpeed, radius: config.radius });
+    if (!body) this.body.setSpawn(position, yaw);
     this.spawn = { position: position.clone(), yaw };
 
     this.state = 'idle';
@@ -73,12 +133,22 @@ export class Enemy {
     this.moveTarget = new Vector3();
     this.moving = false;
     this.stuckTimer = 0;
+    this.stuckCount = 0;
+    this.badCover = null; // cover he could not reach (skipped next time)
     this.lastPos = position.clone();
 
     // Weapon
     this.burstLeft = 0;
     this.fireCooldown = 0;
     this.shotsFired = 0;
+    this.lastShotTime = -Infinity;
+
+    // Who he fights: the player info object or another combatant's `asTarget`.
+    // null = the `player` argument of update() (the single-target default).
+    this.target = null;
+    this.asTarget = new CombatTarget(this);
+    // Friendlies: pick cover around this point (the player) instead of around themselves.
+    this.anchor = null;
 
     // Death
     this.deathDir = new Vector3(0, 0, 1);
@@ -89,6 +159,7 @@ export class Enemy {
     this.eye = new Vector3();
     this.muzzle = new Vector3();
     this._updateEye();
+    this.asTarget.update();
   }
 
   get position() {
@@ -141,7 +212,12 @@ export class Enemy {
     const c = this.cfg;
     this.health -= zone === 'head' ? c.headDamage : c.bodyDamage;
     this.lastHitZone = zone;
-    if (attacker) this._notice(attacker, true);
+    if (attacker) {
+      if (attacker.hitTest) this.setTarget(attacker); // turn on whoever shot him
+      this._notice(attacker, true);
+    }
+    // Story squad members can't die: they get knocked back into cover instead.
+    if (c.invulnerable) this.health = Math.max(this.health, 1);
     if (this.health <= 0) {
       this.health = 0;
       this.state = 'dead';
@@ -154,6 +230,24 @@ export class Enemy {
     if (this.state !== 'combat') this._enter('combat');
     else if (this.mode === 'peeking' || this.mode === 'exposed') this.relocateTimer = 0;
     return false;
+  }
+
+  /** Switch who he fights. A new target means reacquiring it (aim and reaction). */
+  setTarget(target) {
+    if (target === this.target) return;
+    this.target = target;
+    this.losTime = 0;
+    if (this.state === 'combat') this.reaction = Math.max(this.reaction, this.cfg.reactionTime * 0.5);
+  }
+
+  /** Start fighting straight away (scripted attackers, the squad at first contact). */
+  engage(threatPosition) {
+    if (!this.alive) return;
+    this.lastKnown.copy(threatPosition);
+    this.hasLastKnown = true;
+    this.awareness = 1;
+    this.sinceSeen = 0;
+    this._enter('combat');
   }
 
   // ---------------------------------------------------------------------------
@@ -265,6 +359,8 @@ export class Enemy {
     this.time += dt;
     this.stateTime += dt;
     if (!this.alive) return;
+    if (this.target) player = this.target;
+    if (this.cfg.invulnerable) this.health = Math.min(this.cfg.health, this.health + this.cfg.regen * dt);
 
     this._perceive(dt, player);
     this.sinceSeen = this.canSeePlayer ? 0 : this.sinceSeen + dt;
@@ -282,6 +378,7 @@ export class Enemy {
 
     this._move(dt);
     this._updateEye();
+    this.asTarget.update();
   }
 
   _idle(dt) {
@@ -310,11 +407,14 @@ export class Enemy {
     const c = this.cfg;
     this.relocateTimer -= dt;
     this.modeTimer -= dt;
-    if (this.sinceSeen > 14) {
+    if (this.sinceSeen > 14 && !c.holdCombat) {
       // Lost you: search where you were last seen.
       this._enter('alerted');
       return;
     }
+    // Attackers know roughly where the defenders are: after a while without contact
+    // they head for their target's real position.
+    if (c.assault && this.sinceSeen > c.seekTime && player.alive) this.lastKnown.copy(player.position);
     const threat = this.lastKnown;
     const distToThreat = this.position.distanceTo(threat);
 
@@ -323,6 +423,10 @@ export class Enemy {
     if (this.coverPoint && this.mode !== 'moving' && this.relocateTimer <= 0) {
       const flanked = !this.cover.protects(this.coverPoint, threat);
       if (flanked || distToThreat < c.closeRange) needCover = true;
+      // Nobody in sight for a while, or left behind by the anchor: find a better spot.
+      if (c.seekTime && this.sinceSeen > c.seekTime) needCover = true;
+      const a = this.anchor;
+      if (a && Math.hypot(this.coverPoint.x - a.x, this.coverPoint.z - a.z) > c.coverSearchRadius) needCover = true;
     }
     if (needCover) {
       this.relocateTimer = c.relocateCooldown;
@@ -355,6 +459,17 @@ export class Enemy {
     } else if (this.mode === 'exposed') {
       // No cover available: crouch where he is and fight, retry cover periodically.
       this.body.wantCrouch = this.canSeePlayer && distToThreat > 8;
+      if (c.assault) {
+        // No cover in reach: advance in the open until someone is in sight.
+        if (this.canSeePlayer) this._stopMoving();
+        else if (!this.moving && distToThreat > c.closeRange) this._goTo(threat, c.runSpeed);
+      }
+      const a = this.anchor;
+      if (a && !this.canSeePlayer && !this.moving && Math.hypot(a.x - this.position.x, a.z - this.position.z) > 5) {
+        // A squad member with no cover and nothing to shoot at: stay with the player.
+        const ang = this.rand() * Math.PI * 2;
+        this._goTo(_b.set(a.x + Math.cos(ang) * 2.5, a.y, a.z + Math.sin(ang) * 2.5), c.runSpeed);
+      }
     }
 
     // Face the threat (unless running somewhere else, then look where he goes).
@@ -373,17 +488,25 @@ export class Enemy {
     let bestScore = -Infinity;
     const pos = this.position;
     let evaluated = 0;
+    // An attacker looking for contact only takes cover that gets him closer.
+    const seeking = c.assault && this.sinceSeen > c.seekTime;
+    const curThreat = Math.hypot(pos.x - threat.x, pos.z - threat.z);
     for (let i = 0; i < pts.length && evaluated < 60; i++) {
       const p = pts[i];
       if (p.owner && p.owner !== this) continue;
-      const d = Math.hypot(p.x - pos.x, p.z - pos.z);
+      if (p === this.badCover) continue;
+      const dSelf = Math.hypot(p.x - pos.x, p.z - pos.z);
+      const a = this.anchor;
+      const d = a ? Math.hypot(p.x - a.x, p.z - a.z) : dSelf;
       if (d > c.coverSearchRadius) continue;
       const dThreat = Math.hypot(p.x - threat.x, p.z - threat.z);
       if (dThreat < c.closeRange + 1) continue;
-      if (Math.abs(p.y - pos.y) > 4) continue;
+      if (seeking && dThreat > curThreat - 5) continue;
+      // Same level as him (or his anchor), or as the threat (down the stairs toward it).
+      if (Math.abs(p.y - (a ? a.y : pos.y)) > 4 && Math.abs(p.y - threat.y) > 4) continue;
       // Cheap score first, expensive ray tests only for promising points.
       const [lo, hi] = c.preferredRange;
-      let score = -d * 0.6 - (dThreat < lo ? (lo - dThreat) * 1.5 : dThreat > hi ? (dThreat - hi) * 0.5 : 0);
+      let score = -(a ? d * 0.35 + dSelf * 0.15 : d * (c.travelCost ?? 0.6)) - (dThreat < lo ? (lo - dThreat) * 1.5 : dThreat > hi ? (dThreat - hi) * 0.5 : 0);
       if (p === this.coverPoint) score -= 4; // prefer moving somewhere new when relocating
       if (others.some((o) => o !== this && o.alive && Math.hypot(o.position.x - p.x, o.position.z - p.z) < 2)) continue;
       if (score <= bestScore) continue;
@@ -398,6 +521,11 @@ export class Enemy {
       }
     }
     if (this.coverPoint && this.coverPoint !== best) this.coverPoint.owner = null;
+    if (best && best === this.coverPoint && c.assault && this.sinceSeen > c.seekTime) {
+      // Nothing better in reach and nobody in sight: leave cover and push on.
+      best.owner = null;
+      best = null;
+    }
     if (!best) {
       this.coverPoint = null;
       this.mode = 'exposed';
@@ -454,8 +582,11 @@ export class Enemy {
       normal: wallHit && !hitPlayer ? wallHit.normal.clone() : null,
       damage: hitPlayer ? c.damage : 0,
       shooter: this,
+      target: player, // hitPlayer means this target was hit (the player or a combatant)
+      zone: hitPlayer ? player.zone ?? 'body' : null,
     };
     this.shotsFired++;
+    this.lastShotTime = this.time;
     this.burstLeft--;
     this.fireCooldown = this.burstLeft > 0 ? c.fireInterval : rangeRand(this.rand, c.burstPause);
     if (this.onFire) this.onFire(shot);
@@ -479,6 +610,19 @@ export class Enemy {
     this.moving = !!path;
     this.moveTarget.copy(target);
     this.stuckTimer = 0;
+  }
+
+  /** Repathing keeps failing (the path runs somewhere the body can't go): drop it. */
+  _giveUpMove() {
+    this.stuckCount = 0;
+    this._stopMoving();
+    if (this.mode === 'moving' && this.coverPoint) {
+      this.badCover = this.coverPoint;
+      this.coverPoint.owner = null;
+      this.coverPoint = null;
+      this.mode = 'exposed';
+      this.relocateTimer = 0;
+    }
   }
 
   _stopMoving() {
@@ -513,9 +657,10 @@ export class Enemy {
         this.stuckTimer += dt;
         if (this.stuckTimer > 1.2) {
           if (this.position.distanceTo(this.lastPos) < 0.3) {
-            if (this.path.length > 1) this._goTo(this.moveTarget, this.moveSpeed);
+            if (++this.stuckCount >= 3) this._giveUpMove();
+            else if (this.path.length > 1) this._goTo(this.moveTarget, this.moveSpeed);
             else this._stopMoving();
-          }
+          } else this.stuckCount = 0;
           this.stuckTimer = 0;
           this.lastPos.copy(this.position);
         }

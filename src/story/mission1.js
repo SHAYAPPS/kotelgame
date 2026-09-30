@@ -1,4 +1,5 @@
-// Mission 1, part 1: the calm shift. Pure data: steps, triggers and actions.
+// Mission 1: the calm shift (part 1), then sirens, shelter and first contact (part 2).
+// Pure data: steps, triggers and actions.
 // Text lives in text.he.js (ids only here). Coordinates are Kotel plaza meters
 // (see src/world/kotel/config.js: +X east toward the wall, +Z south).
 
@@ -10,9 +11,20 @@ const SQUAD_START = { cmd: [-63.5, 1.2, 71.5, S], yonatan: [-61.4, 1.2, 70.4, S 
 const TO_WALL = [[-62, 50], [-36, -12.8], [-10, -13]];
 const TO_TERRACES = [[-36, -12.8], [-60, -10], [-90, -8]];
 const offsetRoute = (route, dz) => route.map(([x, z], i) => [x - (i === route.length - 1 ? 1.5 : 1), z + dz]);
+const SQUAD = ['cmd', 'yonatan', 'noam'];
+
+// The covered prayer hall under Wilson's Arch (x -13..0, z -42..-29): a grid of spots.
+const SHELTER_SPOTS = [];
+for (let i = 0; i < 9; i++) for (let j = 0; j < 8; j++) SHELTER_SPOTS.push([-11.5 + j * 1.3, -40.5 + i * 1.2]);
+
+// Where the first wave comes in: the southern entrance (behind the checkpoint) and the
+// top of the western (Yehuda HaLevi) stairs.
+const SOUTH_ENTRY = [-67.5, 1.2, 72];
 
 export const MISSION1 = {
-  id: 'mission1-part1',
+  id: 'mission1',
+
+  shelter: { spots: SHELTER_SPOTS, center: [-6, 0, -35] },
 
   // Ambient population, placed by `populate` actions.
   groups: {
@@ -28,6 +40,13 @@ export const MISSION1 = {
       { kind: 'civilian', route: [[-100, -30], [-45, 2]], loop: true, speed: 1.1 },
       { kind: 'worshipperWoman', route: [[-66, 60], [-37, 27]], loop: true, speed: 1.2 },
       { kind: 'civilian', route: [[-44, -38], [-80, -20]], loop: true, speed: 1.3 },
+    ],
+    // Bystanders: stand around during the shift, freeze when the sirens start.
+    bystanders: [
+      { kind: 'tourist', at: [-44, 5], yaw: 2.4, freezes: true },
+      { kind: 'civilian', at: [-33, 27], yaw: -1.2, freezes: true },
+      { kind: 'worshipperWoman', at: [-68, -22], yaw: 0.6, freezes: true },
+      { kind: 'tourist', at: [-95, 17], yaw: -2.2, freezes: true },
     ],
     tour: {
       guide: { kind: 'guide', id: 'guide', route: [[-48, -24], [-48, 16], [-72, 22], [-72, -24]], loop: true, speed: 0.9, pause: 7 },
@@ -47,6 +66,7 @@ export const MISSION1 = {
         { type: 'populate', group: 'worshippers' },
         { type: 'populate', group: 'crossers' },
         { type: 'populate', group: 'tour' },
+        { type: 'populate', group: 'bystanders' },
         { type: 'npc', id: 'cmd', spawn: { kind: 'commander', speaker: 'cmd', at: SQUAD_START.cmd } },
         { type: 'npc', id: 'yonatan', spawn: { kind: 'soldier', speaker: 'yonatan', at: SQUAD_START.yonatan } },
         { type: 'npc', id: 'noam', spawn: { kind: 'soldier', speaker: 'noam', at: SQUAD_START.noam } },
@@ -162,21 +182,115 @@ export const MISSION1 = {
         { type: 'checkpoint', at: [-88, 3, -8], yaw: E },
         { type: 'objective', text: 'wait_orders', target: null },
         { type: 'ambience', crowd: 0.35, birds: 0.2 },
-        { type: 'dialogue', lines: ['radio_1', 'radio_2', 'radio_3', 'radio_4', 'radio_5', 'radio_6', 'radio_7', 'radio_8'], interrupt: true },
+        { type: 'dialogue', lines: ['radio_1', 'radio_2', 'radio_3', 'radio_4', 'radio_5', 'radio_6'], interrupt: true },
         { type: 'npc', id: 'cmd', face: 'player' },
       ],
       until: { dialogueDone: true },
     },
+
+    // ---- Part 2: sirens, shelter, first contact ----
     {
-      id: 'part1_end',
-      label: 'סוף חלק 1 (לפני הצפירות)',
+      id: 'sirens',
+      label: 'צפירות: אזעקה ברחבה',
+      do: [
+        { type: 'dialogue', lines: ['radio_7', 'siren_1', 'siren_2', 'siren_3', 'radio_8'], interrupt: true },
+        { type: 'sound', id: 'radioCut' },
+        { type: 'ambience', crowd: 1, birds: 0, siren: 1, panic: true },
+        { type: 'sky', barrage: 1 },
+        { type: 'civilians', do: 'panic' },
+        { type: 'objective', text: 'take_cover', target: { npc: 'cmd' } },
+        ...SQUAD.map((id) => ({ type: 'npc', id, face: 'player' })),
+      ],
+      until: { dialogueDone: true },
+    },
+    {
+      id: 'weapons_ready',
+      label: 'נשק דרוך (נקודת שמירה)',
+      do: [
+        { type: 'checkpoint', at: [-88, 3, -8], yaw: E },
+        { type: 'weapon', mode: 'ready' },
+        { type: 'hint', hint: 'fire' },
+        { type: 'dialogue', lines: ['ready_1', 'ready_2', 'ready_3'], interrupt: true },
+      ],
+      until: { dialogueDone: true },
+    },
+    {
+      id: 'shelter',
+      label: 'מחסה: פינוי אזרחים לקשת וילסון',
+      do: [
+        { type: 'hint', hint: 'shelter' },
+        { type: 'objective', text: 'shelter', target: { frozen: true, fallback: [-6, 0, -35] }, counter: 'civilians' },
+        { type: 'dialogue', lines: ['shelter_1', 'shelter_2', 'shelter_3', 'shelter_4', 'shelter_5'], interrupt: true },
+        // The squad sticks with the player (and is at hand when the shooting starts).
+        { type: 'npc', id: 'cmd', escort: 6 },
+        { type: 'npc', id: 'yonatan', escort: 7.5 },
+        { type: 'npc', id: 'noam', escort: 9 },
+      ],
+      until: { any: [{ civiliansSheltered: true }, { timer: 90 }] },
+    },
+    {
+      id: 'contact',
+      label: 'מגע ראשון: גל מחבלים',
+      do: [
+        { type: 'hint', hint: null },
+        { type: 'civilians', do: 'runAll' },
+        { type: 'ambience', siren: 0.45, crowd: 0.6, panic: true },
+        { type: 'sound', id: 'gunfire', at: [-66, 2, 96] },
+        { type: 'dialogue', lines: ['contact_1', 'contact_2'], interrupt: true },
+        { type: 'combat', squad: SQUAD, on: true, threat: SOUTH_ENTRY },
+        {
+          type: 'wave',
+          spawns: [
+            { group: 'south', at: [-64, 99], yaw: 0, delay: 0.5 },
+            { group: 'south', at: [-70.5, 100], yaw: 0, delay: 1.3 },
+            { group: 'south', at: [-67, 98], yaw: 0, delay: 2.2 },
+            { group: 'west', at: [-121, 26], yaw: E, delay: 10 },
+            { group: 'west', at: [-123, 30], yaw: E, delay: 11 },
+            { group: 'south', at: [-65.5, 100], yaw: 0, delay: 17 },
+          ],
+          callouts: {
+            south: { lines: ['contact_south'], delay: 3 },
+            west: { lines: ['contact_west', 'contact_watch'], delay: 2.5 },
+          },
+        },
+        { type: 'objective', text: 'eliminate', target: null, counter: 'enemies' },
+      ],
+      until: { enemiesDead: true },
+    },
+    {
+      id: 'after_wave',
+      label: 'אחרי הגל: התארגנות',
+      do: [
+        { type: 'combat', squad: SQUAD, on: false },
+        { type: 'ambience', siren: 0, crowd: 0.25, panic: false },
+        { type: 'sky', barrage: 0.25 },
+        { type: 'objective', text: 'regroup', target: { npc: 'cmd' } },
+        { type: 'npc', id: 'cmd', route: { points: [[-47, 5]], speed: 2.5, face: E } },
+        { type: 'npc', id: 'yonatan', route: { points: [[-48, 7.5]], speed: 2.5, face: E - 0.6 } },
+        { type: 'npc', id: 'noam', route: { points: [[-48, 2.5]], speed: 2.5, face: E + 0.6 } },
+      ],
+      until: { all: [{ arrived: 'cmd' }, { reach: [-47, 5], radius: 7 }] },
+    },
+    {
+      id: 'after_talk',
+      label: 'תדריך: להחזיק את הרחבה (נקודת שמירה)',
+      do: [
+        { type: 'checkpoint', at: [-51, 0, 5], yaw: E },
+        { type: 'objective', text: 'follow_cmd', target: null },
+        ...SQUAD.map((id) => ({ type: 'npc', id, face: 'player' })),
+        { type: 'dialogue', lines: ['after_1', 'after_2', 'after_3', 'after_4', 'after_5', 'after_6'], interrupt: true },
+      ],
+      until: { dialogueDone: true },
+    },
+    {
+      id: 'part2_end',
+      label: 'סוף: המשך יבוא',
       do: [
         { type: 'objective', text: null, target: null },
-        { type: 'fade', to: 1, time: 1.2 },
-        { type: 'endCard', card: 'part1End' },
+        { type: 'fade', to: 1, time: 1.5 },
+        { type: 'endCard', card: 'part2End' },
       ],
       until: { timer: 1e9 },
     },
   ],
 };
-

@@ -1,13 +1,17 @@
 import {
+  AdditiveBlending,
   BoxGeometry,
   CapsuleGeometry,
   Color,
   ConeGeometry,
   CylinderGeometry,
+  DoubleSide,
   Float32BufferAttribute,
   Group,
   Mesh,
+  MeshBasicMaterial,
   MeshStandardMaterial,
+  PlaneGeometry,
   SphereGeometry,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -20,6 +24,16 @@ const MUTED = [0x5a6470, 0x7a6a58, 0x3d4a5c, 0x8a8f96, 0x6b5b4b, 0x44505c];
 const material = new MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
 const gunGeo = new BoxGeometry(0.06, 0.1, 0.7);
 const gunMat = new MeshStandardMaterial({ color: 0x2a2b2d, roughness: 0.6 });
+const flashGeo = new PlaneGeometry(0.28, 0.28);
+const flashMat = new MeshBasicMaterial({
+  color: 0xffc87a,
+  transparent: true,
+  opacity: 0.95,
+  blending: AdditiveBlending,
+  depthWrite: false,
+  side: DoubleSide,
+  toneMapped: false,
+});
 
 function colored(geo, hex) {
   const g = geo.index ? geo.toNonIndexed() : geo;
@@ -128,7 +142,15 @@ export class NpcView {
       gun.position.set(0.05, 1.05, -0.25);
       gun.rotation.set(-1.0, 0.5, 0);
       this.pivot.add(gun);
+      this.gun = gun;
+      this.flash = new Mesh(flashGeo, flashMat);
+      this.flash.position.set(0, 0, -0.42);
+      this.flash.visible = false;
+      gun.add(this.flash);
+      this._shots = 0;
+      this._flashTime = 0;
     }
+    this.crouch = 0; // 0..1 smoothed
     this.phase = rand() * Math.PI * 2;
     this.prayRate = 0.8 + rand() * 0.5;
   }
@@ -137,6 +159,28 @@ export class NpcView {
     const n = this.npc;
     this.root.position.copy(n.position);
     this.root.rotation.y = n.facing;
+    // Crouching (cowering civilians, soldiers behind low cover): squash the figure.
+    const want = n.body.crouched ? 1 : 0;
+    this.crouch += (want - this.crouch) * Math.min(1, dt * 10);
+    this.root.scale.y = 1 - this.crouch * 0.36;
+    if (this.gun) {
+      const b = n.brain;
+      if (b) {
+        // Combat: rifle up at the shoulder, pointing where he looks; flash per shot.
+        this.gun.position.set(0.16, 1.36, -0.32);
+        this.gun.rotation.set(0, 0, 0);
+        if (b.shotsFired !== this._shots) {
+          this._shots = b.shotsFired;
+          this._flashTime = 0.05;
+          this.flash.rotation.z = Math.random() * Math.PI;
+        }
+      } else {
+        this.gun.position.set(0.05, 1.05, -0.25);
+        this.gun.rotation.set(-1.0, 0.5, 0);
+      }
+      this._flashTime -= dt;
+      this.flash.visible = this._flashTime > 0;
+    }
     const walk = Math.min(1, n.speed / 1.4);
     this.phase += dt * (n.speed > 0.1 ? 2.2 + n.speed * 2.6 : 0);
     if (n.pray && n.speed < 0.1) {

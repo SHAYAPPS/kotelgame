@@ -22,7 +22,7 @@ npm test        # physics / collision / weapon / AI / mission tests
 | Left click | Fire (hold for full auto) |
 | Right click (hold) | Aim down sights |
 | R | Reload (weapon lowered: check the magazine) |
-| E | Talk to the highlighted NPC |
+| E | Talk to the highlighted NPC / send a frozen civilian to shelter |
 | Space | Jump (while crouched: stand up) |
 | Shift (hold) | Sprint, forward only |
 | C | Crouch on / off |

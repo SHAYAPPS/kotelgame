@@ -5,6 +5,7 @@ import { PlayerCamera } from '../player/PlayerCamera.js';
 import { VIEW } from '../player/config.js';
 import { CollisionWorld } from '../world/CollisionWorld.js';
 import { Environment } from '../world/Environment.js';
+import { SkyFx } from '../world/SkyFx.js';
 import { createTestRange } from '../world/TestRange.js';
 import { createKotelLevel } from '../world/kotel/KotelLevel.js';
 import { createGreyboxMaterials, createGridTexture } from '../world/greybox.js';
@@ -136,6 +137,8 @@ export class Game {
           enemies: this.enemies,
           audio: this.audio,
           hud: this.storyHud,
+          sky: new SkyFx(this.scene),
+          view: this.view,
         });
     this.storyHud.setVisible(false);
     this.deathTime = -1;
