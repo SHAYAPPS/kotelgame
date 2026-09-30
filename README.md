@@ -10,7 +10,7 @@ Requires Node.js 20.19 or newer.
 ```bash
 npm install
 npm run dev     # then open http://localhost:5173
-npm test        # physics / collision / weapon tests
+npm test        # physics / collision / weapon / AI tests
 ```
 
 ## Controls
@@ -27,3 +27,5 @@ npm test        # physics / collision / weapon tests
 | C | Crouch on / off |
 | Esc | Pause |
 | ` (backquote) | Toggle the performance readout |
+| F1 | Dev tools: enemy states, vision cones, cover points, navmesh, FPS |
+| K | Spawn another enemy |

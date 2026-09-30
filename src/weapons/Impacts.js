@@ -102,6 +102,8 @@ export class Impacts {
     this.sparkVel = new Float32Array(MAX_SPARKS * 3);
     this.sparkLife = new Float32Array(MAX_SPARKS);
     this.sparkMaxLife = new Float32Array(MAX_SPARKS).fill(1);
+    this.sparkBase = new Float32Array(MAX_SPARKS * 3); // per-particle color (sparks vs blood)
+    this.sparkGravity = new Float32Array(MAX_SPARKS);
     this.sparks = new Points(
       geo,
       new PointsMaterial({
@@ -159,8 +161,43 @@ export class Impacts {
       const life = 0.12 + Math.random() * 0.3;
       this.sparkLife[i] = life;
       this.sparkMaxLife[i] = life;
+      this.sparkBase[o] = -1; // spark palette
+      this.sparkGravity[i] = GRAVITY;
     }
     this._alive = MAX_SPARKS; // update() recounts
+  }
+
+  /**
+   * A burst of colored particles with no decal (e.g. hits on a body).
+   * @param {Vector3} point @param {Vector3} dir incoming direction @param {number[]} rgb 0..1
+   */
+  burst(point, dir, rgb = [0.55, 0.02, 0.02], count = 14) {
+    for (let k = 0; k < count; k++) {
+      const i = this._nextSpark;
+      this._nextSpark = (this._nextSpark + 1) % MAX_SPARKS;
+      const o = i * 3;
+      const speed = 0.8 + Math.random() * 2.5;
+      // Mostly out of the exit side, some back toward the shooter.
+      const s = Math.random() < 0.7 ? 1 : -0.6;
+      const vx = dir.x * s + (Math.random() - 0.5) * 1.2;
+      const vy = dir.y * s + (Math.random() - 0.2) * 1.2;
+      const vz = dir.z * s + (Math.random() - 0.5) * 1.2;
+      const len = Math.hypot(vx, vy, vz) || 1;
+      this.sparkVel[o] = (vx / len) * speed;
+      this.sparkVel[o + 1] = (vy / len) * speed;
+      this.sparkVel[o + 2] = (vz / len) * speed;
+      this.sparkPos[o] = point.x;
+      this.sparkPos[o + 1] = point.y;
+      this.sparkPos[o + 2] = point.z;
+      const life = 0.25 + Math.random() * 0.35;
+      this.sparkLife[i] = life;
+      this.sparkMaxLife[i] = life;
+      this.sparkBase[o] = rgb[0];
+      this.sparkBase[o + 1] = rgb[1];
+      this.sparkBase[o + 2] = rgb[2];
+      this.sparkGravity[i] = GRAVITY * 0.8;
+    }
+    this._alive = MAX_SPARKS;
   }
 
   update(dt) {
@@ -174,15 +211,22 @@ export class Impacts {
       }
       alive++;
       this.sparkLife[i] -= dt;
-      this.sparkVel[o + 1] -= GRAVITY * dt;
+      this.sparkVel[o + 1] -= this.sparkGravity[i] * dt;
       this.sparkPos[o] += this.sparkVel[o] * dt;
       this.sparkPos[o + 1] += this.sparkVel[o + 1] * dt;
       this.sparkPos[o + 2] += this.sparkVel[o + 2] * dt;
       // Additive blending: fading the color to black fades the spark out.
       const f = MathUtils.clamp(this.sparkLife[i] / this.sparkMaxLife[i], 0, 1);
-      this.sparkCol[o] = 1.0 * f + 0.2;
-      this.sparkCol[o + 1] = 0.75 * f * f + 0.05;
-      this.sparkCol[o + 2] = 0.35 * f * f * f;
+      if (this.sparkBase[o] < 0) {
+        this.sparkCol[o] = 1.0 * f + 0.2;
+        this.sparkCol[o + 1] = 0.75 * f * f + 0.05;
+        this.sparkCol[o + 2] = 0.35 * f * f * f;
+      } else {
+        const g = Math.min(1, f * 1.5);
+        this.sparkCol[o] = this.sparkBase[o] * g;
+        this.sparkCol[o + 1] = this.sparkBase[o + 1] * g;
+        this.sparkCol[o + 2] = this.sparkBase[o + 2] * g;
+      }
       if (this.sparkLife[i] <= 0) this.sparkCol[o] = this.sparkCol[o + 1] = this.sparkCol[o + 2] = 0;
     }
     this._alive = alive;

@@ -258,3 +258,119 @@
 .debug[hidden] {
   display: none;
 }
+
+/* Damage feedback */
+.damage-vignette,
+.damage-flash,
+.death-fade {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.damage-vignette {
+  z-index: 4;
+  background: radial-gradient(ellipse at center, rgb(120 0 0 / 0%) 42%, rgb(150 0 0 / 55%) 75%, rgb(110 0 0 / 92%) 100%);
+}
+
+.damage-flash {
+  z-index: 4;
+  background: radial-gradient(ellipse at center, rgb(160 0 0 / 0%) 30%, rgb(200 10 10 / 70%) 100%);
+}
+
+.hit-ring {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 5;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.hit-arc {
+  position: absolute;
+  left: -110px;
+  top: -110px;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  border-top: 7px solid rgb(225 40 30 / 90%);
+  border-right: 7px solid transparent;
+  border-left: 7px solid transparent;
+  border-bottom: 7px solid transparent;
+  opacity: 0;
+  filter: drop-shadow(0 0 4px rgb(0 0 0 / 60%));
+}
+
+.hitmarker {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 6;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.hitmarker[hidden],
+.hit-ring[hidden],
+.damage-vignette[hidden],
+.damage-flash[hidden],
+.death-fade[hidden] {
+  display: none;
+}
+
+.hitmarker i {
+  position: absolute;
+  width: 10px;
+  height: 2px;
+  background: rgb(255 255 255 / 95%);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 50%);
+}
+
+.hitmarker i:nth-child(1) { transform: translate(5px, -9px) rotate(-45deg); }
+.hitmarker i:nth-child(2) { transform: translate(-15px, -9px) rotate(45deg); }
+.hitmarker i:nth-child(3) { transform: translate(5px, 7px) rotate(45deg); }
+.hitmarker i:nth-child(4) { transform: translate(-15px, 7px) rotate(-45deg); }
+
+.hitmarker.kill i {
+  background: rgb(255 70 55 / 100%);
+}
+
+.death-fade {
+  z-index: 8;
+  display: grid;
+  place-content: center;
+  gap: 8px;
+  text-align: center;
+  background: #000;
+  color: #f2ead8;
+}
+
+.death-title {
+  font-size: 44px;
+  font-weight: 800;
+  color: #e24b3b;
+}
+
+.death-sub {
+  font-size: 17px;
+  color: #cfc6b0;
+}
+
+/* Dev tool labels over enemies */
+.enemy-label {
+  position: fixed;
+  z-index: 6;
+  padding: 2px 6px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  color: #fff;
+  background: rgb(0 0 0 / 55%);
+  border-radius: 4px;
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+}

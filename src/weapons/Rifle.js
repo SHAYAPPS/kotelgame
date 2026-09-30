@@ -7,6 +7,7 @@ const UP = new Vector3(0, 1, 0);
 const _dir = new Vector3();
 const _right = new Vector3();
 const _up = new Vector3();
+const _p = new Vector3();
 
 function smoothstep01(x) {
   const t = MathUtils.clamp(x, 0, 1);
@@ -34,13 +35,27 @@ export class Rifle {
     this.recoil = new Recoil(config);
     this.hit = { point: new Vector3(), normal: new Vector3(), distance: 0 };
     this.shotsFired = 0;
-    /** Called for every shot that hits something: (hit, direction) => void. */
+    /** Called for every shot that hits the world: (hit, direction) => void. */
     this.onHit = null;
+    /**
+     * Things that can be shot besides the world (enemies): raycast(origin, dir, maxDist)
+     * -> { distance, ... } | null, and hit(target, dir) to apply it.
+     */
+    this.targets = null;
+    /** Called for every shot fired: (origin) => void (enemies hear it). */
+    this.onShot = null;
 
     // The muzzle flash briefly lights the surroundings too. The light always exists
     // (intensity 0 when idle) so toggling it never recompiles shaders.
     this.flashLight = new PointLight(0xffb45a, 0, 9, 2);
     scene.add(this.flashLight);
+    this.flashTimer = 0;
+  }
+
+  /** Full magazine and reserve again (level restart). */
+  reset() {
+    this.state = new WeaponState(this.cfg);
+    this.recoil = new Recoil(this.cfg);
     this.flashTimer = 0;
   }
 
@@ -99,10 +114,16 @@ export class Rifle {
     _dir.addScaledVector(_right, Math.cos(a) * r).addScaledVector(_up, Math.sin(a) * r).normalize();
 
     const hit = this.collision.raycast(view.eye, _dir, this.cfg.range, this.hit);
-    if (hit) {
+    const target = this.targets ? this.targets.raycast(view.eye, _dir, hit ? hit.distance : this.cfg.range) : null;
+    if (target) {
+      _p.copy(view.eye).addScaledVector(_dir, target.distance);
+      this.impacts.burst(_p, _dir, target.zone === 'head' ? [0.9, 0.05, 0.04] : [0.7, 0.04, 0.03]);
+      this.targets.hit(target, _dir);
+    } else if (hit) {
       this.impacts.add(hit.point, hit.normal, _dir);
       if (this.onHit) this.onHit(hit, _dir);
     }
+    if (this.onShot) this.onShot(view.eye);
 
     this.shotsFired++;
     const aim = this.aim;

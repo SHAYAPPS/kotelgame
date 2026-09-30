@@ -28,8 +28,8 @@ A browser-based 3D first-person story shooter.
 1. [x] Movement: first-person controller, tried out on a greybox test range
 2. [x] Gun: hitscan rifle with ADS, recoil, impacts, reload, procedural sound
 3. [x] Greybox Kotel: 1:1 plaza layout (reference: `docs/kotel-reference.md`)
-4. [ ] First enemy  <- next
-5. [ ] Opening story beat
+4. [x] First enemy: perception, cover AI, navmesh, hitscan + tracers; player health
+5. [ ] Opening story beat  <- next
 6. [ ] Realism pass
 
 ## Commands
@@ -37,7 +37,7 @@ A browser-based 3D first-person story shooter.
 - `npm install`: install dependencies (Node >= 20.19)
 - `npm run dev`: dev server at http://localhost:5173 (Kotel plaza; add `?level=range` for the
   movement/gun test range)
-- `npm test`: physics, collision and weapon-logic tests (Node's built-in test runner, no browser needed)
+- `npm test`: physics, collision, weapon, level-route and AI tests (Node's built-in test runner, no browser needed)
 - `npm run build`: production build into `dist/`
 - `npm run preview`: serve the production build locally
 
@@ -93,6 +93,29 @@ A browser-based 3D first-person story shooter.
   - `Impacts.js`: pooled bullet-hole decals (one InstancedMesh) and sparks (one Points).
   - `WeaponAudio.js`: Web Audio procedural shot / dry-fire / reload sounds; `unlock()` must be
     called from a user gesture (the start click).
+- `src/ai/`: enemies.
+  - `config.js`: all AI tuning (health/damage, vision, hearing, reaction time, burst fire,
+    spread tightening, cover timings, speeds) and the nav grid settings.
+  - `NavGrid.js`: grid navmesh baked at load from the collision world (~0.65 s on the plaza):
+    top-down floor probes per 0.5 m cell (stacked levels such as the bridge), headroom checks,
+    neighbor links for steps/slopes with knee/chest obstacle rays, largest region kept.
+    A* + string-pulling smoothing (`findPath`).
+  - `CoverPoints.js`: cover generated from the geometry: nav nodes next to an obstacle at
+    crouched-chest height; low (peek over) vs high (peek around a side). `protects()`, `canSee()`.
+  - `Enemy.js`: pure logic, unit-tested. Vision cone + LOS (head/chest rays), awareness meter,
+    hearing player shots; states idle -> alerted -> combat -> dead; combat picks cover, hides,
+    peeks and fires bursts, relocates when flanked/exposed or crowded. Reaction delay, spread
+    tightens with continuous LOS. Moves with a `PlayerController` body (stairs etc.).
+    Hit zones: head sphere + body capsule (`hitZones.js`).
+  - `EnemyManager.js`: spawns/resets, routes enemy shots (tracers, positional sound, player
+    damage, impacts, near-miss cracks), player bullets -> `raycast()`/`hit()`, body separation.
+  - `EnemyView.js`: placeholder soldier (capsule body + separate head), crouch, muzzle flash,
+    death fall; `Tracers`.
+  - `DebugDraw.js`: F1 overlay (navmesh points, cover points, vision cones, paths, state labels).
+- `src/player/PlayerHealth.js`: CoD-style regenerating health + hit direction records (pure).
+- `src/ui/DamageOverlay.js`: red edges, hit flash, direction arcs, hit marker, death fade.
+- Game loop order per fixed step: player -> camera -> rifle (shots hit enemies first, then the
+  world; shots are heard) -> enemies -> health. Death: fade out, `Game.restart()` after 3.2 s.
 - `src/ui/`: Hebrew strings (`strings.he.js`), start/pause overlay (mouse sensitivity, saved in
   localStorage), HUD (spread-sized crosshair, ammo counter, debug readout; toggle the readout
   with the backquote key, shown by default in dev).
@@ -129,3 +152,7 @@ A browser-based 3D first-person story shooter.
 - Two render passes per frame (world, then viewmodel), so `renderer.info.autoReset` is off and
   `Game.frame()` resets it.
 - Viewmodel materials use low metalness: without an environment map, metals render black.
+- Levels export `navBounds` and `enemySpawns` for the AI. Keep cover objects >= 0.75 m tall
+  (the cover generator's crouched-chest height) if they should count as cover.
+- Headless Chromium is very slow at compositing full-screen CSS overlays (damage vignette,
+  death fade); game time crawls in those tests. Real GPUs are fine.

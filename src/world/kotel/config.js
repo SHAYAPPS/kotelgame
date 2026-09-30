@@ -123,6 +123,12 @@ export const KOTEL = {
     fakhriyyaMinaret: { x: 6, z: 110, height: 24 },
   },
 
+  // Enemy AI: the navmesh is baked inside these bounds; test enemy on the upper plaza.
+  ai: {
+    navBounds: { minX: -140, maxX: -0.3, minZ: -60, maxZ: 103 },
+    enemySpawns: [{ x: -92, z: -6, yaw: -Math.PI / 2 }], // facing east, toward the wall
+  },
+
   // The shift starts at the checkpoint, just inside (north of) the screening lanes.
   spawn: { x: -67.5, z: 78 },
 

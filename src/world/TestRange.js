@@ -101,5 +101,7 @@ export function createTestRange(material) {
     root,
     collisionRoots: [root, collisionOnly],
     spawn: { position: new Vector3(0, 0, 8), yaw: 0 },
+    navBounds: { minX: -49, maxX: 49, minZ: -49, maxZ: 49 },
+    enemySpawns: [{ position: new Vector3(3, 0, -17), yaw: Math.PI }], // behind the tunnel, facing the spawn
   };
 }

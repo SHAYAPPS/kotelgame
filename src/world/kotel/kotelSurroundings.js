@@ -255,6 +255,17 @@ function placePlazaProps(b, extra, groundY) {
   b.box(f.x - 0.02, f.x + 0.02, fy, fy + 2, f.z + 0.1, f.z + 3, 'flagWhite', { collide: false });
   for (const oy of [0.25, 1.55]) b.box(f.x - 0.03, f.x + 0.03, fy + oy, fy + oy + 0.22, f.z + 0.1, f.z + 3, 'flagBlue', { collide: false });
 
+  // Police cordon on the terraces: barrier lines and concrete blocks (also the plaza's cover).
+  for (const [x, z0, n] of [[-84, -16, 4], [-62, -30, 3], [-62, 8, 3], [-96, 30, 3], [-44, -38, 3]]) {
+    for (let i = 0; i < n; i++) {
+      const z = z0 + i * 2.3;
+      extra.barrier.add(placement(x, groundY(x, z), z, HALF_PI));
+    }
+  }
+  for (const [x, z, yaw] of [[-88, 4, HALF_PI], [-96, -18, 0], [-80, 18, HALF_PI], [-70, -20, 0], [-47, 22, HALF_PI], [-50, -14, 0], [-99, 10, HALF_PI]]) {
+    extra.block.add(placement(x, groundY(x, z), z, yaw));
+  }
+
   // Planters with trees along the upper terrace.
   for (let z = plaza.northZ + 8; z < plaza.southZ - 5; z += 12) {
     if (z > KOTEL.stairs.z[0] - 3 && z < KOTEL.stairs.z[1] + 3) continue;

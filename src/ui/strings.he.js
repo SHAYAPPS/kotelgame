@@ -2,7 +2,7 @@
 
 export const HE = {
   gameTitle: 'משחק הכותל',
-  buildLabel: 'אב־טיפוס · שלב 3: רחבת הכותל',
+  buildLabel: 'אב־טיפוס · שלב 4: אויב ראשון',
   start: 'לחצו כדי להתחיל',
   resume: 'לחצו כדי להמשיך',
   paused: 'המשחק מושהה',
@@ -19,8 +19,27 @@ export const HE = {
     { keys: ['C'], label: 'התכופפות (הפעלה / ביטול)' },
     { keys: ['Esc'], label: 'השהיה' },
     { keys: ['`'], label: 'נתוני ביצועים' },
+    { keys: ['F1'], label: 'כלי פיתוח: מצב אויבים, ראייה, מחסות, ניווט' },
+    { keys: ['K'], label: 'הוספת אויב' },
   ],
   sensitivity: 'רגישות עכבר',
+  death: {
+    title: 'נהרגת',
+    subtitle: 'חוזרים לנקודת ההתחלה…',
+  },
+  enemyState: {
+    idle: 'רגוע',
+    alerted: 'חשדן',
+    combat: 'קרב',
+    dead: 'מת',
+  },
+  enemyMode: {
+    none: '',
+    moving: 'רץ למחסה',
+    hiding: 'מסתתר',
+    peeking: 'מציץ ויורה',
+    exposed: 'חשוף',
+  },
   ammo: {
     reloading: 'מחליף מחסנית…',
     reloadHint: 'R להחלפת מחסנית',
@@ -38,5 +57,8 @@ export const HE = {
     crouching: 'התכופפות',
     sprinting: 'ריצה',
     drawCalls: 'קריאות ציור',
+    health: 'בריאות',
+    enemies: 'אויבים',
+    kills: 'הריגות',
   },
 };

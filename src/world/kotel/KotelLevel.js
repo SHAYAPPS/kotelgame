@@ -270,6 +270,8 @@ export function createKotelLevel() {
     collisionRoots: [root, collisionOnly, b.blockers],
     spawn: { position: new Vector3(s.x, spawnY, s.z), yaw },
     environment: KOTEL.environment,
+    navBounds: KOTEL.ai.navBounds,
+    enemySpawns: KOTEL.ai.enemySpawns.map((e) => ({ position: new Vector3(e.x, groundY(e.x, e.z), e.z), yaw: e.yaw })),
     stats: { stones },
   };
 }

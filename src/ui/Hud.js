@@ -4,7 +4,7 @@ import './ui.css';
 const REFRESH_SECONDS = 0.25;
 
 // Numbers inside Hebrew (RTL) text: isolate them as LTR so signs and units stay put.
-function num(value, digits) {
+export function num(value, digits) {
   const v = Math.abs(value) < 0.5 * 10 ** -digits ? 0 : value;
   return `\u2066${v.toFixed(digits)}\u2069`;
 }
@@ -50,6 +50,11 @@ export class Hud {
     });
   }
 
+  /** Force the readout on (dev tools) or back to the backquote toggle. */
+  showDebug(on) {
+    this.debug.hidden = !on;
+  }
+
   setPlaying(playing) {
     this.root.hidden = !playing;
   }
@@ -90,7 +95,7 @@ export class Hud {
    * @param {number} frameSeconds real time since the previous frame
    * @param {{ player: import('../player/PlayerController.js').PlayerController, drawCalls: number }} stats
    */
-  update(frameSeconds, { player, drawCalls }) {
+  update(frameSeconds, { player, drawCalls, extra = null }) {
     this._frames++;
     this._time += frameSeconds;
     this._worstFrame = Math.max(this._worstFrame, frameSeconds);
@@ -105,6 +110,7 @@ export class Hud {
       `${h.height}: ${num(player.position.y, 2)} ${h.meters}`,
       `${player.grounded ? h.grounded : h.airborne} · ${stance}`,
       `${h.drawCalls}: ${num(drawCalls, 0)}`,
+      ...(extra ? extra() : []),
     ].join('\n');
 
     this._frames = 0;

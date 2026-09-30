@@ -6,6 +6,9 @@ export class WeaponAudio {
     this.ctx = null;
     this.master = null;
     this.noise = null;
+    this._lx = 0;
+    this._ly = 0;
+    this._lz = 0;
   }
 
   unlock() {
@@ -41,7 +44,7 @@ export class WeaponAudio {
   }
 
   /** Noise burst through a filter with an exponential decay envelope. */
-  _noise(t, { type, freq, q = 0.7, gain, attack = 0.001, decay, freqEnd, rate = 1 }) {
+  _noise(t, { type, freq, q = 0.7, gain, attack = 0.001, decay, freqEnd, rate = 1, out = this.master }) {
     const ctx = this.ctx;
     const src = ctx.createBufferSource();
     src.buffer = this.noise;
@@ -55,13 +58,13 @@ export class WeaponAudio {
     env.gain.setValueAtTime(0.0001, t);
     env.gain.exponentialRampToValueAtTime(gain, t + attack);
     env.gain.exponentialRampToValueAtTime(0.0001, t + attack + decay);
-    src.connect(filter).connect(env).connect(this.master);
+    src.connect(filter).connect(env).connect(out);
     src.start(t, Math.random() * 0.5);
     src.stop(t + attack + decay + 0.02);
   }
 
   /** Pitched blip (for thumps and metallic clicks). */
-  _tone(t, { type = 'sine', freq, freqEnd, gain, decay }) {
+  _tone(t, { type = 'sine', freq, freqEnd, gain, decay, out = this.master }) {
     const ctx = this.ctx;
     const osc = ctx.createOscillator();
     osc.type = type;
@@ -70,20 +73,105 @@ export class WeaponAudio {
     const env = ctx.createGain();
     env.gain.setValueAtTime(gain, t);
     env.gain.exponentialRampToValueAtTime(0.0001, t + decay);
-    osc.connect(env).connect(this.master);
+    osc.connect(env).connect(out);
     osc.start(t);
     osc.stop(t + decay + 0.02);
   }
 
   shot() {
     if (!this.ready) return;
-    const t = this.ctx.currentTime;
+    this._shotLayers(this.ctx.currentTime, this.master, 1);
+  }
+
+  /** The layered gunshot (crack, body, thump, tail) into `out`. */
+  _shotLayers(t, out, level, tail = 0.18) {
     const v = 0.9 + Math.random() * 0.2; // small variation so full-auto isn't robotic
-    // Supersonic crack, body, low thump, then a short tail off the surroundings.
-    this._noise(t, { type: 'highpass', freq: 2500, gain: 0.7, decay: 0.035, rate: v });
-    this._noise(t, { type: 'lowpass', freq: 3200, freqEnd: 350, q: 1, gain: 1.0, decay: 0.16, rate: v });
-    this._tone(t, { freq: 150 * v, freqEnd: 42, gain: 0.9, decay: 0.12 });
-    this._noise(t + 0.02, { type: 'bandpass', freq: 520, q: 0.6, gain: 0.18, attack: 0.02, decay: 0.45 });
+    this._noise(t, { type: 'highpass', freq: 2500, gain: 0.7 * level, decay: 0.035, rate: v, out });
+    this._noise(t, { type: 'lowpass', freq: 3200, freqEnd: 350, q: 1, gain: 1.0 * level, decay: 0.16, rate: v, out });
+    this._tone(t, { freq: 150 * v, freqEnd: 42, gain: 0.9 * level, decay: 0.12, out });
+    this._noise(t + 0.02, { type: 'bandpass', freq: 520, q: 0.6, gain: tail * level, attack: 0.02, decay: 0.45, out });
+  }
+
+  /**
+   * A gunshot somewhere in the world: HRTF-panned from its position, quieter and
+   * duller with distance, with a longer echo off the plaza walls far away.
+   */
+  shotAt(position) {
+    if (!this.ready) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const dist = Math.max(1, Math.hypot(position.x - this._lx, position.y - this._ly, position.z - this._lz));
+    const panner = ctx.createPanner();
+    panner.panningModel = 'HRTF';
+    panner.distanceModel = 'inverse';
+    panner.refDistance = 6;
+    panner.rolloffFactor = 1.1;
+    panner.maxDistance = 600;
+    if (panner.positionX) {
+      panner.positionX.value = position.x;
+      panner.positionY.value = position.y;
+      panner.positionZ.value = position.z;
+    } else {
+      panner.setPosition(position.x, position.y, position.z);
+    }
+    const lowpass = ctx.createBiquadFilter();
+    lowpass.type = 'lowpass';
+    lowpass.frequency.value = 900 + 15000 * Math.exp(-dist / 45);
+    lowpass.connect(panner).connect(this.master);
+    this._shotLayers(t, lowpass, 1.1, 0.18 + Math.min(0.5, dist / 120));
+    setTimeout(() => panner.disconnect(), 1500);
+  }
+
+  /** Supersonic crack of a bullet passing close by. */
+  crack(position) {
+    if (!this.ready) return;
+    const ctx = this.ctx;
+    const panner = ctx.createPanner();
+    panner.panningModel = 'HRTF';
+    if (panner.positionX) {
+      panner.positionX.value = position.x;
+      panner.positionY.value = position.y;
+      panner.positionZ.value = position.z;
+    } else {
+      panner.setPosition(position.x, position.y, position.z);
+    }
+    panner.connect(this.master);
+    const t = ctx.currentTime;
+    this._noise(t, { type: 'highpass', freq: 3500, gain: 0.5, decay: 0.03, out: panner });
+    this._tone(t, { type: 'triangle', freq: 1900, freqEnd: 700, gain: 0.12, decay: 0.05, out: panner });
+    setTimeout(() => panner.disconnect(), 500);
+  }
+
+  /** Hit marker tick when your shot lands on an enemy (heavier for headshots). */
+  hitmarker(head = false) {
+    if (!this.ready) return;
+    const t = this.ctx.currentTime;
+    this._tone(t, { type: 'square', freq: head ? 1400 : 2200, freqEnd: head ? 900 : 1800, gain: 0.08, decay: 0.05 });
+    this._noise(t, { type: 'bandpass', freq: head ? 1800 : 4000, q: 4, gain: 0.25, decay: 0.03 });
+  }
+
+  /** Where the listener (the camera) is; call every frame. */
+  setListener(camera, forward) {
+    this._lx = camera.position.x;
+    this._ly = camera.position.y;
+    this._lz = camera.position.z;
+    if (!this.ready) return;
+    const l = this.ctx.listener;
+    if (l.positionX) {
+      const t = this.ctx.currentTime;
+      l.positionX.setTargetAtTime(this._lx, t, 0.01);
+      l.positionY.setTargetAtTime(this._ly, t, 0.01);
+      l.positionZ.setTargetAtTime(this._lz, t, 0.01);
+      l.forwardX.setTargetAtTime(forward.x, t, 0.01);
+      l.forwardY.setTargetAtTime(forward.y, t, 0.01);
+      l.forwardZ.setTargetAtTime(forward.z, t, 0.01);
+      l.upX.value = 0;
+      l.upY.value = 1;
+      l.upZ.value = 0;
+    } else {
+      l.setPosition(this._lx, this._ly, this._lz);
+      l.setOrientation(forward.x, forward.y, forward.z, 0, 1, 0);
+    }
   }
 
   _click(t, freq, gain = 0.35) {
