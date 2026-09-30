@@ -25,8 +25,8 @@ A browser-based 3D first-person story shooter.
 
 ## Roadmap
 
-1. [ ] Movement: first-person controller
-2. [ ] Gun
+1. [x] Movement: first-person controller, tried out on a greybox test range
+2. [ ] Gun  <- next
 3. [ ] Greybox Kotel
 4. [ ] First enemy
 5. [ ] Opening story beat
@@ -36,17 +36,61 @@ A browser-based 3D first-person story shooter.
 
 - `npm install`: install dependencies (Node >= 20.19)
 - `npm run dev`: dev server at http://localhost:5173
+- `npm test`: physics and collision tests (Node's built-in test runner, no browser needed)
 - `npm run build`: production build into `dist/`
 - `npm run preview`: serve the production build locally
+
+## Architecture
+
+- `src/main.js` -> `src/core/Game.js`: renderer, scene, fixed-timestep loop (physics at 120 Hz,
+  rendering interpolated between steps), pause/resume tied to pointer lock.
+- `src/core/Input.js`: keyboard by `event.code`, mouse deltas, pointer lock (raw mouse input when
+  the browser supports it). Key presses are edges consumed by the first physics step.
+- `src/player/PlayerController.js`: kinematic character controller. Pure logic (no DOM), unit-tested.
+  - "Floating capsule": on the ground, the capsule's lower `stepHeight` is left out of collision,
+    and a ring of 9 downward rays (the feet) holds the player on the ground. That handles stairs,
+    curbs, slopes and ledge edges. In the air the full capsule collides.
+  - Walk / sprint (hold Shift, forward only) / crouch (C toggles; headroom check; tucks the legs
+    in the air, so a crouch-jump reaches higher), jump with coyote time and a jump buffer.
+  - Reports `feetShift` / `landingSpeed` each step so the camera can smooth them.
+- `src/player/PlayerCamera.js`: mouse look (applied every rendered frame) + camera feel stepped with
+  the physics: eye-height smoothing (crouch, steps), head bob, landing dip, sprint FOV, strafe roll.
+- `src/player/config.js`: every movement and camera tuning value.
+- `src/world/CollisionWorld.js`: static triangles in a uniform XZ grid; capsule contacts and
+  raycasts with no allocations. Built from meshes; `userData.noCollision` skips a mesh.
+  Use `raycast()` for bullets too.
+- `src/world/capsuleContact.js`: exact capsule-vs-triangle contact (closest points).
+- `src/world/Environment.js`: sky dome, fog, sun + hemisphere light. Shadows are rendered once
+  (static world); call `refreshShadows()` if static geometry changes.
+- `src/world/greybox.js`: procedural 1 m grid texture, color palette, box/ramp geometry with UVs in meters.
+- `src/world/TestRange.js`: movement test course (green = step onto, amber = jump,
+  red = crouch-jump, blue = crouch under, teal = walkable ramp, dark red = too steep).
+- `src/ui/`: Hebrew strings (`strings.he.js`), start/pause overlay (mouse sensitivity, saved in
+  localStorage), HUD (crosshair + debug readout; toggle with the backquote key, shown by default in dev).
+- `tests/`: `node:test` suites for the controller and collision world (`tests/helpers.js` builds
+  test worlds and simulates input).
 
 ## Conventions
 
 - Units: meters, seconds, radians. +Y is up. Yaw 0 looks down -Z.
 - Key bindings use `KeyboardEvent.code` (physical keys), never `event.key`,
   so controls work on a Hebrew keyboard layout.
-- All player-facing text is Hebrew and RTL (`<html lang="he" dir="rtl">`).
-  Keep strings in one place in `src/ui` instead of scattering them through the code.
+- All player-facing text is Hebrew and RTL (`<html lang="he" dir="rtl">`), kept in
+  `src/ui/strings.he.js`. Wrap numbers inside Hebrew text in LTR isolates (see `Hud.js`).
+- Gameplay logic that can run without a browser (physics, AI decisions, story triggers) stays
+  DOM-free and gets tests in `tests/`. Run `npm test` before committing.
 - Assets: free/CC0 only. Record the source and license of every third-party asset
   in `public/assets/CREDITS.md`.
 - Performance: no per-frame allocations in hot paths (reuse vectors), keep draw calls low,
   and check the FPS readout after every feature.
+
+## Notes and gotchas
+
+- Don't use three's `Octree` addon for collision: it drops triangles lying exactly on its cell
+  borders (float rounding), so axis-aligned greybox faces vanish. `CollisionWorld` pads
+  triangle bounds instead.
+- three r186 removed `PCFSoftShadowMap`; use `PCFShadowMap` with `shadow.radius`.
+- Dev builds expose `window.__game` for console debugging and automated checks
+  (e.g. `__game.setActive(true)` plays without pointer lock).
+- Headless Chromium (Playwright) renders with SwiftShader: fine for screenshots and logic checks,
+  meaningless for FPS numbers.
