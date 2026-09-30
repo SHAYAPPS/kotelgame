@@ -1,5 +1,5 @@
 // Mission 1: the calm shift (part 1), sirens, shelter and first contact (part 2),
-// holding the plaza (part 3). Pure data: steps, triggers and actions. Wave contents,
+// holding the plaza (part 3), the final push, counterattack and ending (part 4). Pure data: steps, triggers and actions. Wave contents,
 // spawn timing and enemy tuning live in difficulty.js.
 // Text lives in text.he.js (ids only here). Coordinates are Kotel plaza meters
 // (see src/world/kotel/config.js: +X east toward the wall, +Z south).
@@ -32,10 +32,17 @@ const WEST_STAIRS = [-106, 3, 28];
 const LINE1 = [-28.3, 0, -3.5];
 const LINE2 = [-10, 0, -22];
 
+// Part 4: counterattack objectives and the gathering at the wall.
+const CHECKPOINT = [-67.5, 1.2, 76];
+const STAIRS = [-118, 11.6, 28];
+const WALL = [-3, 0, -8];
+const EMERGE_SPOTS = [];
+for (let i = 0; i < 8; i++) for (let j = 0; j < 5; j++) EMERGE_SPOTS.push([-10 + j * 1.4, -27 + i * 2.4]);
+
 export const MISSION1 = {
   id: 'mission1',
 
-  shelter: { spots: SHELTER_SPOTS, center: [-6, 0, -35] },
+  shelter: { spots: SHELTER_SPOTS, center: [-6, 0, -35], emerge: EMERGE_SPOTS },
 
   // Start-screen chapter select (jump straight to a part while testing).
   chapters: [
@@ -47,6 +54,10 @@ export const MISSION1 = {
     { label: 'חלק 3: גל 1', step: 'wave1' },
     { label: 'חלק 3: גל 2', step: 'wave2' },
     { label: 'חלק 3: העמדה השנייה וגל 3', step: 'position2' },
+    { label: 'חלק 4: המתקפה האחרונה', step: 'final_prep' },
+    { label: 'חלק 4: מתקפת נגד', step: 'counterattack' },
+    { label: 'חלק 4: המדרגות המערביות', step: 'checkpoint_taken' },
+    { label: 'חלק 4: הסיום', step: 'reinforcements' },
   ],
 
   // Ambient population, placed by `populate` actions.
@@ -407,13 +418,157 @@ export const MISSION1 = {
       ],
       until: { dialogueDone: true },
     },
+
+    // ---- Part 4: the final push, the counterattack, the ending ----
     {
-      id: 'part3_end',
-      label: 'סוף: המשך יבוא',
+      id: 'final_prep',
+      label: 'חלק 4: לפני המתקפה האחרונה (נקודת שמירה)',
       do: [
+        { type: 'checkpoint', at: LINE2, yaw: W },
+        { type: 'objective', text: 'hold_line2', target: null },
+      ],
+      until: { timer: DIFFICULTY.prep.beforeFinal },
+    },
+    {
+      id: 'final_push',
+      label: 'המתקפה האחרונה: מכל הכיוונים',
+      do: [
+        { type: 'ambience', siren: 0.5, crowd: 0.3, panic: true },
+        { type: 'sky', barrage: 0.6 },
+        { type: 'objective', text: 'final_hold', target: null },
+        { type: 'dialogue', lines: ['final_1', 'final_2'], interrupt: true },
+        {
+          type: 'wave',
+          wave: 'finalPush',
+          callouts: {
+            terrace: { lines: ['w3_sniper'], delay: 5 },
+            north: { lines: ['over_1'], delay: 2 },
+          },
+        },
+        { type: 'truck', delay: DIFFICULTY.truck.delay },
+      ],
+      until: { any: [{ timer: DIFFICULTY.truck.delay + 3 }, { truckDestroyed: true }] },
+    },
+    {
+      id: 'launcher_order',
+      label: 'טנדר עם מקלע: לקחת את המטול',
+      do: [
+        { type: 'truck', ensure: true }, // (already there, unless you jumped here)
+        { type: 'crate', id: 'crate2', at: [-7.5, -25.5], yaw: 0, launcher: true },
+        { type: 'objective', text: 'get_launcher', target: [-7.5, 0, -25.5] },
+        { type: 'dialogue', lines: ['truck_1', 'truck_2', 'truck_3'], interrupt: true },
+      ],
+      until: { any: [{ hasLauncher: true }, { truckDestroyed: true }] },
+    },
+    {
+      id: 'destroy_truck',
+      label: 'להשמיד את הטנדר',
+      do: [
+        { type: 'truck', ensure: true },
+        { type: 'arm', launcher: true },
+        { type: 'hint', hint: 'switch' },
+        { type: 'objective', text: 'destroy_truck', target: { truck: true } },
+        { type: 'dialogue', lines: ['truck_4'], interrupt: true },
+      ],
+      until: { truckDestroyed: true },
+    },
+    {
+      id: 'truck_down',
+      label: 'הטנדר מושמד (נקודת שמירה)',
+      do: [
+        { type: 'slowmo', scale: 0.25, time: 1.8 },
+        { type: 'hint', hint: null },
+        { type: 'checkpoint', at: LINE2, yaw: W },
+        { type: 'ambience', siren: 0.25, panic: false },
+        { type: 'sky', barrage: 0.2 },
+        { type: 'retreat', to: ['checkpointPosts', 'stairsPosts'] },
         { type: 'objective', text: null, target: null },
-        { type: 'fade', to: 1, time: 1.5 },
-        { type: 'endCard', card: 'part3End' },
+        { type: 'dialogue', lines: ['truck_down_1', 'truck_down_2'], interrupt: true },
+      ],
+      until: { dialogueDone: true },
+    },
+    {
+      id: 'counterattack',
+      label: 'מתקפת נגד: אל הבידוק הדרומי',
+      do: [
+        { type: 'objective', text: 'secure_checkpoint', target: CHECKPOINT },
+        { type: 'dialogue', lines: ['counter_1', 'counter_2'], interrupt: true },
+        { type: 'wave', wave: 'plazaHoldouts' },
+        { type: 'wave', wave: 'checkpointDefense' },
+        { type: 'bounding', squad: SQUAD, to: CHECKPOINT },
+      ],
+      until: { all: [{ reach: [CHECKPOINT[0], CHECKPOINT[2]], radius: 7 }, { clear: [CHECKPOINT[0], CHECKPOINT[2]], radius: 24 }] },
+    },
+    {
+      id: 'checkpoint_taken',
+      label: 'הבידוק בידינו (נקודת שמירה)',
+      do: [
+        { type: 'checkpoint', at: [-67.5, 1.2, 74], yaw: 0 },
+        { type: 'bounding', squad: SQUAD, off: true },
+        { type: 'objective', text: 'secure_stairs', target: STAIRS },
+        { type: 'dialogue', lines: ['cp_1', 'cp_2', 'cp_3'], interrupt: true },
+      ],
+      until: { dialogueDone: true },
+    },
+    {
+      id: 'secure_stairs',
+      label: 'מתקפת נגד: אל המדרגות המערביות',
+      do: [
+        { type: 'wave', wave: 'stairsDefense' },
+        { type: 'bounding', squad: SQUAD, to: STAIRS },
+      ],
+      until: { all: [{ reach: [STAIRS[0], STAIRS[2]], radius: 7 }, { clear: [STAIRS[0], STAIRS[2]], radius: 26 }] },
+    },
+    {
+      id: 'reinforcements',
+      label: 'סיום: התגבורת מגיעה',
+      do: [
+        { type: 'bounding', squad: SQUAD, off: true },
+        { type: 'combat', squad: SQUAD, on: false },
+        { type: 'ambience', siren: 0, crowd: 0, birds: 0.15, panic: false },
+        { type: 'sky', barrage: 0 },
+        { type: 'dialogue', lines: ['stairs_done', 'end_1', 'end_2', 'end_3'], interrupt: true },
+        { type: 'objective', text: 'regroup_wall', target: WALL },
+        { type: 'npc', id: 'cmd', route: { points: [[-2.5, -8]], speed: 2.2, face: W } },
+        { type: 'npc', id: 'yonatan', route: { points: [[-2.5, -5.5]], speed: 2.2, face: W } },
+        { type: 'npc', id: 'noam', route: { points: [[-2.5, -10.5]], speed: 2.2, face: W } },
+      ],
+      until: { all: [{ reach: [WALL[0], WALL[2]], radius: 6 }, { dialogueDone: true }] },
+    },
+    {
+      id: 'civilians_emerge',
+      label: 'האזרחים יוצאים מהקשת',
+      do: [
+        { type: 'civilians', do: 'emerge' },
+        { type: 'ambience', crowd: 0.3, birds: 0.35 },
+        { type: 'objective', text: null, target: null },
+        ...SQUAD.map((id) => ({ type: 'npc', id, face: 'player' })),
+        { type: 'dialogue', lines: ['end_4', 'end_5', 'end_6'], interrupt: true },
+      ],
+      until: { dialogueDone: true },
+    },
+    {
+      id: 'final_words',
+      label: 'המילים האחרונות של המפקד',
+      do: [{ type: 'dialogue', lines: ['end_7'], interrupt: true }],
+      until: { dialogueDone: true },
+    },
+    {
+      id: 'mission_complete',
+      label: 'המשימה הושלמה: סטטיסטיקה',
+      do: [
+        { type: 'fade', to: 1, time: 2 },
+        { type: 'stats' },
+      ],
+      until: { timer: 10 },
+    },
+    {
+      id: 'mission2_soon',
+      label: 'משימה 2 בקרוב',
+      do: [
+        { type: 'fade', to: 1, time: 0.3 }, // (already black, unless you jumped here)
+        { type: 'stats', hide: true },
+        { type: 'endCard', card: 'mission2Soon' },
       ],
       until: { timer: 1e9 },
     },

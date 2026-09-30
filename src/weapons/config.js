@@ -27,3 +27,19 @@ export const RIFLE = {
   adsLookScale: 0.8, // mouse sensitivity multiplier when fully aimed
   adsMoveScale: 0.6, // movement speed multiplier while aiming
 };
+
+// Shoulder-fired rocket launcher (picked up in Mission 1's final push).
+export const LAUNCHER = {
+  reloadTime: 2.6,
+  rocketSpeed: 75, // m/s
+  gravity: 1.5, // a slight drop over long range
+  maxFlight: 4, // seconds, then it self-destructs
+  spread: 0.004,
+  adsTime: 0.25,
+  adsZoom: 0.7,
+  adsLookScale: 0.7,
+  adsMoveScale: 0.5,
+  blastRadius: 6,
+  blastDamage: 260, // at the center, to people (you have 100 health)
+  switchTime: 0.55, // lower one weapon, raise the other
+};

@@ -67,6 +67,7 @@ export class Npc {
     this.sheltered = false;
     this.shelterSpot = null; // Vector3
     this._fleeDelay = -1;
+    this.emerged = false; // walked back out of the shelter after the battle
     this.escort = 0; // > 0: stay within this distance of the player (squad in an emergency)
     this._escortTimer = 0;
   }
@@ -206,6 +207,8 @@ export class Npc {
       this.sheltered = true;
     }
     if (this.escort > 0) this._updateEscort(dt, player);
+    // Back in front of the wall: worshipers pray again.
+    if (this.emerged && this.arrived && !this.pray && (this.kind === 'worshipper' || this.kind === 'worshipperWoman')) this.pray = true;
     if (this.sheltered && this.arrived && !this.route && this.escort === 0) {
       // Settled in the shelter: nothing moves them, so skip the physics (many of them).
       if (this.faceYaw !== null) this._turnTo(this.faceYaw, dt);
@@ -455,6 +458,32 @@ export class NpcManager {
       const spot = c.shelterSpot ?? spots[k % spots.length];
       k++;
       if (!c.fleeing && c._fleeDelay < 0) c.flee(spot, this.rand() * maxDelay);
+    }
+  }
+
+  /**
+   * After the battle: civilians walk out of the shelter to spots in front of the wall.
+   * Fast-forwarding puts them there directly.
+   */
+  emerge(spots, fast = false) {
+    let k = 0;
+    for (const c of this.list) {
+      if (!c.isCivilian) continue;
+      const [x, z] = spots[k++ % spots.length];
+      c.sheltered = false;
+      c.fleeing = false;
+      c.frozen = false;
+      c.talkable = false;
+      c._fleeDelay = -1;
+      c.emerged = true;
+      c.faceYaw = -Math.PI / 2; // facing the wall
+      if (fast) {
+        const n = this.nav.nodeAt(x, z);
+        c.place(x, n >= 0 ? this.nav.y[n] : 0, z, -Math.PI / 2);
+      } else {
+        c.setRoute({ points: [[x, z]], speed: 0.9 + this.rand() * 0.4, face: -Math.PI / 2 });
+        c._pause = this.rand() * 4; // they come out a few at a time
+      }
     }
   }
 

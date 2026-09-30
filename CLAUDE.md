@@ -32,9 +32,9 @@ A browser-based 3D first-person story shooter.
 5. [x] Opening story beat
    - [x] Part 1: mission system + the calm shift (ends on the radio chatter, before the sirens)
    - [x] Part 2: sirens, civilians to shelter, first contact
-   - [x] Part 3: holding the plaza, three waves, grenades, ammo crates (ends on "to be continued")
-   - [ ] Mission 1 climax (the bigger push)  <- next
-6. [ ] Realism pass
+   - [x] Part 3: holding the plaza, three waves, grenades, ammo crates
+   - [x] Part 4: the final push (armed truck, rocket launcher), counterattack, ending + stats
+6. [ ] Realism pass  <- next (or Mission 2)
 
 ## Commands
 
@@ -121,10 +121,16 @@ A browser-based 3D first-person story shooter.
     `spawnAttacker(pos, yaw, threat, config, via)` spawns a hostile already in combat;
     `onEnemyKilled(enemy, killer)`. Enemy grenades: `grenades` (a GrenadeSim) + a camping
     check on the player (`campTime`); `explode()` / `explosionDamageAt()` for blasts.
+  - `Truck.js` / `TruckView.js`: the armed pickup (kinematic: drives a path, parks; turret MG with
+    its own target LOS, bursts and suppressive fire; box hit test; bullets barely hurt it; wreck
+    with fire/smoke). It sits in EnemyManager's list like an Enemy (`isVehicle`); `spawnTruck()`,
+    `onVehicleDestroyed`, `applyDamage()` (rocket hits, with kill bookkeeping).
+  - Friendly bounding: `anchorOverride` / `anchorRadius` / `holdPosition` / `relocate()` on the
+    squad's AI (set by StoryDirector during the counterattack).
   - Attacker roles (config flags read by `Enemy.js`): `assault` (push toward the defenders
     when nobody is in sight), `via` (flankers run a route first), `rusher` (charge, fire on the
     move), `suppress` (keep firing at the last known spot), `marksman` (aimed single shots,
-    `glint` 0..1 drawn as a scope glint by EnemyView).
+    `glint` 0..1 drawn as a scope glint by EnemyView), `defender` (holds a post).
   - `EnemyView.js`: placeholder soldier (capsule body + separate head), crouch, muzzle flash,
     death fall; `Tracers`.
   - `DebugDraw.js`: F1 overlay (navmesh points, cover points, vision cones, paths, state labels).
@@ -134,8 +140,10 @@ A browser-based 3D first-person story shooter.
     `action`, `civiliansSheltered`, `all`/`any`). Actions: objective (optional `counter`),
     hint, dialogue, npc (spawn/route/place/face/talkable/escort), populate, weapon, sound,
     ambience (crowd/birds/siren/panic), fade, title, endCard, checkpoint, sky (barrage level),
-    civilians (panic/runAll), combat (squad on/off the combat AI), wave (timed attacker spawns
-    with radio callouts per group). A fast-forwarded `wave` spawns nothing (that fight was won);
+    civilians (panic/runAll/emerge), combat (squad on/off the combat AI), wave (timed attacker
+    spawns with radio callouts per group), crate (`launcher: true` hands out the launcher), truck,
+    arm, slowmo, retreat (survivors fall back to posts), bounding (squad advance), stats.
+    Triggers also: `truckDestroyed`, `hasLauncher`, `clear` (no hostile near a point). A fast-forwarded `wave` spawns nothing (that fight was won);
     a fast `runAll` puts every civilian straight into the shelter.
     `jumpTo(i)` replays the earlier steps' state actions in fast mode (no dialogue, NPCs placed at
     their route ends) and enters step i; checkpoints restart this way. `fail()` freezes it.
@@ -178,6 +186,13 @@ A browser-based 3D first-person story shooter.
   3 grenades (hold G = aim with the arc, release = throw). `Game._explode()` applies damage.
 - `src/ui/GrenadeWarning.js`: icon around the crosshair toward enemy grenades within 9 m.
 - Start screen: chapter buttons (`MISSION1.chapters`) start the mission at a part (`story.startAt`).
+- Weapons: 1 = rifle, 2 = launcher (once owned), or the mouse wheel (`Game._updateWeapons`: lower,
+  swap the viewmodel, raise). `src/weapons/Launcher.js` (pure: one loaded, auto reload, ADS) +
+  `Rockets.js` (`RocketSim` flight/impacts, `RocketView` bodies + smoke trail); tuning in
+  `weapons/config.js` `LAUNCHER`. `Game._blast()` is every explosion (grenade, rocket, truck).
+- Slow motion: the story's `timeScale` scales the fixed-step accumulator (`slowmo` action).
+- Mission stats (time, accuracy, headshots, kills) counted in Game from the start / chosen chapter,
+  shown by `StoryHud.showStats()`.
 - `src/ui/StoryHud.js`: objective, waypoint with distance, subtitles, key hints, talk prompt,
   title/end cards, fade, mission-failed screen, checkpoint toast, the F2 step menu.
 - Weapon modes: `rifle.mode = 'lowered'` (can't fire; R checks the magazine and fires

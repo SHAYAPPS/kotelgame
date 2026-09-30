@@ -222,6 +222,16 @@ export class WeaponAudio {
     }, 3000);
   }
 
+  /** Rocket launch: the backblast thump, then the motor's roar tailing off. */
+  rocketLaunch() {
+    if (!this.ready) return;
+    const t = this.ctx.currentTime;
+    this._noise(t, { type: 'lowpass', freq: 1800, freqEnd: 200, q: 0.8, gain: 1.4, decay: 0.35, rate: 0.7 });
+    this._tone(t, { freq: 70, freqEnd: 30, gain: 1.1, decay: 0.3 });
+    this._noise(t + 0.03, { type: 'bandpass', freq: 900, freqEnd: 300, q: 0.6, gain: 0.5, attack: 0.02, decay: 0.9 });
+    this._noise(t, { type: 'bandpass', freq: 1200, q: 0.5, gain: 0.5, decay: 0.3, out: this.echoBus });
+  }
+
   /** Pulling the pin and the throw. */
   grenadeThrow() {
     if (!this.ready) return;

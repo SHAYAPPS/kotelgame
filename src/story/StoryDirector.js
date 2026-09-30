@@ -12,6 +12,8 @@ const _t = new Vector3();
 const KILL_LINES = { yonatan: 'down_1', noam: 'down_2', cmd: 'down_3' };
 const THANKS = { man: ['civ_thanks_1', 'civ_thanks_3'], woman: ['civ_thanks_2', 'civ_thanks_4'] };
 const GRENADE_SHOUTS = { yonatan: 'grenade_1', noam: 'grenade_2', cmd: 'grenade_3' };
+const BOUND_TIME = 6; // seconds per bound (one group moves, the other covers)
+const MOVE_LINES = { cmd: 'cover_1', yonatan: 'move_1', noam: 'move_2' };
 
 /**
  * Runs a mission script against the game: implements the mission context (objectives,
@@ -24,7 +26,7 @@ export class StoryDirector {
    *   hud: StoryHud; player: PlayerController; enemies: EnemyManager;
    *   sky: SkyFx (interceptions, optional); view: PlayerCamera (camera shake, optional)
    */
-  constructor({ script, scene, world, nav, player, rifle, enemies, audio, hud, sky = null, view = null, grenades = null, difficulty = DIFFICULTY }) {
+  constructor({ script, scene, world, nav, player, rifle, enemies, audio, hud, sky = null, view = null, grenades = null, launcher = null, stats = null, difficulty = DIFFICULTY }) {
     this.script = script;
     this.scene = scene;
     this.nav = nav;
@@ -36,6 +38,16 @@ export class StoryDirector {
     this.sky = sky;
     this.view = view;
     this.grenades = grenades; // the player's GrenadeThrower (refilled at crates)
+    this.launcher = launcher; // the player's Launcher (handed out by a crate in the final push)
+    this.stats = stats; // () => { shots, hits, headshots, kills } for the mission-complete screen
+    /** () => void: the launcher was just handed over (the game switches to it) */
+    this.onLauncher = null;
+    this.truck = null;
+    this.truckDown = false;
+    this.timeScale = 1; // < 1 during a slow-motion moment (the game reads it)
+    this._slowmo = null;
+    this.missionStart = 0;
+    this._bound = null; // counterattack bounding: { squad, to: Vector3, timer, phase }
     this.difficulty = difficulty;
     /** @type {Map<string, AmmoCrate>} */
     this.crates = new Map();
@@ -105,6 +117,12 @@ export class StoryDirector {
       reset: () => {
         for (const n of this.npcs.list) if (n.brain) this.enemies.removeFriendly?.(n.brain);
         this.enemies.clearHostiles?.();
+        this.truck = null;
+        this.truckDown = false;
+        this._bound = null;
+        this._slowmo = null;
+        this.timeScale = 1;
+        this.hud.hideStats?.();
         for (const c of this.crates.values()) c.dispose();
         this.crates.clear();
         this._timed.length = 0;
@@ -127,6 +145,27 @@ export class StoryDirector {
       playerDistance: (x, z) => Math.hypot(this.player.position.x - x, this.player.position.z - z),
       enemiesAlive: () => this.enemiesLeft,
       civiliansOutside: () => this.npcs.civiliansOutside,
+      truckDestroyed: () => this.truckDown,
+      hasLauncher: () => !!this.launcher?.owned,
+      hostilesNear: (x, z, r) => {
+        let n = 0;
+        for (const e of this.enemies.enemies) if (e.alive && Math.hypot(e.position.x - x, e.position.z - z) < r) n++;
+        return n;
+      },
+      truck: (a) => this._spawnTruck(a),
+      arm: (a) => {
+        if (a.launcher && this.launcher && !this.launcher.owned) this.launcher.give(this.difficulty.rockets.start);
+      },
+      slowmo: (a) => {
+        this._slowmo = { scale: a.scale, time: a.time, left: a.time };
+      },
+      retreat: (a) => this._retreat(a.to),
+      bounding: (a) => this._setBounding(a),
+      stats: (a) => {
+        if (a.hide) return this.hud.hideStats?.();
+        const st = this.stats ? this.stats() : { shots: 0, hits: 0, headshots: 0, kills: 0 };
+        this.hud.showStats?.({ ...st, time: this.time - this.missionStart });
+      },
       dialogueIdle: () => this.dialogue.idle,
       npcArrived: (id) => this.npcs.get(id)?.arrived ?? true,
       objective: (text, target, fast, counter) => {
@@ -214,6 +253,7 @@ export class StoryDirector {
   _civilians(what, fast) {
     const spots = this.shelterSpots;
     if (what === 'panic') this.npcs.panic(spots);
+    else if (what === 'emerge') this.npcs.emerge(this.script.shelter.emerge, fast);
     else if (what === 'runAll') {
       if (fast) this.npcs.shelterAll(spots);
       else this.npcs.runAll(spots);
@@ -272,6 +312,106 @@ export class StoryDirector {
     }
   }
 
+  /** The armed pickup (`ensure`: only if there isn't one yet; it then starts parked). */
+  _spawnTruck(a) {
+    if (a.ensure && (this.truck || this.truckDown)) return;
+    const cfg = this.difficulty.truck;
+    const path = cfg.path.map(([x, z]) => {
+      const n = this.nav.nodeAt(x, z);
+      return new Vector3(x, n >= 0 ? this.nav.y[n] : 0, z);
+    });
+    const spawn = () => {
+      this._pendingSpawns = Math.max(0, this._pendingSpawns - 1);
+      this.truck = this.enemies.spawnTruck(cfg, a.ensure ? path.slice(-2) : path, this.player.position);
+    };
+    this._pendingSpawns++;
+    if (a.ensure || !a.delay) spawn();
+    else this._after(a.delay, spawn);
+  }
+
+  /** The attack breaks: everyone left falls back to the nearest post and holds it. */
+  _retreat(lists) {
+    const posts = lists.flatMap((l) => this.difficulty.spawns[l]);
+    const defender = this.difficulty.roles.defender;
+    for (const e of this.enemies.enemies) {
+      if (!e.alive || e.isVehicle) continue;
+      let best = posts[0];
+      let bestD = Infinity;
+      for (const p of posts) {
+        const d = Math.hypot(p[0] - e.position.x, p[1] - e.position.z);
+        if (d < bestD) {
+          bestD = d;
+          best = p;
+        }
+      }
+      const n = this.nav.nodeAt(best[0], best[1]);
+      e.via = [new Vector3(best[0], n >= 0 ? this.nav.y[n] : 0, best[1])];
+      Object.assign(e.cfg, { rusher: false, assault: false, suppress: false }, defender);
+      if (e.coverPoint) e.coverPoint.owner = null;
+      e.coverPoint = null;
+    }
+  }
+
+  /**
+   * Counterattack: the squad advances in bounds toward `to`. One group moves to cover
+   * ahead of the player while the other holds and covers; they swap every few seconds.
+   */
+  _setBounding(a) {
+    for (const id of a.squad) {
+      const b = this.npcs.get(id)?.brain;
+      if (!b) continue;
+      b.anchorOverride = null;
+      b.anchorRadius = null;
+      b.holdPosition = false;
+    }
+    if (a.off) {
+      this._bound = null;
+      return;
+    }
+    this._bound = { squad: a.squad, to: new Vector3(a.to[0], a.to[1], a.to[2]), timer: 0, phase: 0, anchors: new Map() };
+  }
+
+  _updateBounding(dt) {
+    const b = this._bound;
+    if (!b) return;
+    b.timer -= dt;
+    const p = this.player.position;
+    const groups = [[b.squad[0]], b.squad.slice(1)]; // the commander, then the other two
+    if (b.timer <= 0) {
+      b.timer = BOUND_TIME;
+      b.phase = 1 - b.phase;
+      const movers = groups[b.phase];
+      // "Moving!" from a mover, "covering!" from the others.
+      const line = MOVE_LINES[movers[0]];
+      if (line && b.phase === 1) this.dialogue.bark(line);
+      else if (b.phase === 0) this.dialogue.bark('cover_2');
+      for (const id of movers) this.npcs.get(id)?.brain?.relocate();
+    }
+    // Movers: cover up to ~9 m ahead of the player toward the objective.
+    const dx = b.to.x - p.x;
+    const dz = b.to.z - p.z;
+    const d = Math.hypot(dx, dz);
+    const ahead = Math.min(9, d);
+    groups.forEach((g, gi) => {
+      for (const id of g) {
+        const br = this.npcs.get(id)?.brain;
+        if (!br) continue;
+        if (gi === b.phase) {
+          let a = b.anchors.get(id);
+          if (!a) b.anchors.set(id, (a = new Vector3()));
+          a.set(p.x + (d > 0 ? (dx / d) * ahead : 0), p.y, p.z + (d > 0 ? (dz / d) * ahead : 0));
+          br.anchorOverride = a;
+          br.anchorRadius = 7;
+          br.holdPosition = false;
+        } else {
+          br.holdPosition = true;
+          br.anchorOverride = null;
+          br.anchorRadius = 24; // don't get pulled out of cover by the player moving
+        }
+      }
+    });
+  }
+
   _crate(a) {
     if (a.remove) {
       this.crates.get(a.id)?.dispose();
@@ -280,6 +420,7 @@ export class StoryDirector {
     }
     const n = this.nav.nodeAt(a.at[0], a.at[1]);
     const crate = new AmmoCrate({ id: a.id, position: new Vector3(a.at[0], n >= 0 ? this.nav.y[n] : 0, a.at[1]), yaw: a.yaw ?? 0 });
+    crate.launcher = !!a.launcher;
     this.crates.get(a.id)?.dispose();
     this.crates.set(a.id, crate);
     if (this.scene.isObject3D) this.scene.add(crate.view());
@@ -292,10 +433,20 @@ export class StoryDirector {
   }
 
   /** E at a crate: full reserve and grenades. */
-  resupply() {
+  resupply(crate = null) {
     const w = this.rifle.state;
     if (w) w.reserve = Math.max(w.reserve, this.difficulty.ammo.crateReserve);
     this.grenades?.refill();
+    const L = this.launcher;
+    if (L && crate?.launcher && !L.owned) {
+      L.give(this.difficulty.rockets.start);
+      if (this.onLauncher) this.onLauncher();
+      this.mission.notify('action:launcher');
+    } else if (L?.owned) {
+      // Top the rockets back up.
+      const have = L.state.ammo + L.state.reserve;
+      if (have < this.difficulty.rockets.crate) L.give(this.difficulty.rockets.crate - have);
+    }
     this.ambient.play('resupply');
     this.hud.flashToast?.(STORY_UI.resupplied);
     this.mission.notify('action:resupply');
@@ -337,6 +488,10 @@ export class StoryDirector {
   }
 
   _onKill(enemy, killer) {
+    if (enemy.isVehicle) {
+      this.truckDown = true;
+      return;
+    }
     const left = this.enemiesLeft;
     if (left === 0) return;
     if (left === 1 && !this._lastOneCalled) {
@@ -367,6 +522,7 @@ export class StoryDirector {
   start() {
     if (this.started) return;
     this.started = true;
+    this.missionStart = this.time;
     this.fade = 1;
     this.mission.start();
     this.player.respawn();
@@ -384,6 +540,7 @@ export class StoryDirector {
 
   /** Chapter select: start at a step (step 0 plays the opening fade-in and title). */
   startAt(index) {
+    this.missionStart = this.time;
     if (index > 0) return this.jumpTo(index);
     this.started = true;
     this.fade = 1;
@@ -406,7 +563,8 @@ export class StoryDirector {
 
   /** E pressed. */
   interact(eye, dir) {
-    if (this.crateInReach(eye, dir)) return this.resupply();
+    const crate = this.crateInReach(eye, dir);
+    if (crate) return this.resupply(crate);
     const npc = this.npcs.talkTarget(eye, dir);
     if (!npc) return;
     if (npc.frozen) {
@@ -442,6 +600,7 @@ export class StoryDirector {
       due.splice(i--, 1);
       fn();
     }
+    this._updateBounding(dt);
     this.npcs.update(dt, playerInfo, p);
     for (const c of this.crates.values()) c.pushOut(p.position, p.cfg.radius);
     this.dialogue.update(dt);
@@ -453,6 +612,10 @@ export class StoryDirector {
     const t = this.objectiveTarget;
     if (!t || !this.objectiveText) return null;
     if (Array.isArray(t)) return this._targetPos.set(t[0], t[1] + 1.6, t[2]);
+    if (t.truck) {
+      const tr = this.truck;
+      return tr && tr.alive ? this._targetPos.set(tr.position.x, tr.position.y + 3.2, tr.position.z) : null;
+    }
     if (t.frozen) {
       const f = this.npcs.nearestFrozen(this.player.position);
       if (f) return this._targetPos.set(f.position.x, f.position.y + 2, f.position.z);
@@ -466,6 +629,16 @@ export class StoryDirector {
   frameUpdate(dt, camera, eye, dir) {
     for (const v of this.views.values()) v.update(dt);
     this.ambient.update(dt);
+    // Slow motion: hold the slow scale, then ease back to normal over the last 0.5 s (real time).
+    const sm = this._slowmo;
+    if (sm) {
+      sm.left -= dt;
+      this.timeScale = sm.left > 0.5 ? sm.scale : sm.scale + (1 - sm.scale) * (1 - Math.max(0, sm.left) / 0.5);
+      if (sm.left <= 0) {
+        this._slowmo = null;
+        this.timeScale = 1;
+      }
+    }
     if (this.sky) this.sky.frame(camera);
     if (this.fade !== this.fadeTarget) {
       const step = this.fadeSpeed * dt;
@@ -478,7 +651,7 @@ export class StoryDirector {
     const crate = this.crateInReach(eye, dir);
     const talk = crate ? null : this.npcs.talkTarget(eye, dir);
     this.hud.setPrompt(
-      crate ? STORY_UI.cratePrompt : talk ? (talk.frozen ? STORY_UI.shelterPrompt : `${STORY_UI.talkPrompt} ${this._speakerName(talk)}`) : null,
+      crate ? (crate.launcher && !this.launcher?.owned ? STORY_UI.crateLauncherPrompt : STORY_UI.cratePrompt) : talk ? (talk.frozen ? STORY_UI.shelterPrompt : `${STORY_UI.talkPrompt} ${this._speakerName(talk)}`) : null,
     );
     const counter = this.objectiveCounter;
     this.hud.setObjectiveCount(

@@ -9,7 +9,9 @@ import { SkyFx } from '../world/SkyFx.js';
 import { createTestRange } from '../world/TestRange.js';
 import { createKotelLevel } from '../world/kotel/KotelLevel.js';
 import { createGreyboxMaterials, createGridTexture } from '../world/greybox.js';
-import { RIFLE } from '../weapons/config.js';
+import { LAUNCHER, RIFLE } from '../weapons/config.js';
+import { Launcher } from '../weapons/Launcher.js';
+import { RocketSim, RocketView } from '../weapons/Rockets.js';
 import { Impacts } from '../weapons/Impacts.js';
 import { Rifle } from '../weapons/Rifle.js';
 import { Viewmodel } from '../weapons/Viewmodel.js';
@@ -37,6 +39,8 @@ const FIXED_DT = 1 / 120;
 const MAX_FRAME_DT = 0.1; // after a hitch, slow down instead of spiraling
 const DEATH_RESTART = 3.2; // seconds from death to restart
 const _up = new Vector3(0, 1, 0);
+const _o = new Vector3();
+const _b = new Vector3();
 
 export class Game {
   constructor(container) {
@@ -101,6 +105,17 @@ export class Game {
     this.grenadeSim.onBounce = (g) => this.audio.grenadeBounce(g.position);
     this.grenadeSim.onExplode = (g) => this._explode(g);
 
+    // Rocket launcher (weapon 2), handed out in Mission 1's final push.
+    this.launcher = new Launcher(LAUNCHER);
+    this.rockets = new RocketSim(this.collision, LAUNCHER);
+    this.rocketView = new RocketView(this.scene, this.rockets);
+    this.weapon = 'rifle'; // in hand
+    this._switchTime = 0; // > 0 while switching weapons
+    this._switchTo = 'rifle';
+    this._idleWeapon = { trigger: false, aim: false, reload: false, blocked: true };
+    // Mission stats (accuracy etc.), counted from the start or the chapter you picked.
+    this.stats = { shots: 0, hits: 0, kills0: 0, headshots0: 0 };
+
     // Enemies: navmesh + cover points baked from the level's collision.
     this.nav = new NavGrid(this.collision, level.navBounds).build();
     this.cover = new CoverPoints(this.collision, this.nav).generate();
@@ -116,6 +131,11 @@ export class Game {
       spawns: level.enemySpawns ?? [],
     });
     this.enemies.grenades = this.grenadeSim;
+    this.enemies.onVehicleDestroyed = (truck) => this._vehicleExplosion(truck);
+    this.rockets.targets = { raycast: (o, d, max) => this.enemies.raycast(o, d, max) };
+    this.rockets.onImpact = (r, point, normal, target) => this._rocketImpact(r, point, target);
+    this.launcher.onFire = (eye, dir) => this._launchRocket(eye, dir);
+    this.launcher.onReload = () => this.audio.reload(LAUNCHER.reloadTime);
     this._playerInfo = {
       position: this.player.position,
       head: new Vector3(),
@@ -133,9 +153,14 @@ export class Game {
         const n = this.story ? this.story.raycast(o, d, e ? e.distance : max) : null;
         return n ? { ...n, zone: 'body', friendly: true } : e;
       },
-      hit: (t, d) => (t.friendly ? this.story.friendlyFire(t.npc) : this.enemies.hit(t, d, this._playerInfo)),
+      hit: (t, d) => {
+        if (t.friendly) return this.story.friendlyFire(t.npc);
+        this.stats.hits++;
+        return this.enemies.hit(t, d, this._playerInfo);
+      },
     };
     this.rifle.onShot = (origin) => {
+      this.stats.shots++;
       this._playerInfo.firing = true;
       this.enemies.playerShot(origin);
     };
@@ -158,8 +183,16 @@ export class Game {
           sky: new SkyFx(this.scene),
           view: this.view,
           grenades: this.thrower,
+          launcher: this.launcher,
+          stats: () => ({
+            shots: this.stats.shots,
+            hits: this.stats.hits,
+            kills: this.enemies.kills - this.stats.kills0,
+            headshots: this.enemies.headshots - this.stats.headshots0,
+          }),
         });
     this.storyHud.setVisible(false);
+    if (this.story) this.story.onLauncher = () => this._requestWeapon('launcher');
     this.deathTime = -1;
     this._forward = new Vector3();
 
@@ -255,7 +288,8 @@ export class Game {
       this.input.consumeMouse(m);
       this.view.look(m.x, m.y);
 
-      this.accumulator += dt;
+      // Slow motion (the story's big moments) scales game time, not the frame rate.
+      this.accumulator += dt * (this.story ? this.story.timeScale : 1);
       while (this.accumulator >= FIXED_DT) {
         this._fixedStep(FIXED_DT);
         this.accumulator -= FIXED_DT;
@@ -265,11 +299,13 @@ export class Game {
 
     this.view.render(this.active ? this.accumulator / FIXED_DT : 1);
     this.environment.update(this.camera);
+    const L = this.weapon === 'launcher';
     this.viewmodel.update(dt, {
-      aim: this.rifle.state.aim,
-      reload: this.rifle.state.reloadProgress,
+      aim: L ? this.launcher.state.aim : this.rifle.state.aim,
+      reload: L ? this.launcher.state.reloadProgress : this.rifle.state.reloadProgress,
+      loaded: this.launcher.state.ammo > 0,
       sprinting: this.player.sprinting,
-      lowered: this.rifle.lowered || this.thrower.aiming || this.thrower.busy > 0,
+      lowered: this.rifle.lowered || this.thrower.aiming || this.thrower.busy > 0 || this._switchTime > 0,
       check: this.rifle.checkProgress,
       lookX: m.x,
       lookY: m.y,
@@ -279,6 +315,7 @@ export class Game {
     });
     this.rifle.frameUpdate(dt);
     this.grenadeView.update(dt);
+    this.rocketView.update(dt);
     if (this.active) this.thrower.frameUpdate(this.view.eye, this.view.getAimDirection(this._forward), this.player.velocity);
     this.grenadeWarning.update(this._hostileGrenades(), this.player.position, this.view.viewYaw);
     this.impacts.update(dt);
@@ -307,10 +344,11 @@ export class Game {
     this.player.yaw = this.view.yaw;
     this.player.update(dt, dead ? this._noControls() : this._readControls());
     this.view.fixedUpdate(dt);
-    this.rifle.fixedUpdate(dt, dead ? this._noWeapon() : this._readWeaponInput(), this.player);
-    this.thrower.enabled = !this.rifle.lowered && !this.rifle.state.reloading;
+    this._updateWeapons(dt, dead);
+    this.thrower.enabled = !this.rifle.lowered && !this.rifle.state.reloading && !this.launcher.state.reloading && this._switchTime === 0;
     this.thrower.update(dt, !dead && this.input.isDown('KeyG'), this.view.eye, this.view.getAimDirection(this._forward), this.player.velocity);
     this.grenadeSim.update(dt);
+    this.rockets.update(dt);
     if (this.story && !dead && this.input.consumePress('KeyE')) {
       this.story.interact(this.view.eye, this.view.getAimDirection(this._forward));
     }
@@ -355,13 +393,8 @@ export class Game {
 
   /** Death or a failed mission: back to the last checkpoint (or the level start). */
   restart() {
-    this.deathTime = -1;
+    this._resetCombat();
     this._fadeIn = 1;
-    this.health.reset();
-    this.rifle.reset();
-    this.enemies.reset();
-    this.impacts.clear();
-    this._clearGrenades();
     if (this.story) this.story.restartFromCheckpoint();
     else this.player.respawn();
     this.view.snap();
@@ -371,6 +404,7 @@ export class Game {
     const i = this._pendingChapter;
     this._pendingChapter = undefined;
     this._resetCombat();
+    this.stats = { shots: 0, hits: 0, kills0: this.enemies.kills, headshots0: this.enemies.headshots };
     this.story.startAt(i);
     this.view.snap();
   }
@@ -383,6 +417,102 @@ export class Game {
     this.enemies.reset();
     this.impacts.clear();
     this._clearGrenades();
+    this.rockets.clear();
+    this.rocketView.clear();
+    this.launcher.reset();
+    this._setWeapon('rifle');
+  }
+
+  // ---------------------------------------------------------------------------
+  // Weapons: 1 = rifle, 2 = launcher (once you have it), or the mouse wheel.
+
+  _requestWeapon(name) {
+    if (name === 'launcher' && !this.launcher.owned) return;
+    if (name === this._switchTo && (this._switchTime > 0 || name === this.weapon)) return;
+    this._switchTo = name;
+    this._switchTime = LAUNCHER.switchTime;
+  }
+
+  _setWeapon(name) {
+    this.weapon = name;
+    this._switchTo = name;
+    this._switchTime = 0;
+    this.viewmodel.setWeapon(name);
+  }
+
+  _updateWeapons(dt, dead) {
+    const i = this.input;
+    if (!dead && !this.rifle.lowered) {
+      if (i.consumePress('Digit1')) this._requestWeapon('rifle');
+      if (i.consumePress('Digit2')) this._requestWeapon('launcher');
+      if (i.consumePress('WheelUp') || i.consumePress('WheelDown')) {
+        this._requestWeapon((this._switchTime > 0 ? this._switchTo : this.weapon) === 'rifle' ? 'launcher' : 'rifle');
+      }
+    }
+    if (!this.launcher.owned && this.weapon === 'launcher') this._setWeapon('rifle');
+    if (this._switchTime > 0) {
+      const half = LAUNCHER.switchTime / 2;
+      const before = this._switchTime;
+      this._switchTime = Math.max(0, this._switchTime - dt);
+      // Swap models while the weapon is down out of view.
+      if (before > half && this._switchTime <= half) {
+        this.weapon = this._switchTo;
+        this.viewmodel.setWeapon(this.weapon);
+      }
+    }
+    const input = dead ? this._noWeapon() : this._readWeaponInput();
+    if (this._switchTime > 0) input.blocked = true;
+    const eye = this.view.eye;
+    const dir = this.view.getAimDirection(this._forward);
+    if (this.weapon === 'launcher') {
+      this.rifle.fixedUpdate(dt, this._idleWeapon, this.player);
+      if (!this.rifle.lowered) this.launcher.fixedUpdate(dt, input, eye, dir);
+      // The launcher's own aim-down-sight zoom.
+      const a = this.launcher.aim;
+      this.view.fovScale = MathUtils.lerp(1, LAUNCHER.adsZoom, a);
+      this.view.lookScale = MathUtils.lerp(1, LAUNCHER.adsLookScale, a);
+    } else {
+      this.rifle.fixedUpdate(dt, input, this.player);
+    }
+  }
+
+  get _aim() {
+    return this.weapon === 'launcher' ? this.launcher.aim : this.rifle.aim;
+  }
+
+  _launchRocket(eye, dir) {
+    this.stats.shots++;
+    _o.copy(eye).addScaledVector(dir, 0.9);
+    _o.x += Math.cos(this.view.yaw) * 0.12;
+    _o.z -= Math.sin(this.view.yaw) * 0.12;
+    this.rockets.spawn(_o, dir, LAUNCHER.rocketSpeed);
+    this.viewmodel.onLauncherShot();
+    this.view.addShake(0.25);
+    this.audio.rocketLaunch?.();
+    this._playerInfo.firing = true;
+    this.enemies.playerShot(eye);
+  }
+
+  _rocketImpact(r, point, target) {
+    const info = this._playerInfo;
+    if (target) {
+      this.stats.hits++;
+      const e = target.enemy;
+      const dir = _o.copy(r.velocity).normalize();
+      this.enemies.applyDamage(e, e.isVehicle ? DIFFICULTY.truck.rocketDirect : 300, dir, info);
+    }
+    this._blast(point, LAUNCHER.blastRadius, 150, LAUNCHER.blastDamage, info, 1.4);
+  }
+
+  /** The truck blows up: a big fireball, damage all around, a heavy shake. */
+  _vehicleExplosion(truck) {
+    const p = truck.position;
+    for (const [dx, dy, dz] of [[0, 1.2, 0], [0.8, 1.8, -1.2], [-0.7, 1.5, 1.3]]) this.grenadeView.explode(_o.set(p.x + dx, p.y + dy, p.z + dz), 2.2);
+    this.audio.explosion(_o.set(p.x, p.y + 1, p.z));
+    this.audio.explosion(_o.set(p.x, p.y + 1, p.z));
+    this._blast(_o.set(p.x, p.y + 1, p.z), 9, 120, 320, null, 0);
+    const d = p.distanceTo(this.player.position);
+    this.view.addShake(Math.max(0.55, 1 - d / 60));
   }
 
   _clearGrenades() {
@@ -398,21 +528,31 @@ export class Game {
     return out;
   }
 
-  /** A grenade went off: damage (you, enemies, the squad), effects, sound, shake. */
+  /** A grenade went off. */
   _explode(g) {
     const G = DIFFICULTY.grenades;
-    const pos = g.position;
+    const thrower = g.owner === 'player' ? this._playerInfo : g.thrower?.asTarget ?? null;
+    this._blast(g.position, G.radius, G.playerDamage, G.enemyDamage, thrower, 1);
+  }
+
+  /**
+   * An explosion: effects (`fx` = size, 0 = none), sound, damage to you, the enemies and
+   * the squad, and a shake by distance.
+   */
+  _blast(pos, radius, playerDamage, enemyDamage, thrower, fx) {
     const info = this._playerInfo;
-    this.grenadeView.explode(pos);
-    this.audio.explosion(pos);
-    this.impacts.burst(pos, _up, [0.45, 0.4, 0.33], 26);
-    if (!this.health.dead) {
-      const dmg = this.enemies.explosionDamageAt(pos, info.chest, info.head, G.radius, G.playerDamage);
-      if (dmg > 0) this.health.damage(dmg, pos);
+    const at = _b.copy(pos);
+    if (fx > 0) {
+      this.grenadeView.explode(at, fx);
+      this.audio.explosion(at);
+      this.impacts.burst(at, _up, [0.45, 0.4, 0.33], 26);
     }
-    const thrower = g.owner === 'player' ? info : g.thrower?.asTarget ?? null;
-    this.enemies.explode(pos, G.radius, G.enemyDamage, thrower);
-    const d = pos.distanceTo(this.player.position);
+    if (!this.health.dead) {
+      const dmg = this.enemies.explosionDamageAt(at, info.chest, info.head, radius, playerDamage);
+      if (dmg > 0) this.health.damage(dmg, at);
+    }
+    this.enemies.explode(at, radius, enemyDamage, thrower);
+    const d = at.distanceTo(this.player.position);
     this.view.addShake(Math.max(0, 1 - d / 28) * 0.8);
   }
 
@@ -436,17 +576,19 @@ export class Game {
 
   _updateHud(dt) {
     const hud = this.hud;
-    const aim = this.rifle.aim;
+    const aim = this._aim;
+    const L = this.weapon === 'launcher';
     // Crosshair gap = the spread cone projected to pixels; hidden when aiming or sprinting.
     const halfFov = MathUtils.degToRad(this.camera.fov) / 2;
-    const gap = (Math.tan(this.rifle.spread(this.player)) / Math.tan(halfFov)) * (window.innerHeight / 2);
+    const gap = L ? 10 : (Math.tan(this.rifle.spread(this.player)) / Math.tan(halfFov)) * (window.innerHeight / 2);
     const lowered = this.rifle.lowered;
     hud.setCrosshair(gap + 4, this.player.sprinting || lowered ? 0 : MathUtils.clamp(1 - aim * 2.5, 0, 1));
     // With the weapon lowered the ammo counter only shows while checking the magazine.
     if (this.rifle.checkTime > 0) this._ammoShowTime = 2.5;
     this._ammoShowTime = Math.max(0, (this._ammoShowTime ?? 0) - dt);
     hud.ammo.hidden = lowered && this._ammoShowTime <= 0;
-    hud.setAmmo(this.rifle.state);
+    hud.setAmmo(L ? this.launcher.state : this.rifle.state);
+    hud.setWeaponName?.(this.launcher.owned ? (L ? HE.weapons.launcher : HE.weapons.rifle) : '');
     hud.setGrenades(this.thrower.count, lowered ? 0 : this.thrower.cfg.max);
     hud.update(dt, {
       player: this.player,
@@ -478,7 +620,7 @@ export class Game {
     // Firing or aiming ends a sprint; aiming also slows you down.
     const firing = i.isDown('Mouse0') || i.isDown('Mouse2');
     c.sprint = !firing && (i.isDown('ShiftLeft') || i.isDown('ShiftRight'));
-    c.moveScale = MathUtils.lerp(1, RIFLE.adsMoveScale, this.rifle.aim);
+    c.moveScale = MathUtils.lerp(1, this.weapon === 'launcher' ? LAUNCHER.adsMoveScale : RIFLE.adsMoveScale, this._aim);
     c.jump = i.consumePress('Space');
     c.crouch = i.consumePress('KeyC');
     return c;

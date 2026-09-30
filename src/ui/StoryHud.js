@@ -69,7 +69,11 @@ export class StoryHud {
     this.lowAmmo.hidden = true;
 
     this.root.append(this.objective, this.marker, this.subtitle, this.hint, this.prompt, this.checkpointToast, this.lowAmmo);
-    parent.append(this.fadeLayer, this.root, this.card, this.fail);
+    this.statsPanel = el('div', 'mission-stats');
+    this.statsPanel.dir = 'rtl';
+    this.statsPanel.hidden = true;
+
+    parent.append(this.fadeLayer, this.root, this.card, this.fail, this.statsPanel);
 
     this.menu = null;
     this._objectiveKey = null;
@@ -180,6 +184,36 @@ export class StoryHud {
     this.checkpointToast.textContent = text;
     this.checkpointToast.hidden = false;
     this._toastTimer = 2;
+  }
+
+  /** Mission complete: time, accuracy, headshots, kills. */
+  showStats({ time, shots, hits, headshots, kills }) {
+    const S = STORY_UI.stats;
+    const mm = Math.floor(time / 60);
+    const ss = Math.floor(time % 60);
+    const acc = shots > 0 ? Math.round((100 * hits) / shots) : 0;
+    const rows = [
+      [S.time, `${mm}:${String(ss).padStart(2, '0')}`],
+      [S.accuracy, `${acc}%`],
+      [S.headshots, String(headshots)],
+      [S.kills, String(kills)],
+    ];
+    this.statsPanel.replaceChildren(el('div', 'mission-stats-eyebrow', STORY_UI.missionName), el('h2', 'mission-stats-title', STORY_UI.missionComplete));
+    const list = el('dl', 'mission-stats-list');
+    rows.forEach(([k, v], i) => {
+      const row = el('div', 'mission-stats-row');
+      row.style.animationDelay = `${0.6 + i * 0.35}s`;
+      const dd = el('dd', null, v);
+      dd.dir = 'ltr';
+      row.append(el('dt', null, k), dd);
+      list.append(row);
+    });
+    this.statsPanel.append(list);
+    this.statsPanel.hidden = false;
+  }
+
+  hideStats() {
+    this.statsPanel.hidden = true;
   }
 
   setLowAmmo(on) {

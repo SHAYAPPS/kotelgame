@@ -195,7 +195,7 @@ export class GrenadeView {
 
     const flashTex = radialTexture([[0, 'rgba(255,240,200,1)'], [0.3, 'rgba(255,170,70,0.9)'], [1, 'rgba(255,120,40,0)']]);
     const smokeTex = radialTexture([[0, 'rgba(48,45,40,0.95)'], [0.45, 'rgba(62,58,52,0.75)'], [1, 'rgba(80,76,70,0)']]);
-    this.blasts = Array.from({ length: 6 }, () => {
+    this.blasts = Array.from({ length: 10 }, () => {
       const flash = new Sprite(new SpriteMaterial({ map: flashTex, transparent: true, blending: AdditiveBlending, depthWrite: false, toneMapped: false }));
       const smoke = new Sprite(new SpriteMaterial({ map: smokeTex, transparent: true, depthWrite: false, toneMapped: false }));
       flash.visible = smoke.visible = false;
@@ -217,9 +217,11 @@ export class GrenadeView {
     this.root.add(this.arc, this.ring);
   }
 
-  explode(position) {
+  /** A blast at `position`; `size` scales it (1 = a grenade). */
+  explode(position, size = 1) {
     const b = this.blasts.find((x) => x.t < 0) ?? this.blasts[0];
     b.t = 0;
+    b.size = size;
     b.pos.copy(position);
     b.flash.position.copy(position);
     b.smoke.position.copy(position);
@@ -268,15 +270,16 @@ export class GrenadeView {
       b.t += dt;
       const f = Math.max(0, 1 - b.t / 0.25);
       b.flash.material.opacity = f;
-      const fs = 1.5 + b.t * 14;
+      const k = b.size ?? 1;
+      const fs = (1.5 + b.t * 14) * k;
       b.flash.scale.set(fs, fs, 1);
       b.flash.visible = f > 0;
       // Thick for a moment, then thinning out.
       const s = b.t < 1.2 ? 1 : Math.max(0, 1 - (b.t - 1.2) / 2.3);
       b.smoke.material.opacity = 0.95 * s;
-      const ss = 2 + Math.min(1, b.t / 0.8) * 4.5;
+      const ss = (2 + Math.min(1, b.t / 0.8) * 4.5) * k;
       b.smoke.scale.set(ss, ss, 1);
-      b.smoke.position.set(b.pos.x, b.pos.y + 0.6 + b.t * 0.5, b.pos.z);
+      b.smoke.position.set(b.pos.x, b.pos.y + 0.6 * k + b.t * 0.5, b.pos.z);
       if (b.t > 3.5) {
         b.t = -1;
         b.flash.visible = b.smoke.visible = false;

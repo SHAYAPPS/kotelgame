@@ -13,6 +13,8 @@
  *   { arrived: 'npcId' }               that NPC finished its route
  *   { action: 'sprint' | 'crouch' | 'magCheck' | 'move' }  player did it during this step
  *   { civiliansSheltered: true }       no civilian left outside the shelter
+ *   { truckDestroyed: true } / { hasLauncher: true }   state of the final push
+ *   { clear: [x, z], radius }          no hostile alive within radius of the point
  *   { all: [trigger, ...] } / { any: [trigger, ...] }
  *   (no until: the step ends immediately after its actions)
  *
@@ -24,7 +26,9 @@
  *   fade { to, time }, title { card }, endCard { card }, checkpoint { at: [x, y, z], yaw },
  *   populate { group }, sky { barrage }, civilians { do: 'panic' | 'runAll' },
  *   combat { squad: [ids], on, threat }, wave { wave: name in difficulty.js, callouts },
- *   sound { id, at }, crate { id, at: [x, z], yaw } (an ammo crate; `remove: true` takes it away)
+ *   sound { id, at }, crate { id, at: [x, z], yaw, launcher } (an ammo crate; `remove: true` takes it away),
+ *   truck { delay }, arm { launcher }, slowmo { scale, time }, retreat { to: [spawn lists] },
+ *   bounding { squad, to | off }, stats { hide }
  *
  * `jumpTo(i)` fast-forwards: it replays the state-setting actions of every earlier step
  * instantly (NPCs are placed where their routes end, timed/presentational actions are
@@ -128,6 +132,9 @@ export class Mission {
     if (t.arrived) return c.npcArrived(t.arrived);
     if (t.action) return this.events.has(`action:${t.action}`);
     if (t.civiliansSheltered) return c.civiliansOutside() === 0;
+    if (t.truckDestroyed) return c.truckDestroyed();
+    if (t.hasLauncher) return c.hasLauncher();
+    if (t.clear) return c.hostilesNear(t.clear[0], t.clear[1], t.radius ?? 20) === 0;
     throw new Error(`Unknown trigger ${JSON.stringify(t)}`);
   }
 
@@ -157,6 +164,16 @@ export class Mission {
         return c.combat(a, fast);
       case 'crate':
         return c.crate(a);
+      case 'arm':
+        return c.arm(a);
+      case 'bounding':
+        return c.bounding(a);
+      case 'truck':
+      case 'slowmo':
+      case 'retreat':
+      case 'stats':
+        // Presentation or a fight: skipped when fast-forwarding past it.
+        return fast ? undefined : c[a.type](a);
       case 'wave':
         // Fast-forwarding past a fight means it was won: nobody to spawn.
         return fast ? undefined : c.wave(a);

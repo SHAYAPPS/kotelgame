@@ -40,6 +40,16 @@ export class Input {
     // Mouse buttons share the key sets as 'Mouse0' (left), 'Mouse1', 'Mouse2' (right).
     document.addEventListener('mousedown', (e) => this._onMouseDown(e));
     document.addEventListener('mouseup', (e) => this.held.delete(`Mouse${e.button}`));
+    // Mouse wheel: one press of 'WheelUp' / 'WheelDown' per notch (weapon switching).
+    document.addEventListener(
+      'wheel',
+      (e) => {
+        if (!this.enabled || !this.locked || e.deltaY === 0) return;
+        this.pressed.add(e.deltaY > 0 ? 'WheelDown' : 'WheelUp');
+        e.preventDefault();
+      },
+      { passive: false },
+    );
     document.addEventListener('contextmenu', (e) => {
       if (this.enabled) e.preventDefault();
     });

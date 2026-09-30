@@ -4,6 +4,8 @@ import { ATTACKER, FRIENDLY } from './config.js';
 import { EnemyView, Tracers } from './EnemyView.js';
 import { rayCapsule } from './hitZones.js';
 import { solveThrow } from '../weapons/Grenades.js';
+import { Truck } from './Truck.js';
+import { TruckView } from './TruckView.js';
 
 const _a = new Vector3();
 const _b = new Vector3();
@@ -53,6 +55,8 @@ export class EnemyManager {
     this.grenades = null;
     /** (grenade, thrower) => void: an enemy threw one (teammates shout) */
     this.onGrenadeThrown = null;
+    /** (truck) => void: a vehicle was destroyed (the game plays the big explosion) */
+    this.onVehicleDestroyed = null;
     this._grenadeGlobal = 4; // seconds until any enemy may throw
     this._campAnchor = new Vector3(0, -1e6, 0);
     this.campTime = 0; // how long the player has stayed in one spot
@@ -112,6 +116,29 @@ export class EnemyManager {
     this.friendlies.splice(i, 1);
     if (f.coverPoint) f.coverPoint.owner = null;
     f.body.wantCrouch = false;
+  }
+
+  /** An armed vehicle (see Truck.js) driving in along `path` (Vector3[]). */
+  spawnTruck(config, path, threatPosition) {
+    const truck = new Truck({ world: this.world, config, path, onFire: (shot) => this._onEnemyFire(shot) });
+    truck.onDestroyed = () => {
+      if (this.onVehicleDestroyed) this.onVehicleDestroyed(truck);
+    };
+    if (threatPosition) truck.engage(threatPosition);
+    const view = new TruckView(truck);
+    this.scene.add(view.root);
+    this.list.push({ enemy: truck, view });
+    return truck;
+  }
+
+  /** Damage an agent directly (a rocket hit), with the same kill bookkeeping as bullets. */
+  applyDamage(agent, amount, dir, attacker = null) {
+    const killed = agent.takeDamage(amount, dir, attacker);
+    if (killed && agent.faction === 'hostile') {
+      if (attacker && !attacker.agent) this.kills++;
+      if (this.onEnemyKilled) this.onEnemyKilled(agent, attacker);
+    }
+    return killed;
   }
 
   /** Spawn a hostile that already knows where the defenders are and fights at once. */
@@ -307,7 +334,8 @@ export class EnemyManager {
       // Two factions: pick targets, and everyone avoids everyone's cover spots.
       for (const e of enemies) if (e.alive) this._retarget(e, dt, player, fr, true);
       for (const f of fr) {
-        f.anchor = player.alive ? player.position : null;
+        // The squad fights around the player unless the story moves its anchor (bounding).
+        f.anchor = f.anchorOverride ?? (player.alive ? player.position : null);
         this._retarget(f, dt, null, enemies, false);
       }
       const all = enemies.concat(fr);
@@ -319,9 +347,17 @@ export class EnemyManager {
 
     // Bodies don't overlap: push the player and enemies apart horizontally.
     const minD = 0.62;
+    const vehicles = enemies.filter((e) => e.isVehicle);
+    if (vehicles.length) {
+      for (const v of vehicles) {
+        v.pushOut(playerBody.position, playerBody.cfg.radius);
+        for (const e of enemies) if (!e.isVehicle && e.alive) v.pushOut(e.position, e.cfg.radius);
+        for (const f of fr) v.pushOut(f.position, f.cfg.radius);
+      }
+    }
     for (let i = 0; i < enemies.length; i++) {
       const e = enemies[i];
-      if (!e.alive) continue;
+      if (!e.alive || e.isVehicle) continue;
       const dx = playerBody.position.x - e.position.x;
       const dz = playerBody.position.z - e.position.z;
       const d = Math.hypot(dx, dz);
@@ -331,7 +367,7 @@ export class EnemyManager {
       }
       for (let j = i + 1; j < enemies.length; j++) {
         const o = enemies[j];
-        if (!o.alive) continue;
+        if (!o.alive || o.isVehicle) continue;
         const ex = o.position.x - e.position.x;
         const ez = o.position.z - e.position.z;
         const ed = Math.hypot(ex, ez);

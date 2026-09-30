@@ -34,7 +34,10 @@ export class Hud {
     this.grenades.className = 'grenades';
     this.grenades.dir = 'ltr';
     this._grenadeKey = '';
-    this.ammo.append(this.ammoCount, this.ammoStatus, this.grenades);
+    this.weaponName = document.createElement('div');
+    this.weaponName.className = 'weapon-name';
+    this._weaponName = null;
+    this.ammo.append(this.weaponName, this.ammoCount, this.ammoStatus, this.grenades);
     this.root.append(this.ammo);
     this._ammoKey = '';
 
@@ -93,6 +96,14 @@ export class Hud {
     this.ammoCount.append(reserve);
     this.ammoStatus.textContent = status;
     this.ammo.classList.toggle('low', low);
+  }
+
+  /** The weapon in hand, above the ammo counter ('' hides it). */
+  setWeaponName(name) {
+    if (name === this._weaponName) return;
+    this._weaponName = name;
+    this.weaponName.textContent = name;
+    this.weaponName.hidden = !name;
   }
 
   /** Grenade pips under the ammo counter (max 0 hides them). */

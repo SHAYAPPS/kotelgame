@@ -23,6 +23,8 @@ export const DIFFICULTY = {
     // Charges straight at you, firing on the move.
     rusher: { rusher: true, rushStop: 3, runSpeed: 5.4, reactionTime: 0.45, maxSpread: 9 * DEG, minSpread: 2.5 * DEG, health: 70, bandColor: 0x9a2020 },
     // Stays on the upper terraces: slow aimed single shots, a scope glint while aiming.
+    // Holds a position (the checkpoint, the stairs) during the counterattack.
+    defender: { holdCombat: true, assault: false, seekTime: 0, coverSearchRadius: 9, preferredRange: [6, 70], bandColor: 0x4a4a4a },
     marksman: { marksman: true, aimTime: 1.6, boltTime: 1.4, damage: 34, minSpread: 0.25 * DEG, maxSpread: 0.9 * DEG, visionRange: 140, preferredRange: [40, 140], coverSearchRadius: 5, seekTime: 0, assault: false, bandColor: 0x222222 },
   },
 
@@ -45,13 +47,37 @@ export const DIFFICULTY = {
     },
   },
 
+  // The armed pickup in the final push. Rifle bullets barely scratch it; rockets don't.
+  truck: {
+    health: 700,
+    bulletDamage: 2, // per rifle/AI round
+    rocketDirect: 650, // a rocket that hits it (plus the blast): one good hit destroys it
+    speed: 9, // m/s while driving in
+    path: [[-67.5, 80], [-67.5, 68], [-66, 52], [-64, 36]], // parks at the end, facing the wall
+    delay: 12, // seconds into the final push
+    gun: {
+      fireInterval: 0.085, // ~700 rounds a minute
+      burst: [8, 16],
+      burstPause: [0.6, 1.2],
+      spread: 2.2 * DEG,
+      damage: 11,
+      range: 160,
+      turnRate: 1.4, // turret, rad/s
+      reactionTime: 0.8,
+      suppressTime: 4, // keeps hosing where you were after you duck
+    },
+  },
+
+  // Rockets: how many you get with the launcher and from a crate afterwards.
+  rockets: { start: 3, crate: 3 },
+
   ammo: {
     reserve: 150, // rounds beside the magazine when you (re)start
     crateReserve: 240, // an ammo crate fills you up to this
   },
 
   // Quiet time before each wave (the steps after it are timed from these).
-  prep: { beforeWave1: 18, beforeWave2: 16, beforeWave3: 20 },
+  prep: { beforeWave1: 18, beforeWave2: 16, beforeWave3: 20, beforeFinal: 14 },
 
   // Named spawn points and flanking routes (all checked walkable in tests/mission.test.js).
   spawns: {
@@ -59,6 +85,10 @@ export const DIFFICULTY = {
     south: [[-64, 99], [-70.5, 100], [-67, 98], [-65.5, 100], [-69, 97]],
     north: [[-46, -42], [-40, -42], [-52, -42]],
     terrace: [[-100, -36]],
+    // Counterattack: positions the attackers fall back to and hold.
+    plazaSouth: [[-58, 48], [-72, 40], [-50, 34]],
+    checkpointPosts: [[-73, 76], [-62, 76], [-69, 72], [-66, 79], [-64, 67.5]],
+    stairsPosts: [[-112, 25], [-118, 31], [-121, 26], [-108, 32]],
   },
   routes: {
     northEdge: [[-95, -40], [-70, -41], [-48, -40], [-35, -34]],
@@ -88,6 +118,21 @@ export const DIFFICULTY = {
     ],
     // The line gives way on the north side: they come over the fence there.
     breach: [{ from: 'north', role: 'rusher', count: 3, delay: 1, interval: 0.8 }],
+    // Part 4, the final push (the truck comes on its own, see `truck`).
+    finalPush: [
+      { from: 'terrace', role: 'marksman', count: 1, delay: 0, interval: 0 },
+      { from: 'stairs', role: 'rifleman', count: 3, delay: 0, interval: 1 },
+      { from: 'south', role: 'rifleman', count: 2, delay: 1, interval: 1 },
+      { from: 'north', role: 'rusher', count: 2, delay: 4, interval: 1 },
+      { from: 'stairs', role: 'flanker', count: 2, delay: 6, interval: 1.2, via: 'northEdge' },
+      { from: 'south', role: 'suppressor', count: 2, delay: 9, interval: 1 },
+      { from: 'stairs', role: 'rusher', count: 2, delay: 20, interval: 1 },
+      { from: 'south', role: 'rifleman', count: 2, delay: 24, interval: 1.5 },
+    ],
+    // Counterattack: holdouts on the way, at the checkpoint and on the stairs.
+    plazaHoldouts: [{ from: 'plazaSouth', role: 'defender', count: 3, delay: 0, interval: 0 }],
+    checkpointDefense: [{ from: 'checkpointPosts', role: 'defender', count: 5, delay: 0, interval: 0 }],
+    stairsDefense: [{ from: 'stairsPosts', role: 'defender', count: 4, delay: 0, interval: 0 }],
     wave3: [
       { from: 'terrace', role: 'marksman', count: 1, delay: 0, interval: 0 },
       { from: 'stairs', role: 'rifleman', count: 3, delay: 1, interval: 1 },

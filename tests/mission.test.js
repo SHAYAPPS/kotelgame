@@ -16,6 +16,9 @@ import { CoverPoints } from '../src/ai/CoverPoints.js';
 import { EnemyManager } from '../src/ai/EnemyManager.js';
 import { GrenadeSim } from '../src/weapons/Grenades.js';
 import { GrenadeThrower } from '../src/weapons/GrenadeThrower.js';
+import { Launcher } from '../src/weapons/Launcher.js';
+import { RocketSim } from '../src/weapons/Rockets.js';
+import { LAUNCHER } from '../src/weapons/config.js';
 import { DIFFICULTY, expandWave } from '../src/story/difficulty.js';
 
 const DT = 1 / 120;
@@ -216,6 +219,25 @@ test('mission 1 routes, reach points and checkpoints are walkable and connected'
     }
     check(a.at[0] + 1.2, a.at[1], `crate ${a.id} reachable`);
   }
+  // The truck's route: floor with room for its width all along (nothing to drive through).
+  const tp = DIFFICULTY.truck.path;
+  for (let i = 0; i + 1 < tp.length; i++) {
+    const [ax, az] = tp[i];
+    const [bx, bz] = tp[i + 1];
+    const len = Math.hypot(bx - ax, bz - az);
+    for (let d = 0; d <= len; d += 1) {
+      const x = ax + ((bx - ax) * d) / len;
+      const z = az + ((bz - az) * d) / len;
+      const px = -(bz - az) / len;
+      const pz = (bx - ax) / len;
+      for (const off of [-1.1, 0, 1.1]) {
+        const n = nav.nodeAt(x + px * off, z + pz * off);
+        const q = n >= 0 ? nav.nodePosition(n, new Vector3()) : null;
+        assert.ok(q && Math.hypot(q.x - x - px * off, q.z - z - pz * off) < 0.5, `truck path clear at (${(x + px * off).toFixed(1)}, ${(z + pz * off).toFixed(1)})`);
+      }
+    }
+  }
+  for (const [x, z] of MISSION1.shelter.emerge.filter((_, i) => i % 9 === 0)) check(x, z, 'emerge spot');
   function spawnOk(at, name) {
     const sp = { at };
     check(sp.at[0], sp.at[1], `wave spawn (${name})`);
@@ -241,6 +263,7 @@ test('mission 1 plays through with a scripted player', () => {
   const rifle = { mode: 'ready', onMagCheck: null, state: { ammo: 30, reserve: 150 }, get lowered() { return this.mode === 'lowered'; } };
   const scene = { add() {} };
   const grenadeSim = new GrenadeSim(world, { fuse: DIFFICULTY.grenades.fuse });
+  const launcher = new Launcher(LAUNCHER);
   const thrower = new GrenadeThrower({ sim: grenadeSim, config: DIFFICULTY.grenades.player });
   const enemies = new EnemyManager({
     scene,
@@ -269,6 +292,7 @@ test('mission 1 plays through with a scripted player', () => {
     audio: { ready: false },
     hud: fakeHud(),
     grenades: thrower,
+    launcher,
   });
   let enemyGrenades = 0;
   const onThrown = enemies.onGrenadeThrown;
@@ -448,10 +472,86 @@ test('mission 1 plays through with a scripted player', () => {
   assert.ok(roles.includes('marksman') && roles.includes('rusher'), `wave 3 has a marksman and rushers (${roles})`);
   fight('wave3', 40);
   assert.ok(at('lull'), `wave 3 over (${where()})`);
-  runUntil(() => at('part3_end'), 90);
-  assert.ok(at('part3_end'), `the attack pauses, part 3 ends (${where()})`);
+  runUntil(() => at('final_prep'), 90);
+  assert.ok(at('final_prep'), `the attack pauses (${where()})`);
   assert.ok(enemyGrenades > 0, 'enemies threw grenades at the camping player');
   console.log(`# part 3: ${enemyGrenades} enemy grenades, ${explosions} explosions, squad kills ${enemies.friendlyKills}`);
+
+  // Part 4: the final push with the truck.
+  runUntil(() => at('final_push'), 30);
+  runUntil(() => story.truck, 30);
+  const truck = story.truck;
+  assert.ok(truck && truck.alive, 'the truck comes in');
+  runUntil(() => at('launcher_order'), 10);
+  assert.ok(at('launcher_order'), where());
+  runUntil(() => !truck.driving, 20);
+  assert.ok(!truck.driving, 'it parks');
+  run(4);
+  assert.ok(truck.shotsFired > 0, `its gun fires (${truck.shotsFired} rounds)`);
+  // Rifle rounds barely scratch it.
+  const hp = truck.health;
+  for (let i = 0; i < 30; i++) enemies.hit({ enemy: truck, zone: 'vehicle' }, new Vector3(0, 0, 1), info);
+  assert.ok(truck.alive && hp - truck.health <= 30 * DIFFICULTY.truck.bulletDamage, 'rifle hits do almost nothing');
+  // The launcher is in the second crate.
+  const crate2 = story.crates.get('crate2');
+  assert.ok(crate2.launcher, 'crate 2 has the launcher');
+  teleport(crate2.position.x - 1.3, 0.1, crate2.position.z);
+  run(0.2);
+  story.interact(...lookAt(crate2.position.clone().add(new Vector3(0, 0.3, 0))));
+  assert.ok(launcher.owned && launcher.state.ammo === 1, 'picked up the launcher');
+  run(0.1);
+  assert.ok(at('destroy_truck'), where());
+  // One rocket from a few meters away.
+  const rockets = new RocketSim(world, LAUNCHER);
+  rockets.targets = { raycast: (o, d, max) => enemies.raycast(o, d, max) };
+  rockets.onImpact = (r, p, n, t) => {
+    if (t) enemies.applyDamage(t.enemy, t.enemy.isVehicle ? DIFFICULTY.truck.rocketDirect : 300, new Vector3(0, 0, 1), info);
+    enemies.explode(p, LAUNCHER.blastRadius, LAUNCHER.blastDamage, info);
+  };
+  const from = truck.position.clone().add(new Vector3(12, 1.4, 0));
+  rockets.spawn(from, new Vector3().subVectors(truck.asTarget.chest, from), LAUNCHER.rocketSpeed);
+  for (let i = 0; i < 60; i++) {
+    rockets.update(DT);
+    step(idle);
+  }
+  assert.equal(truck.alive, false, 'the rocket destroys the truck');
+  run(0.1);
+  assert.ok(at('truck_down'), `truck down (${where()})`);
+  assert.equal(story.mission.checkpointIndex, story.mission.indexOf('truck_down'), 'checkpoint after the truck');
+
+  // Counterattack: bounding to the checkpoint, then the stairs.
+  runUntil(() => at('counterattack'), 30);
+  assert.ok(at('counterattack'), where());
+  run(8);
+  const anchored = enemies.friendlies.filter((f) => f.anchorOverride).length;
+  const holding = enemies.friendlies.filter((f) => f.holdPosition).length;
+  assert.ok(anchored > 0 && holding > 0, `bounding: some move (${anchored}), some cover (${holding})`);
+  const clearAt = (id, x, z) => {
+    teleport(x, 0.1 + nav.y[nav.nodeAt(x, z)], z);
+    for (let k = 0; k < 30 && at(id); k++) {
+      for (const e of enemies.enemies) if (e.alive) enemies.hit({ enemy: e, zone: 'head' }, new Vector3(1, 0, 0), info);
+      run(1);
+    }
+  };
+  clearAt('counterattack', -67.5, 76);
+  assert.ok(at('checkpoint_taken'), `southern checkpoint secured (${where()})`);
+  assert.equal(story.mission.checkpointIndex, story.mission.indexOf('checkpoint_taken'), 'checkpoint between the objectives');
+  runUntil(() => at('secure_stairs'), 30);
+  clearAt('secure_stairs', -118, 28);
+  assert.ok(at('reinforcements'), `western stairs secured (${where()})`);
+  assert.equal(enemies.friendlies.length, 0, 'squad out of combat');
+
+  // The ending: gather at the wall, civilians come out, stats, Mission 2 card.
+  teleport(-3, 0.1, -8);
+  runUntil(() => at('civilians_emerge'), 60);
+  assert.ok(at('civilians_emerge'), where());
+  run(25);
+  const out = story.npcs.list.filter((n) => n.emerged && !n.sheltered).length;
+  assert.ok(out > 20, `civilians came out of the shelter (${out})`);
+  runUntil(() => at('mission_complete'), 60);
+  assert.ok(at('mission_complete'), where());
+  runUntil(() => at('mission2_soon'), 15);
+  assert.ok(at('mission2_soon'), 'Mission 2 coming soon');
 
   // F2-style jumps and checkpoint restarts.
   story.jumpTo(story.mission.indexOf('at_wall'));

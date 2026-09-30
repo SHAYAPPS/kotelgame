@@ -158,6 +158,10 @@ export class Enemy {
     this.asTarget = new CombatTarget(this);
     // Friendlies: pick cover around this point (the player) instead of around themselves.
     this.anchor = null;
+    this.anchorOverride = null; // set by the story (bounding: a point ahead of the player)
+    this.anchorRadius = null; // cover within this of the anchor (default coverSearchRadius)
+    this.holdPosition = false; // stay in the current cover (covering while others move)
+    this._forceCover = false;
 
     // Death
     this.deathDir = new Vector3(0, 0, 1);
@@ -246,6 +250,12 @@ export class Enemy {
     if (this.state !== 'combat') this._enter('combat');
     else if (this.mode === 'peeking' || this.mode === 'exposed') this.relocateTimer = 0;
     return false;
+  }
+
+  /** Pick new cover now (the story's bounding: "moving!"). */
+  relocate() {
+    this._forceCover = true;
+    this.relocateTimer = 0;
   }
 
   /** Switch who he fights. A new target means reacquiring it (aim and reaction). */
@@ -444,9 +454,13 @@ export class Enemy {
       const flanked = !this.cover.protects(this.coverPoint, threat);
       if (flanked || distToThreat < c.closeRange) needCover = true;
       // Nobody in sight for a while, or left behind by the anchor: find a better spot.
-      if (c.seekTime && this.sinceSeen > c.seekTime) needCover = true;
+      if (c.seekTime && this.sinceSeen > c.seekTime && !this.holdPosition) needCover = true;
       const a = this.anchor;
-      if (a && Math.hypot(this.coverPoint.x - a.x, this.coverPoint.z - a.z) > c.coverSearchRadius) needCover = true;
+      if (a && !this.holdPosition && Math.hypot(this.coverPoint.x - a.x, this.coverPoint.z - a.z) > (this.anchorRadius ?? c.coverSearchRadius)) needCover = true;
+    }
+    if (this._forceCover && this.mode !== 'moving') {
+      this._forceCover = false;
+      needCover = true;
     }
     if (needCover) {
       this.relocateTimer = c.relocateCooldown;
@@ -586,7 +600,7 @@ export class Enemy {
       const dSelf = Math.hypot(p.x - pos.x, p.z - pos.z);
       const a = this.anchor;
       const d = a ? Math.hypot(p.x - a.x, p.z - a.z) : dSelf;
-      if (d > c.coverSearchRadius) continue;
+      if (d > (a ? (this.anchorRadius ?? c.coverSearchRadius) : c.coverSearchRadius)) continue;
       const dThreat = Math.hypot(p.x - threat.x, p.z - threat.z);
       if (dThreat < c.closeRange + 1) continue;
       if (seeking && dThreat > curThreat - 5) continue;

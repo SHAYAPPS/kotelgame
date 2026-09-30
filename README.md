@@ -27,6 +27,7 @@ is tuned in `src/story/difficulty.js`.
 | Right click (hold) | Aim down sights |
 | R | Reload (weapon lowered: check the magazine) |
 | G (hold, release) | Frag grenade: hold to aim (the arc shows), release to throw |
+| 1 / 2 or mouse wheel | Switch weapon (rifle / rocket launcher, once you have it) |
 | E | Talk to the highlighted NPC / send a frozen civilian to shelter / take ammo at a crate |
 | Space | Jump (while crouched: stand up) |
 | Shift (hold) | Sprint, forward only |

@@ -26,6 +26,12 @@ const ADS = { x: 0, y: 0, z: -0.19, rx: 0, ry: 0, rz: 0 };
 const SPRINT = { x: 0.06, y: -0.13, z: -0.2, rx: -0.3, ry: 0.55, rz: 0.35 };
 // Low ready: muzzle down and across the body (weapon safe during the shift).
 const LOWERED = { x: 0.07, y: -0.2, z: -0.22, rx: -0.62, ry: 0.4, rz: 0.3 };
+// Launcher on the shoulder: its origin is the optical sight, the tube runs beside it.
+const L_HIP = { x: 0.11, y: -0.1, z: -0.3, rx: 0.03, ry: 0.04, rz: -0.03 };
+const L_ADS = { x: 0, y: 0, z: -0.14, rx: 0, ry: 0, rz: 0 };
+const L_TUBE_X = 0.085;
+const L_TUBE_Y = -0.07;
+const L_FRONT_Z = -0.62;
 const MUZZLE_Z = -0.62;
 const SIGHT_DROP = 0.022;
 const BORE_Y = -0.07 - SIGHT_DROP;
@@ -49,8 +55,8 @@ function springStep(obj, x, v, w, dt) {
   obj[v] = (obj[v] - w * k * dt) * e;
 }
 
-function pose(key, aim) {
-  return HIP[key] * (1 - aim) + ADS[key] * aim;
+function pose(key, aim, hip = HIP, ads = ADS) {
+  return hip[key] * (1 - aim) + ads[key] * aim;
 }
 
 function flashTexture() {
@@ -143,6 +149,49 @@ function buildRifle() {
   return { rifle, mag };
 }
 
+/** Placeholder rocket launcher around its sight at the origin, tube toward -Z. */
+function buildLauncher() {
+  const g = new Group();
+  const olive = new MeshStandardMaterial({ color: 0x4f5836, roughness: 0.8, metalness: 0 });
+  const dark = new MeshStandardMaterial({ color: 0x2c2f2a, roughness: 0.6, metalness: 0.2 });
+  const glove = new MeshStandardMaterial({ color: 0x5e5c47, roughness: 0.95, metalness: 0 });
+  const warheadMat = new MeshStandardMaterial({ color: 0x6b6b4a, roughness: 0.5, metalness: 0.2 });
+  const tube = new Mesh(new CylinderGeometry(0.048, 0.048, 0.9, 16), olive);
+  tube.rotation.x = Math.PI / 2;
+  tube.position.set(L_TUBE_X, L_TUBE_Y, -0.17);
+  const rear = new Mesh(new CylinderGeometry(0.07, 0.05, 0.12, 16), dark);
+  rear.rotation.x = Math.PI / 2;
+  rear.position.set(L_TUBE_X, L_TUBE_Y, 0.3);
+  const front = new Mesh(new CylinderGeometry(0.055, 0.055, 0.06, 16), dark);
+  front.rotation.x = Math.PI / 2;
+  front.position.set(L_TUBE_X, L_TUBE_Y, L_FRONT_Z + 0.03);
+  // Optical sight: a short box with a dark lens around the view axis.
+  const sight = new Mesh(new BoxGeometry(0.034, 0.034, 0.12), dark);
+  sight.position.set(0, -0.004, 0.02);
+  const mount = new Mesh(new BoxGeometry(0.06, 0.02, 0.05), dark);
+  mount.position.set(0.04, -0.03, 0.02);
+  // Grips and hands under the tube.
+  const grip = new Mesh(new BoxGeometry(0.03, 0.09, 0.04), dark);
+  grip.position.set(L_TUBE_X, L_TUBE_Y - 0.09, 0.06);
+  grip.rotation.x = -0.25;
+  const hand1 = new Mesh(new BoxGeometry(0.05, 0.07, 0.09), glove);
+  hand1.position.set(L_TUBE_X + 0.005, L_TUBE_Y - 0.1, 0.07);
+  const hand2 = new Mesh(new BoxGeometry(0.06, 0.05, 0.1), glove);
+  hand2.position.set(L_TUBE_X - 0.02, L_TUBE_Y - 0.06, -0.3);
+  // The loaded rocket's warhead poking out of the front.
+  const warhead = new Group();
+  const cone = new Mesh(new CylinderGeometry(0.0, 0.06, 0.2, 14), warheadMat);
+  cone.rotation.x = -Math.PI / 2;
+  cone.position.z = -0.16;
+  const neck = new Mesh(new CylinderGeometry(0.06, 0.045, 0.08, 14), warheadMat);
+  neck.rotation.x = Math.PI / 2;
+  neck.position.z = -0.03;
+  warhead.add(cone, neck);
+  warhead.position.set(L_TUBE_X, L_TUBE_Y, L_FRONT_Z);
+  g.add(tube, rear, front, sight, mount, grip, hand1, hand2, warhead);
+  return { launcher: g, warhead };
+}
+
 /**
  * The weapon held in view. Rendered in its own scene and camera on top of the world,
  * so it never clips into walls and the world's ADS zoom does not distort it.
@@ -160,8 +209,13 @@ export class Viewmodel {
     const { rifle, mag } = buildRifle();
     this.rifle = rifle;
     this.mag = mag;
+    const { launcher, warhead } = buildLauncher();
+    this.launcher = launcher;
+    this.warhead = warhead;
+    launcher.visible = false;
+    this.weapon = 'rifle';
     this.root = new Group(); // posed each frame
-    this.root.add(rifle);
+    this.root.add(rifle, launcher);
     this.scene.add(this.root);
 
     // Muzzle flash: three crossed planes + a light that also brightens the rifle.
@@ -184,6 +238,12 @@ export class Viewmodel {
     this.flash.add(facing, side1, side2);
     this.flash.visible = false;
     rifle.add(this.flash);
+    // The launcher's flash at the tube's front.
+    this.launcherFlash = this.flash.clone();
+    this.launcherFlash.position.set(L_TUBE_X, L_TUBE_Y, L_FRONT_Z - 0.1);
+    this.launcherFlash.scale.setScalar(2.2);
+    this.launcherFlash.visible = false;
+    launcher.add(this.launcherFlash);
     this.flashLight = new PointLight(0xffb45a, 0, 1.5, 2);
     this.flashLight.position.set(0, BORE_Y, MUZZLE_Z - 0.05);
     rifle.add(this.flashLight);
@@ -202,6 +262,20 @@ export class Viewmodel {
   setAspect(aspect) {
     this.camera.aspect = aspect;
     this.camera.updateProjectionMatrix();
+  }
+
+  /** Which weapon is in hand ('rifle' | 'launcher'); swap while it's lowered out of view. */
+  setWeapon(name) {
+    this.weapon = name;
+    this.rifle.visible = name === 'rifle';
+    this.launcher.visible = name === 'launcher';
+  }
+
+  /** Rocket away: a heavy shove back and up. */
+  onLauncherShot() {
+    this.kickZVel += 0.06 * 28 * Math.E;
+    this.kickRotVel += 0.1 * 30 * Math.E;
+    this.flashTimer = FLASH_TIME * 2;
   }
 
   /** A shot: kick the rifle back and up, show the flash. */
@@ -250,10 +324,15 @@ export class Viewmodel {
     const magOut = t > 0 ? smoothstep(0.18, 0.32, t) * (1 - smoothstep(0.52, 0.7, t)) : 0;
     this.mag.position.y = MAG_Y - magOut * 0.28 - checkMag * 0.07;
     this.mag.visible = magOut < 0.98;
+    const isLauncher = this.weapon === 'launcher';
+    // Launcher: the warhead is out of the tube between shot and reload end.
+    this.warhead.visible = isLauncher && (s.loaded ?? true) && !(t > 0.2 && t < 0.75);
 
     const spr = this.sprint * (1 - aim);
     const low = this.lowered;
-    const base = (key) => MathUtils.lerp(MathUtils.lerp(pose(key, aim), SPRINT[key], spr), LOWERED[key], low);
+    const hip = isLauncher ? L_HIP : HIP;
+    const ads = isLauncher ? L_ADS : ADS;
+    const base = (key) => MathUtils.lerp(MathUtils.lerp(pose(key, aim, hip, ads), SPRINT[key], spr), LOWERED[key], low);
     const r = this.root;
     r.position.set(
       base('x') - checkPose * 0.05 + this.swayX * swayScale + bobX,
@@ -274,7 +353,8 @@ export class Viewmodel {
     }
 
     // Show first, then count down: every shot's flash is drawn for at least one frame.
-    this.flash.visible = this.flashTimer > 0;
+    this.flash.visible = this.flashTimer > 0 && !isLauncher;
+    this.launcherFlash.visible = this.flashTimer > 0 && isLauncher;
     this.flashLight.intensity = this.flashTimer > 0 ? 1.5 : 0;
     this.flashTimer = Math.max(0, this.flashTimer - dt);
   }

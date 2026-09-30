@@ -138,6 +138,36 @@ export const LINES = {
   lull_4: { speaker: 'control', text: 'קיבלתי. כיתת הכותל, זה הולך להיות גדול יותר. תגבורת עדיין בדרך.', radio: true },
   lull_5: { speaker: 'noam', text: 'יותר גדול מזה?' },
   lull_6: { speaker: 'cmd', text: 'למלא מחסניות, לשתות מים. כשהם יחזרו, אנחנו כאן.' },
+
+  // ---- Part 4: the final push, the counterattack, the ending ----
+  final_1: { speaker: 'post3', text: 'הם יוצאים! מכל הכיוונים: מדרגות, דרום, צפון, גגות!', radio: true },
+  final_2: { speaker: 'cmd', text: 'זה זה. המתקפה האחרונה שלהם. אף אחד לא עובר!' },
+  truck_1: { speaker: 'noam', text: 'רכב! טנדר עם מקלע פרץ בכניסה הדרומית!', radio: true },
+  truck_2: { speaker: 'yonatan', text: 'הוא מרתק אותנו! אני לא יכול להרים את הראש!', radio: true },
+  truck_3: { speaker: 'cmd', text: 'רובים לא יעשו לו כלום! קח את המטול מארגז התחמושת, עכשיו!' },
+  truck_4: { speaker: 'cmd', text: 'יש לך מטול. תכוון לטנדר ותוריד אותו!' },
+  truck_hit: { speaker: 'noam', text: 'הוא עוד זז! עוד טיל!', radio: true },
+  truck_down_1: { speaker: 'cmd', text: 'הטנדר מושמד! פגיעה מושלמת!' },
+  truck_down_2: { speaker: 'yonatan', text: 'הם נסוגים! הם בורחים לבידוק ולמדרגות!', radio: true },
+
+  counter_1: { speaker: 'cmd', text: 'מעכשיו אנחנו תוקפים. לוקחים את הרחבה בחזרה!' },
+  counter_2: { speaker: 'cmd', text: 'מתקדמים בדילוגים: חוליה אחת מחפה, השנייה זזה. יעד ראשון: הבידוק הדרומי.' },
+  move_1: { speaker: 'yonatan', text: 'זז!', radio: true },
+  move_2: { speaker: 'noam', text: 'מתקדם!', radio: true },
+  cover_1: { speaker: 'cmd', text: 'מחפה!', radio: true },
+  cover_2: { speaker: 'yonatan', text: 'מחפה, לך!', radio: true },
+  cp_1: { speaker: 'cmd', text: 'הבידוק נקי! הבידוק הדרומי בידינו!' },
+  cp_2: { speaker: 'noam', text: 'יש עוד חוליה על המדרגות המערביות, הם יורים מלמעלה.' },
+  cp_3: { speaker: 'cmd', text: 'אז עולים אליהם. יעד שני: המדרגות המערביות.' },
+  stairs_done: { speaker: 'yonatan', text: 'המדרגות נקיות! אין יותר תנועה!' },
+
+  end_1: { speaker: 'control', text: 'כיתת הכותל, כאן מוקד. כוחות תגבורת נכנסים לעיר העתיקה מכל השערים.', radio: true },
+  end_2: { speaker: 'control', text: 'המחבלים שנותרו נמלטים. אתם יכולים להוריד את הראש. עבודה טובה.', radio: true },
+  end_3: { speaker: 'cmd', text: 'שמעתם. חדל אש. נאסף ליד הכותל.' },
+  end_4: { speaker: 'noam', text: 'תראו... האזרחים יוצאים מהקשת.' },
+  end_5: { speaker: 'guide', text: 'הם החזיקו. הם באמת החזיקו.' },
+  end_6: { speaker: 'yonatan', text: 'אמא שלי לא תאמין לסיפור הזה בארוחת שישי.' },
+  end_7: { speaker: 'cmd', text: 'היום שמרנו על המקום הזה, ועל האנשים שבו. זה מה שאנחנו. עכשיו, הביתה.' },
 };
 
 export const OBJECTIVES = {
@@ -154,6 +184,12 @@ export const OBJECTIVES = {
   hold_line: 'החזק את הקו: אל תתן להם להגיע לאזרחים',
   fall_back: 'היסוג לעמדה השנייה ליד הכותל',
   hold_line2: 'החזק את העמדה השנייה',
+  final_hold: 'עצור את המתקפה האחרונה',
+  get_launcher: 'קח את המטול מארגז התחמושת',
+  destroy_truck: 'השמד את הטנדר עם המקלע',
+  secure_checkpoint: 'כבוש את הבידוק הדרומי',
+  secure_stairs: 'כבוש את המדרגות המערביות',
+  regroup_wall: 'היאסף עם הכיתה ליד הכותל',
 };
 
 // Counter shown under the objective (a number follows).
@@ -172,12 +208,14 @@ export const HINTS = {
   shelter: { keys: ['E'], text: 'ליד אזרח שקפא: שלח אותו למחסה' },
   fire: { keys: ['LMB', 'RMB'], text: 'ירי / כוונת' },
   grenade: { keys: ['G'], text: 'רימון: החזק לכיוון, שחרר לזריקה' },
+  switch: { keys: ['1', '2'], text: 'החלפת נשק (או גלגלת העכבר). כוונת עם המקש הימני.' },
 };
 
 export const CARDS = {
   intro: ['רחבת הכותל המערבי, ירושלים העתיקה', 'יום שישי · 11:40', 'משמרת סיור'],
   part1End: ['סוף חלק 1', 'המשך יבוא'],
   part3End: ['להחזיק את הכותל', 'המשך יבוא'],
+  mission2Soon: ['משימה 2', 'בקרוב'],
 };
 
 // Mission UI text.
@@ -187,6 +225,12 @@ export const STORY_UI = {
   talkPrompt: 'שיחה עם',
   shelterPrompt: 'שלח למחסה',
   cratePrompt: 'ארגז תחמושת: מלא מחסניות ורימונים',
+  crateLauncherPrompt: 'ארגז תחמושת: קח את המטול',
+  missionComplete: 'המשימה הושלמה',
+  missionName: 'משימה 1: הכותל',
+  stats: { time: 'זמן', accuracy: 'דיוק', headshots: 'פגיעות ראש', kills: 'מחבלים שנוטרלו' },
+  weaponRifle: 'M4',
+  weaponLauncher: 'מטול',
   resupplied: 'תחמושת ורימונים מולאו',
   lowAmmo: 'תחמושת נמוכה: לך לארגז התחמושת',
   failedTitle: 'המשימה נכשלה',
