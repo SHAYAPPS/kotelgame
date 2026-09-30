@@ -73,6 +73,44 @@ export function worldPos(s, name, out = new THREE.Vector3()) {
   return s.bones.get(name).getWorldPosition(out).multiplyScalar(s.unit);
 }
 
+/**
+ * When each foot is planted in a locomotion cycle (with its root motion still in: a planted
+ * foot doesn't move): the longest run of frames where the foot is slower than `speed` (m/s),
+ * as a [start, end] fraction of the cycle (it may wrap past 1). Stair clips use these so the
+ * game pins planted feet onto the steps.
+ */
+export function footContacts(s, speed = 0.3) {
+  const n = s.frames - 1;
+  const out = {};
+  const prev = new THREE.Vector3();
+  const cur = new THREE.Vector3();
+  for (const [key, bone] of [['l', 'LeftFoot'], ['r', 'RightFoot']]) {
+    const slow = new Uint8Array(n);
+    s.fk(n - 1);
+    worldPos(s, bone, prev);
+    for (let f = 0; f < n; f++) {
+      s.fk(f);
+      worldPos(s, bone, cur);
+      slow[f] = cur.distanceTo(prev) * s.fps < speed ? 1 : 0;
+      prev.copy(cur);
+    }
+    // Longest cyclic run of slow frames.
+    let best = [0, 0];
+    let bestLen = 0;
+    for (let start = 0; start < n; start++) {
+      if (!slow[start] || slow[(start + n - 1) % n]) continue;
+      let len = 0;
+      while (len < n && slow[(start + len) % n]) len++;
+      if (len > bestLen) {
+        bestLen = len;
+        best = [start, start + len];
+      }
+    }
+    out[key] = [+(best[0] / n).toFixed(3), +((best[1] / n) % 1.0001).toFixed(3)];
+  }
+  return out;
+}
+
 /** Shift a cyclic clip so `offset` frames becomes frame 0 (the last frame repeats the first). */
 function cycleShift(s, offset) {
   if (!offset) return;
@@ -92,16 +130,18 @@ function cycleShift(s, offset) {
  * Root motion: measure the average horizontal hips velocity over the clip, then subtract
  * it so the clip plays in place (keeping the natural sway). Returns { vx, vz } (m/s).
  */
-export function removeDrift(s) {
+export function removeDrift(s, { vertical = false } = {}) {
   const n = s.frames - 1;
   const vx = (s.hips[n * 3] - s.hips[0]) / s.duration;
+  const vy = vertical ? (s.hips[n * 3 + 1] - s.hips[1]) / s.duration : 0; // stairs: the climb
   const vz = (s.hips[n * 3 + 2] - s.hips[2]) / s.duration;
   for (let f = 0; f <= n; f++) {
     const t = f / s.fps;
     s.hips[f * 3] -= vx * t;
+    s.hips[f * 3 + 1] -= vy * t;
     s.hips[f * 3 + 2] -= vz * t;
   }
-  return { vx, vz };
+  return { vx, vy, vz };
 }
 
 /**

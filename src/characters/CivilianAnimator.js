@@ -1,5 +1,6 @@
 import { MathUtils } from 'three';
 import { CHARACTER } from './config.js';
+import { stairLegs } from './stairs.js';
 
 const pick = (list, r) => list[Math.floor(r() * list.length) % list.length];
 
@@ -36,6 +37,7 @@ export class CivilianAnimator {
     this.frozenTime = 0;
     this.scared = false;
     this.talkWalk = false;
+    this.stairState = { clip: null };
     this._used = new Set();
     // Desynchronize loops (a crowd praying in unison looks wrong).
     this.offset = rand() * 8;
@@ -46,7 +48,7 @@ export class CivilianAnimator {
   /**
    * @param {number} dt
    * @param {{ speed: number, pray: boolean, frozen: boolean, fleeing: boolean, sheltered: boolean,
-   *   panicking: boolean, speaking: boolean, crouched: boolean }} s
+   *   panicking: boolean, speaking: boolean, crouched: boolean, stairs?: number, stairDir?: number }} s
    */
   update(dt, s) {
     const m = this.model;
@@ -116,5 +118,6 @@ export class CivilianAnimator {
     }
     m.phase = this.phase;
     for (const [k, sl] of m.slots) if (sl.mode === 'base' && !used.has(k) && sl.target > 0) sl.target = 0;
+    stairLegs(m, this.stairState, s.stairs ?? 0, s.stairDir ?? 1, speed);
   }
 }

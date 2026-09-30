@@ -66,8 +66,9 @@ A browser-based 3D first-person story shooter.
   from the Mixamo FBX files in `assets-src/mixamo/` (git-ignored; see `DOWNLOADS.md` for how to
   get them). ~15 s per character; rewrites the manifest and `public/assets/CREDITS.md`
 - `npm run character-shots -- [outDir] [name filter]`: Playwright screenshots of the characters
-  in the dev preview and at 8 moments of Mission 1 (`GAME_SHOTS`: prayer, patrol, sirens,
-  shelter, combat, bodies; dev server must be running). The preview itself: `npm run dev`, then http://localhost:5173/dev/characters.html
+  in the dev preview and at moments of Mission 1 (`GAME_SHOTS`: prayer, patrol, sirens,
+  shelter, combat, bodies, the commander / the guide talking, stairs up / down; dev server
+  must be running). The preview itself: `npm run dev`, then http://localhost:5173/dev/characters.html
   (`?role=squad|enemy|civilian`, `ids=`, `clip=`, `cam=front|side|back|close|far`, `t=`, `deaths=1`)
 
 ## Architecture
@@ -86,6 +87,11 @@ A browser-based 3D first-person story shooter.
 - `src/player/PlayerCamera.js`: mouse look (applied every rendered frame) + camera feel stepped with
   the physics: eye-height smoothing (crouch, steps), head bob, landing dip, sprint FOV, strafe roll.
 - `src/player/config.js`: every movement and camera tuning value.
+- `src/player/StairTracker.js` (pure): a body's step snaps (instant height changes while on
+  the ground) -> a drawn height `offset` (critically damped spring, led by the climbing speed,
+  so a flight of steps is a smooth climb) and `amount` / `dir` (on stairs, up or down). The
+  player's camera uses one (`view.steps`: eye offset; footsteps: one per stair step, else one
+  per head-bob cycle, `WeaponAudio.footstep`); NPC / enemy views use one to draw the body.
 - `src/world/CollisionWorld.js`: static triangles in a uniform XZ grid; capsule contacts and
   raycasts with no allocations. Built from meshes; `userData.noCollision` skips a mesh.
   Use `raycast()` for bullets too.
@@ -270,6 +276,13 @@ A browser-based 3D first-person story shooter.
     reactions (additive), deaths via `deaths.js` (the clip whose fall direction best follows
     the shot, avoiding walls; the fall ends on its last frame (`model.finish()`, even when
     throttled updates lagged), then the body freezes and stays down).
+  - Stairs: `stairs.js` `stairLegs()` plays a Mixamo stair clip (walking up / down; the
+    converter measures its horizontal speed and climb, takes both out, and marks when each
+    foot is planted: `contacts`) over the lower body (mode `lower`) at the real ground speed
+    while a walker is on stairs (StairTracker); runners keep their run. Views offset the drawn
+    body (`model.body.position.y`) by the tracker. `CharacterModel._feet()` (foot IK within
+    `feetDistance`): planted feet are pinned onto the step under them, swinging ones kept out
+    of the steps, the hips drop so the lower foot reaches, feet stay level.
   - `CivilianAnimator.js`: idles by kind, praying (desynchronized), walk / run (scared upper
     body while fleeing), frozen cowering, panic, nervous waiting in the shelter, talking
     (standing: the talk clip; walking: its upper body over the walk).

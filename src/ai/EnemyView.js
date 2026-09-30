@@ -23,6 +23,7 @@ import {
 } from 'three';
 import { ENEMY } from './config.js';
 import { characters } from '../characters/registry.js';
+import { StairTracker } from '../player/StairTracker.js';
 
 let shared = null;
 function assets() {
@@ -184,7 +185,9 @@ export class EnemyView {
     this.state = {
       alive: true, facing: 0, velocity: null, crouched: false, posture: 'alert', mode: 'idle', cover: null,
       aimAt: new Vector3(), eyeY: ENEMY.eyeHeight, shotsFired: 0, health: 0, throws: 0, deathDir: null, hitZone: null, position: null,
+      stairs: 0, stairDir: 1,
     };
+    this.stairs = new StairTracker();
     if (!this._build()) this.placeholder = new PlaceholderSoldier(enemy, this.root);
 
     if (enemy.cfg.marksman) {
@@ -218,6 +221,13 @@ export class EnemyView {
     this.root.position.copy(e.position);
     if (!this.model && characters.library?.ready) this._build();
     if (this.model) {
+      // Stairs: smooth climb, stair legs, feet on the steps near the camera (see NpcView).
+      const st = this.stairs.update(dt, e.position.y, e.body.grounded && e.alive, e.body.horizontalSpeed);
+      if (e.alive) this.model.body.position.y = st.offset; // a body stays where it fell
+      this.model.world = this.world;
+      this.model.feetWeight = e.alive ? st.amount : 0;
+      this.state.stairs = e.alive ? st.amount : 0;
+      this.state.stairDir = st.dir;
       this.animator.update(dt, soldierState(e, this.state));
       this.model.update(dt, characters);
       e.visualMuzzle = this.model.muzzleWorld(e.visualMuzzle ?? new Vector3());

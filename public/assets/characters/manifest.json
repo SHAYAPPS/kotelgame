@@ -2932,6 +2932,130 @@
      302,
      1
     ]
+   },
+   "stairs_walk_up": {
+    "loop": true,
+    "source": "Ascending Stairs (Walking Up A Set Of Stairs)",
+    "contacts": {
+     "l": [
+      0.195,
+      0.732
+     ],
+     "r": [
+      0.707,
+      1
+     ]
+    },
+    "speed": 0.367,
+    "dir": 0,
+    "rise": 0.3434,
+    "headY": 1.567,
+    "ik": false,
+    "duration": 1.3667,
+    "fps": 30,
+    "frames": 42,
+    "rot": [
+     652496,
+     7980
+    ],
+    "vec": [
+     660476,
+     252,
+     1
+    ]
+   },
+   "stairs_walk_down": {
+    "loop": true,
+    "source": "Descending Stairs (Walking Down A Set Of Stairs)",
+    "contacts": {
+     "l": [
+      0.321,
+      0.857
+     ],
+     "r": [
+      0.036,
+      0.321
+     ]
+    },
+    "speed": 0.4776,
+    "dir": 0.0002,
+    "rise": -0.5274,
+    "headY": 1.537,
+    "ik": false,
+    "duration": 0.9333,
+    "fps": 30,
+    "frames": 29,
+    "rot": [
+     660728,
+     5813
+    ],
+    "vec": [
+     666544,
+     209,
+     1
+    ]
+   },
+   "stairs_run_up": {
+    "loop": true,
+    "source": "Running Up Stairs",
+    "contacts": {
+     "l": [
+      0.389,
+      0.611
+     ],
+     "r": [
+      0.833,
+      1
+     ]
+    },
+    "speed": 0.841,
+    "dir": 0,
+    "rise": 0.7659,
+    "headY": 1.472,
+    "ik": false,
+    "duration": 0.6,
+    "fps": 30,
+    "frames": 19,
+    "rot": [
+     666756,
+     3995
+    ],
+    "vec": [
+     670752,
+     189,
+     1
+    ]
+   },
+   "stairs_run_down": {
+    "loop": true,
+    "source": "Descending Stairs (Running Down A Set Of Stairs)",
+    "contacts": {
+     "l": [
+      0.5,
+      0.75
+     ],
+     "r": [
+      0.083,
+      0.167
+     ]
+    },
+    "speed": 1.1526,
+    "dir": -0.0001,
+    "rise": -1.1754,
+    "headY": 1.433,
+    "ik": false,
+    "duration": 0.4,
+    "fps": 30,
+    "frames": 13,
+    "rot": [
+     670944,
+     3104
+    ],
+    "vec": [
+     674048,
+     125,
+     1
+    ]
    }
   },
   "rifle": {

@@ -123,6 +123,10 @@ free/CC0-only rule, made for the characters.
 | `run_scared_lookback` | Run Look Back (Running Looking Back) |
 | `run_standard` | Standard Run (Standard Running) |
 | `cower_hiding` | Hiding (Crouched Hiding To Ducking) |
+| `stairs_walk_up` | Ascending Stairs (Walking Up A Set Of Stairs) |
+| `stairs_walk_down` | Descending Stairs (Walking Down A Set Of Stairs) |
+| `stairs_run_up` | Running Up Stairs |
+| `stairs_run_down` | Descending Stairs (Running Down A Set Of Stairs) |
 
 Rifles, vest, headbands, kippot, hats and headscarves on the characters are built from
 primitive shapes in code (`src/characters/weapons.js`, `attachments.js`): CC0 (this project).

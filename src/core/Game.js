@@ -412,6 +412,19 @@ export class Game {
     this.screenshot.capture();
   }
 
+  /** Footsteps: one per step of the walk cycle (the head bob's phase), on stairs one per stair. */
+  _footsteps() {
+    const v = this.view;
+    const p = this.player;
+    const level = p.crouched ? 0.35 : p.sprinting ? 0.95 : 0.6;
+    const n = v.steps.steps; // (starts over at 0 when the camera snaps)
+    if (n > (this._stairSteps ?? n) && p.grounded) this.audio.footstep(level, true);
+    this._stairSteps = n;
+    const phase = Math.floor(v.bobPhase + 0.5);
+    if (phase !== (this._stepPhase ?? phase) && p.grounded && p.horizontalSpeed > 0.5 && v.steps.amount < 0.3) this.audio.footstep(level, false);
+    this._stepPhase = phase;
+  }
+
   _fixedStep(dt) {
     const dead = this.health.dead;
     const info = this._playerInfo;
@@ -419,6 +432,7 @@ export class Game {
     this.player.yaw = this.view.yaw;
     this.player.update(dt, dead ? this._noControls() : this._readControls());
     this.view.fixedUpdate(dt);
+    this._footsteps();
     this._updateWeapons(dt, dead);
     this.thrower.enabled = !this.rifle.lowered && !this.rifle.state.reloading && !this.launcher.state.reloading && this._switchTime === 0;
     this.thrower.update(dt, !dead && this.input.isDown('KeyG'), this.view.eye, this.view.getAimDirection(this._forward), this.player.velocity);

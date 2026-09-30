@@ -271,6 +271,17 @@ export class WeaponAudio {
     setTimeout(() => panner.disconnect(), 500);
   }
 
+  /** The player's footstep on stone: a soft heel thud and the sole's scuff (stairs a bit harder). */
+  footstep(level = 0.6, stair = false) {
+    if (!this.ready) return;
+    const t = this.ctx.currentTime;
+    const v = 0.85 + Math.random() * 0.3;
+    const l = level * (stair ? 1.15 : 1);
+    this._noise(t, { type: 'lowpass', freq: 420 * v, gain: 0.18 * l, attack: 0.003, decay: 0.06 });
+    this._noise(t + 0.018, { type: 'bandpass', freq: 2600 * v, q: 0.8, gain: 0.07 * l, attack: 0.002, decay: 0.045 });
+    this._noise(t, { type: 'bandpass', freq: 900, q: 0.6, gain: 0.025 * l, decay: 0.12, out: this.echoBus ?? this.master });
+  }
+
   /** Hit marker tick when your shot lands on an enemy (heavier for headshots). */
   hitmarker(head = false) {
     if (!this.ready) return;

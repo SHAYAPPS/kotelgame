@@ -35,6 +35,8 @@ export class CharacterType {
       bone(`${side}Arm`).getWorldPosition(_a).distanceTo(bone(`${side}ForeArm`).getWorldPosition(_b)) +
       bone(`${side}ForeArm`).getWorldPosition(_a).distanceTo(bone(`${side}Hand`).getWorldPosition(_b));
     this.armRatio = armLen('Right') / anims.sourceArm;
+    // Ankle height standing (foot IK puts the sole on the ground).
+    this.ankle = (bone('LeftFoot').getWorldPosition(_a).y + bone('RightFoot').getWorldPosition(_b).y) / 2;
     // Meters per geometry unit at rest (the GLB's positions are quantized into a unit box):
     // world = mesh.matrixWorld * bindMatrixInverse * (bone.matrixWorld * boneInverse) * bindMatrix.
     const sm = this.scene.getObjectByProperty('isSkinnedMesh', true);
@@ -153,18 +155,19 @@ export class CharacterType {
    * A clip variant: `upper` keeps only upper-body tracks (plus the IK targets), `additive`
    * makes it relative to its first frame (hit reactions, recoil on top of anything).
    */
-  clip(name, { upper = false, additive = false, leftArm = false } = {}) {
-    const key = `${name}:${upper ? 'u' : ''}${additive ? 'a' : ''}${leftArm ? 'l' : ''}`;
+  clip(name, { upper = false, additive = false, leftArm = false, lower = false } = {}) {
+    const key = `${name}:${upper ? 'u' : ''}${additive ? 'a' : ''}${leftArm ? 'l' : ''}${lower ? 'd' : ''}`;
     if (this._variants.has(key)) return this._variants.get(key);
     const base = this.clips.get(name);
     if (!base) return null;
     let clip = base;
-    if (upper || leftArm) {
+    if (upper || leftArm || lower) {
       // upper: the upper body plus the IK targets; leftArm: the left arm, neck and head only
-      // (a gesture while the right hand keeps the rifle).
+      // (a gesture while the right hand keeps the rifle); lower: the hips and legs (stairs).
       const re = leftArm ? CHARACTER.leftArmBones : CHARACTER.upperBones;
       clip = new AnimationClip(key, base.duration, base.tracks.filter((t) => {
         const node = t.name.slice(0, t.name.lastIndexOf('.'));
+        if (lower) return !re.test(node) && !node.startsWith('ik');
         return re.test(node) || (!leftArm && node.startsWith('ik'));
       }));
     }

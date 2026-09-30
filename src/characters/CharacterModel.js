@@ -4,6 +4,7 @@ import {
   Group,
   LoopOnce,
   LoopRepeat,
+  Matrix3,
   Matrix4,
   Quaternion,
   Sphere,
@@ -20,6 +21,9 @@ const _w = new Vector3();
 const _q = new Quaternion();
 const _q2 = new Quaternion();
 const _q3 = new Quaternion();
+const _m3 = new Matrix3();
+const _feetOrigin = new Vector3();
+const DOWN = new Vector3(0, -1, 0);
 // How a head turn is spread over the neck and head.
 const LOOK_SHARE = [
   ['Neck', 0.4],
@@ -114,6 +118,11 @@ export class CharacterModel {
     // Look at someone (a listener, a speaker): world point or null; blended over the animation.
     this.lookTarget = null;
     this._look = { yaw: 0, pitch: 0, weight: 0 };
+    // Feet on uneven ground (stairs): the view sets `world` (CollisionWorld) and `feetWeight`.
+    this.world = null;
+    this.feetWeight = 0;
+    this._feetState = { pelvis: 0, dl: 0, dr: 0 };
+    this._ray = { point: new Vector3(), normal: new Vector3(), distance: 0 };
 
     this.mixer = new AnimationMixer(this.body);
     /** @type {Map<string, { action, weight: number, target: number, rate: number, mode: string, sync: boolean }>} */
@@ -181,7 +190,7 @@ export class CharacterModel {
    * @param {string} name clip
    * @param {number} target weight (base: the base layer's weights should sum to 1)
    * @param {number} time seconds to get there
-   * @param {{ mode?: 'base'|'upper'|'leftArm'|'add'|'addUpper', loop?: boolean, sync?: boolean, restart?: boolean,
+   * @param {{ mode?: 'base'|'upper'|'leftArm'|'lower'|'add'|'addUpper', loop?: boolean, sync?: boolean, restart?: boolean,
    *   timeScale?: number, startAt?: number, key?: string }} opts key: slot name (one clip at a
    *   time per key; switching clips fades the old one out)
    */
@@ -199,7 +208,7 @@ export class CharacterModel {
     if (!s) {
       if (target <= 0) return null;
       const mode = opts.mode ?? 'base';
-      const clip = this.type.clip(name, { upper: mode === 'upper' || mode === 'addUpper', additive: mode === 'add' || mode === 'addUpper', leftArm: mode === 'leftArm' });
+      const clip = this.type.clip(name, { upper: mode === 'upper' || mode === 'addUpper', additive: mode === 'add' || mode === 'addUpper', leftArm: mode === 'leftArm', lower: mode === 'lower' });
       if (!clip) return null;
       const action = this.mixer.clipAction(clip);
       if (mode === 'add' || mode === 'addUpper') action.blendMode = AdditiveAnimationBlendMode;
@@ -280,7 +289,7 @@ export class CharacterModel {
       }
       // Partial overrides (upper body, a gesturing arm) win over the base layer: w / (1 - w)
       // against a base of 1.
-      const w = s.mode === 'upper' || s.mode === 'leftArm' ? Math.min(400, s.weight / Math.max(1e-3, 1 - s.weight)) : s.weight;
+      const w = s.mode === 'upper' || s.mode === 'leftArm' || s.mode === 'lower' ? Math.min(400, s.weight / Math.max(1e-3, 1 - s.weight)) : s.weight;
       s.action.setEffectiveWeight(w);
     }
   }
@@ -372,8 +381,11 @@ export class CharacterModel {
     const aim = this.aimWeight > 0.01 && near;
     const ik = this.ikWeight > 0.01 && near;
     const look = this._lookUpdate(step) && this.distance < c.lookDistance * c.lodScale;
-    if (aim || ik || look) {
+    const feet = this.feetWeight > 0.01 && this.world && this.distance < c.feetDistance * c.lodScale;
+    if (!feet) this._feetState.pelvis = this._feetState.dl = this._feetState.dr = 0;
+    if (aim || ik || look || feet) {
       this.root.updateMatrixWorld(true);
+      if (feet) this._feet(step);
       if (aim) this._aim();
       if (ik) this._ik();
       if (look) this._lookApply();
@@ -383,6 +395,71 @@ export class CharacterModel {
     }
     this._faceUpdate(step);
     this._hitZones();
+  }
+
+  /**
+   * Feet on the ground under them (stairs): each sole goes onto the surface below it (a
+   * swinging foot keeps its lift above that surface), the hips drop when a foot has to reach
+   * down, feet stay level as animated. Smoothed, so crossing a step edge doesn't pop.
+   */
+  _feet(dt) {
+    const w = this.feetWeight;
+    const hips = this.bone('Hips');
+    const lf = this.bone('LeftFoot');
+    const rf = this.bone('RightFoot');
+    if (!hips || !lf || !rf) return;
+    const ankle = this.type.ankle;
+    const ground = _w.setFromMatrixPosition(this.body.matrixWorld).y; // the animation's floor
+    const F = this._feetState;
+    const k = 1 - Math.exp(-16 * dt);
+    // A stair clip marks when each foot is planted (converter: footContacts). Its in-place feet
+    // drift (its stairs are steeper than ours), so a planted foot is pinned onto the step under
+    // it, a swinging one only kept out of the steps. Other clips: keep the foot's lift above
+    // the animation's floor, over the real ground.
+    const st = this.slots.get('stairs');
+    const contacts = st && st.weight > 0.3 ? this.type.meta[st.name]?.contacts : null;
+    const phase = contacts ? (st.action.time / st.clip.duration) % 1 : 0;
+    let dl = 0;
+    let dr = 0;
+    for (let s = 0; s < 2; s++) {
+      const foot = s ? rf : lf;
+      foot.getWorldPosition(_v);
+      _feetOrigin.set(_v.x, ground + 0.7, _v.z);
+      const hit = this.world.raycast(_feetOrigin, DOWN, 1.6, this._ray);
+      let d = 0;
+      if (hit) {
+        const sole = hit.point.y + ankle;
+        if (contacts) {
+          const [a, b] = s ? contacts.r : contacts.l;
+          const planted = a <= b ? phase >= a && phase <= b : phase >= a || phase <= b;
+          d = planted ? sole - _v.y : Math.max(0, sole - _v.y);
+        } else d = sole + Math.max(0, _v.y - ground - ankle) - _v.y;
+      }
+      if (s) dr = d;
+      else dl = d;
+    }
+    F.dl += (dl - F.dl) * k;
+    F.dr += (dr - F.dr) * k;
+    F.pelvis += (Math.max(-0.35, Math.min(0, F.dl, F.dr)) - F.pelvis) * k;
+    // Hips down (world y) so the lower foot can reach.
+    if (Math.abs(F.pelvis) > 1e-4) {
+      _m3.setFromMatrix4(hips.parent.matrixWorld).invert();
+      hips.position.add(_v.set(0, F.pelvis * w, 0).applyMatrix3(_m3));
+      hips.updateMatrixWorld(true);
+    }
+    // Each leg to its target, the foot keeping its animated world rotation.
+    for (let s = 0; s < 2; s++) {
+      const foot = s ? rf : lf;
+      const d = (s ? F.dr : F.dl) - F.pelvis;
+      if (Math.abs(d) < 0.002) continue;
+      const side = s ? 'Right' : 'Left';
+      foot.getWorldQuaternion(_q3);
+      foot.getWorldPosition(_v);
+      _v.y += d * w;
+      solveTwoBone(this.bone(`${side}UpLeg`), this.bone(`${side}Leg`), foot, _v, 1);
+      setWorldQuaternion(foot, _q3);
+      foot.updateMatrixWorld(true);
+    }
   }
 
   /** Mouth (lip sync) and blinks: the LOD0 morph influences. */

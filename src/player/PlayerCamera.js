@@ -1,5 +1,6 @@
 import { MathUtils, Vector3 } from 'three';
 import { VIEW } from './config.js';
+import { StairTracker } from './StairTracker.js';
 
 const MAX_PITCH = Math.PI / 2 - 0.01;
 const TWO_PI = Math.PI * 2;
@@ -26,6 +27,7 @@ export class PlayerCamera {
     this.yaw = player.yaw;
     this.pitch = 0;
     this.eyeHeight = player.targetEyeHeight; // smoothed, relative to the feet
+    this.steps = new StairTracker({ stiffness: 11 }); // steps / stairs smoothing (eye offset)
     this.dip = 0;
     this.dipVelocity = 0;
     this.bobPhase = 0; // +1 per footstep
@@ -64,6 +66,7 @@ export class PlayerCamera {
   /** Reset all smoothing (spawn / teleport). */
   snap() {
     this.eyeHeight = this.player.targetEyeHeight;
+    this.steps = new StairTracker({ stiffness: 11 });
     this.dip = 0;
     this.dipVelocity = 0;
     this.bobWeight = 0;
@@ -90,11 +93,12 @@ export class PlayerCamera {
       return;
     }
 
-    // Eye height: absorb instant feet moves (steps, snaps, crouch tucks) so they
-    // never pop the view, then ease toward the stance's eye height.
+    // Eye height: ease toward the stance's eye height (crouching). Instant feet moves (steps,
+    // snaps, crouch tucks) go into `steps.offset`, a critically damped spring led by the
+    // climbing speed: stairs become a smooth climb, not a jerk per step.
     const target = p.targetEyeHeight;
-    this.eyeHeight = damp(this.eyeHeight - p.feetShift, target, cfg.eyeSmoothing, dt);
-    this.eyeHeight = MathUtils.clamp(this.eyeHeight, target - 0.8, target + 0.8);
+    this.eyeHeight = damp(this.eyeHeight, target, cfg.eyeSmoothing, dt);
+    this.steps.update(dt, p.position.y, p.grounded, p.horizontalSpeed, p.feetShift);
 
     // Landing dip: a critically damped spring kicked by the impact speed.
     if (p.landingSpeed > 1.5) {
@@ -134,7 +138,7 @@ export class PlayerCamera {
     const p = this.player.position;
     this.eye.set(
       p.x + Math.cos(this.yaw) * bobX,
-      p.y + this.eyeHeight + this.dip + bobY,
+      p.y + this.eyeHeight + this.steps.offset + this.dip + bobY,
       p.z - Math.sin(this.yaw) * bobX,
     );
   }

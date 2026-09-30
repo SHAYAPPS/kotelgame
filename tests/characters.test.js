@@ -31,11 +31,15 @@ test('the clip library decodes: every clip, unit quaternions, closed locomotion 
     }
     assert.equal(clip.tracks.some((t) => t.name === 'ikHandR.position'), !!meta.ik, `${name} IK tracks`);
     if (meta.speed !== undefined) {
-      assert.ok(meta.speed > 0.5, `${name} moves`);
+      if (meta.rise !== undefined) {
+        // Stairs: a slower climb, the rise taken out too, feet contacts marked.
+        assert.ok(meta.speed > 0.25 && Math.abs(meta.rise) > 0.2, `${name} climbs`);
+        assert.ok(meta.contacts?.l && meta.contacts?.r, `${name} foot contacts`);
+      } else assert.ok(meta.speed > 0.5, `${name} moves`);
       // In place: the hips end where they started (root motion removed), so the cycle loops.
       const hips = clip.tracks.find((t) => t.name === 'Hips.position').values;
       const n = hips.length - 3;
-      assert.ok(Math.hypot(hips[n] - hips[0], hips[n + 2] - hips[2]) < 0.02, `${name} loops in place`);
+      assert.ok(Math.hypot(hips[n] - hips[0], hips[n + 1] - hips[1], hips[n + 2] - hips[2]) < 0.02, `${name} loops in place`);
     }
   }
   // The 8 directions of each rifle gait are all there.

@@ -44,6 +44,14 @@ export const GAME_SHOTS = [
   // wait for this (page expression) before the shot.
   { name: 'game-9-cmd-talking', step: 'briefing', front: { npc: 'cmd', dist: 0.72, look: 1.6 }, wait: 300, until: "mouth('cmd') > 0.36" },
   { name: 'game-10-guide-talking', step: 'patrol_terraces_guide', front: { npc: 'guide', dist: 1.6, side: -0.8, look: 1.5 }, wait: 300, until: "mouth('guide') > 0.5" },
+  // Stairs (the second terrace, x -78 .. -82.2): a soldier and a civilian walking up, then
+  // down, seen from beside the flight at step level (feet on the steps).
+  { name: 'game-11-stairs-up', step: 'patrol_wall', at: [-80.4, 2.3, 10.2], look: [-80.4, 2.4, 4.6], wait: 300, untilTimeout: 300000,
+    run: "const st = window.__game.story; const a = st.npcs.spawn({ kind: 'soldier', at: [-73.5, 1.2, 4], yaw: Math.PI / 2 }); a.setRoute({ points: [[-73.5, 4], [-88, 4]], speed: 1.35 }); const b = st.npcs.spawn({ kind: 'civilian', at: [-75.6, 1.2, 5.3], yaw: Math.PI / 2 }); b.setRoute({ points: [[-75.6, 5.3], [-88, 5.3]], speed: 1.3 }); window.__walker = a;",
+    until: 'window.__walker.position.x < -80.1' },
+  { name: 'game-12-stairs-down', step: 'patrol_wall', at: [-80.4, 2.3, 10.2], look: [-80.4, 2.4, 4.6], wait: 300, untilTimeout: 300000,
+    run: "const st = window.__game.story; const a = st.npcs.spawn({ kind: 'soldier', at: [-86.5, 3, 4], yaw: -Math.PI / 2 }); a.setRoute({ points: [[-86.5, 4], [-72, 4]], speed: 1.35 }); const b = st.npcs.spawn({ kind: 'worshipperWoman', at: [-84.5, 3, 5.3], yaw: -Math.PI / 2 }); b.setRoute({ points: [[-84.5, 5.3], [-72, 5.3]], speed: 1.2 }); window.__walker = a;",
+    until: 'window.__walker.position.x > -80.7' },
   { name: 'game-8-bodies', step: 'defense_orders', at: [-41, 0, 4], look: [-49, 0.2, 3], wait: 3000, god: true,
     // Kill four enemies from different sides, then play their falls through (SwiftShader runs
     // too slowly for game time to get there on its own).
@@ -125,7 +133,7 @@ if (game.length) {
       await page.waitForFunction(s.until, null, { timeout: s.untilTimeout ?? 60000, polling: 50 }).catch(() => console.warn(`${s.name}: gave up waiting for ${s.until}`));
       // Hold every mouth (and the eyes open) where it is: SwiftShader draws a frame in about
       // a second, the lips move faster than that.
-      await page.evaluate(() => {
+      if (s.until.includes('mouth(')) await page.evaluate(() => {
         for (const v of window.__game.story.views.values()) {
           if (!v.lip || !v.model) continue;
           const open = v.model.face.mouth;
@@ -134,7 +142,7 @@ if (game.length) {
           v.model._blinkT = -1;
         }
       });
-      await page.waitForTimeout(2500);
+      await page.waitForTimeout(s.until.includes('mouth(') ? 2500 : 0);
     }
     await page.screenshot({ path: `${out}/${s.name}.png` });
     const note = await page.evaluate(() => {

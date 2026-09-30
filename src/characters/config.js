@@ -19,6 +19,7 @@ export const CHARACTER = {
   shadowDistance: 30,
   ikDistance: 18,
   lookDistance: 25, // head turns toward a listener / speaker
+  feetDistance: 30, // feet placed on the steps (stairs) this close to the camera
 
   // Blending
   fade: 0.22, // default crossfade

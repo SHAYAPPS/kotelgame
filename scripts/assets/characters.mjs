@@ -18,7 +18,7 @@ import { appendMouthStrip, faceRig, mouthTile } from './lib/face.mjs';
 import { buildLods } from './lib/lod.mjs';
 import { writeCharacter } from './lib/glb.mjs';
 import { encodeLibrary } from './lib/animbin.mjs';
-import { sampleClip, removeDrift, alignFootPhase, closeLoop, crossfadeLoop, handTargets, peakSpeedTime, worldPos } from './lib/anim.mjs';
+import { sampleClip, removeDrift, alignFootPhase, closeLoop, crossfadeLoop, handTargets, peakSpeedTime, worldPos, footContacts } from './lib/anim.mjs';
 import { encodeKTX2 } from './ktx2.mjs';
 import { CHARACTERS, CLIPS, CLIP_SOURCES, PART, PART_COUNT } from './characters.config.mjs';
 import { writeCredits } from './credits.mjs';
@@ -461,11 +461,14 @@ async function buildAnimations() {
       const n = s.frames - 1;
       m.rootEnd = [+(s.hips[n * 3] - s.hips[0]).toFixed(3), +(s.hips[n * 3 + 2] - s.hips[2]).toFixed(3)];
     } else {
-      const v = removeDrift(s);
+      if (c.stairs) m.contacts = footContacts(s); // before the root motion comes out
+      const v = removeDrift(s, { vertical: !!c.stairs });
       if (c.move) {
         m.speed = +Math.hypot(v.vx, v.vz).toFixed(4);
         m.dir = +Math.atan2(v.vx, v.vz).toFixed(4); // 0 = forward (+Z), +PI/2 = left... see game code
-        m.phaseShift = alignFootPhase(s);
+        // Stairs: the climb (m/s, + up) was taken out too; the game raises the body instead.
+        if (c.stairs) m.rise = +v.vy.toFixed(4);
+        else m.phaseShift = alignFootPhase(s);
       }
       if (c.maxLoop && s.duration > c.maxLoop + 0.5) crossfadeLoop(s, c.maxLoop);
       else if (c.loop) closeLoop(s);

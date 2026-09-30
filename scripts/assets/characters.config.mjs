@@ -137,6 +137,12 @@ export const CLIPS = {
   run_scared_lookback: MOVE,
   run_standard: MOVE,
   cower_hiding: {},
+  // Stairs (legs only for soldiers): the horizontal speed and the climb measured, both taken
+  // out (played in place; the body rises / sinks with the steps).
+  stairs_walk_up: { ...MOVE, stairs: true },
+  stairs_walk_down: { ...MOVE, stairs: true },
+  stairs_run_up: { ...MOVE, stairs: true },
+  stairs_run_down: { ...MOVE, stairs: true },
 };
 
 // Where each clip came from on Mixamo (for CREDITS.md; see DOWNLOADS.md).
@@ -196,5 +202,9 @@ export const CLIP_SOURCES = {
   run_standard: 'Standard Run (Standard Running)',
   jogging: 'Jogging',
   cower_hiding: 'Hiding (Crouched Hiding To Ducking)',
+  stairs_walk_up: 'Ascending Stairs (Walking Up A Set Of Stairs)',
+  stairs_walk_down: 'Descending Stairs (Walking Down A Set Of Stairs)',
+  stairs_run_up: 'Running Up Stairs',
+  stairs_run_down: 'Descending Stairs (Running Down A Set Of Stairs)',
   cower_ducking: 'Ducking (Ducking For Cover From Standing Idle)',
 };

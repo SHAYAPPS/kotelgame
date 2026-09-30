@@ -1,5 +1,6 @@
 import { MathUtils, Vector3 } from 'three';
 import { CHARACTER } from './config.js';
+import { stairLegs } from './stairs.js';
 import { pickDeath } from './deaths.js';
 
 const DIRS = ['f', 'fl', 'l', 'bl', 'b', 'br', 'r', 'fr']; // counterclockwise from forward, 45 degrees apart
@@ -75,6 +76,7 @@ export class SoldierAnimator {
     this.dead = false;
     this.deathClip = null;
     this.talking = false;
+    this.stairState = { clip: null };
     this.model.ikWeight = 1;
     this._used = new Set();
     this._ray = { point: new Vector3(), normal: new Vector3(), distance: 0 };
@@ -87,7 +89,8 @@ export class SoldierAnimator {
    * @param {{ alive: boolean, facing: number, velocity: Vector3, crouched: boolean,
    *   posture: 'relaxed'|'alert'|'combat', mode?: string, cover?: object|null,
    *   aimAt?: Vector3|null, eyeY: number, shotsFired: number, health: number, throws: number,
-   *   deathDir?: Vector3, hitZone?: string|null, position: Vector3, speaking?: boolean }} s
+   *   deathDir?: Vector3, hitZone?: string|null, position: Vector3, speaking?: boolean,
+   *   stairs?: number, stairDir?: number }} s stairs: 0..1 on stairs (StairTracker)
    */
   update(dt, s) {
     const m = this.model;
@@ -158,6 +161,7 @@ export class SoldierAnimator {
     m.root.rotation.y = this.yaw;
 
     this._base(dt, s);
+    stairLegs(m, this.stairState, s.stairs ?? 0, s.stairDir ?? 1, this.speed);
 
     // Aim: the spine pitches toward the target while aiming.
     const aiming = s.posture === 'combat' && s.aimAt && !this.upper && this.cover < 0.5;
