@@ -6,6 +6,7 @@ import { VIEW } from '../player/config.js';
 import { CollisionWorld } from '../world/CollisionWorld.js';
 import { Environment } from '../world/Environment.js';
 import { createTestRange } from '../world/TestRange.js';
+import { createKotelLevel } from '../world/kotel/KotelLevel.js';
 import { createGreyboxMaterials, createGridTexture } from '../world/greybox.js';
 import { RIFLE } from '../weapons/config.js';
 import { Impacts } from '../weapons/Impacts.js';
@@ -37,15 +38,23 @@ export class Game {
     this.camera = new PerspectiveCamera(VIEW.fov, window.innerWidth / window.innerHeight, VIEW.near, VIEW.far);
 
     // World
-    const grid = createGridTexture(renderer.capabilities.getMaxAnisotropy());
-    const range = createTestRange(createGreyboxMaterials(grid));
-    this.scene.add(range.root);
-    this.environment = new Environment(this.scene, renderer, { shadowCenter: [0, 0, -8], shadowExtent: 36 });
-    this.collision = new CollisionWorld().build(range.collisionRoots);
+    // Level: the Kotel plaza by default; ?level=range loads the movement test range.
+    const range = new URLSearchParams(window.location.search).get('level') === 'range';
+    const level = range
+      ? createTestRange(createGreyboxMaterials(createGridTexture(renderer.capabilities.getMaxAnisotropy())))
+      : createKotelLevel();
+    this.level = level;
+    this.scene.add(level.root);
+    this.environment = new Environment(
+      this.scene,
+      renderer,
+      level.environment ?? { shadowCenter: [0, 0, -8], shadowExtent: 36 },
+    );
+    this.collision = new CollisionWorld().build(level.collisionRoots);
 
     // Player
     this.player = new PlayerController(this.collision);
-    this.player.setSpawn(range.spawn.position, range.spawn.yaw);
+    this.player.setSpawn(level.spawn.position, level.spawn.yaw);
     this.view = new PlayerCamera(this.camera, this.player);
     this.view.sensitivity = loadSensitivity();
 

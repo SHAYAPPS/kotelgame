@@ -22,7 +22,8 @@ const _hsl = { h: 0, s: 0, l: 0 };
  * (e.g. huge Herodian stones at the bottom, smaller stones toward the top).
  *
  * @param {object} o
- * @param {number} o.faceX       x of the wall face (stones protrude slightly toward -X)
+ * @param {number} o.faceX       x of the wall face (faces are recessed behind it; bosses stand
+ *   at most 2 cm proud)
  * @param {number} o.zStart      one end of the wall along Z
  * @param {number} o.zEnd        other end
  * @param {number} o.baseY       floor height at the foot of the wall
@@ -87,7 +88,8 @@ export function buildStoneWall(o) {
   const depth = 0.6; // visible part of each block; the wall body behind is a separate box
   let bi = 0;
   blocks.forEach((b, i) => {
-    _p.set(o.faceX + depth / 2 - b.relief, b.y + b.h / 2, b.z + b.len / 2);
+    // Faces are recessed 0..relief into the wall, so nothing sits proud of faceX - 0.02.
+    _p.set(o.faceX + depth / 2 + b.relief, b.y + b.h / 2, b.z + b.len / 2);
     _s.set(depth, b.h, b.len);
     _m.compose(_p, _q.identity(), _s);
     faces.setMatrixAt(i, _m);
@@ -95,7 +97,7 @@ export function buildStoneWall(o) {
     if (b.margin > 0) {
       // Herodian drafted margin: the face sits back, the raised boss stands proud.
       const m = b.margin;
-      _p.set(o.faceX - b.relief - 0.02, b.y + b.h / 2, b.z + b.len / 2);
+      _p.set(o.faceX + b.relief - 0.02 + 0.025, b.y + b.h / 2, b.z + b.len / 2);
       _s.set(0.05, Math.max(0.05, b.h - 2 * m), Math.max(0.05, b.len - 2 * m));
       _m.compose(_p, _q, _s);
       bossMesh.setMatrixAt(bi, _m);

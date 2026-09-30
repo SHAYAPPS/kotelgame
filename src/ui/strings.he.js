@@ -2,7 +2,7 @@
 
 export const HE = {
   gameTitle: 'משחק הכותל',
-  buildLabel: 'אב־טיפוס · שלב 2: נשק',
+  buildLabel: 'אב־טיפוס · שלב 3: רחבת הכותל',
   start: 'לחצו כדי להתחיל',
   resume: 'לחצו כדי להמשיך',
   paused: 'המשחק מושהה',

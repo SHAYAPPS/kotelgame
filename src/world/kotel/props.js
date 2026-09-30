@@ -143,3 +143,12 @@ export function planterTree(m) {
   p.part(new SphereGeometry(0.9, 8, 6), m('foliage'), [0, 2.5, 0]);
   return p;
 }
+
+/** Torah ark (aron kodesh): a large wooden cabinet with a curtain. Back is +Z. */
+export function torahArk(m) {
+  const p = new PropType('torah-ark', { size: [3.2, 3.2, 1.0] });
+  p.part(box(3.2, 3.2, 1.0), m('woodDark'), [0, 1.6, 0]);
+  p.part(box(2.2, 2.3, 0.05), m('flagBlue'), [0, 1.65, -0.52]); // parochet
+  p.part(box(3.4, 0.25, 1.1), m('woodLight'), [0, 3.3, 0]);
+  return p;
+}

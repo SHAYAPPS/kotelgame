@@ -27,15 +27,16 @@ A browser-based 3D first-person story shooter.
 
 1. [x] Movement: first-person controller, tried out on a greybox test range
 2. [x] Gun: hitscan rifle with ADS, recoil, impacts, reload, procedural sound
-3. [ ] Greybox Kotel  <- next
-4. [ ] First enemy
+3. [x] Greybox Kotel: 1:1 plaza layout (reference: `docs/kotel-reference.md`)
+4. [ ] First enemy  <- next
 5. [ ] Opening story beat
 6. [ ] Realism pass
 
 ## Commands
 
 - `npm install`: install dependencies (Node >= 20.19)
-- `npm run dev`: dev server at http://localhost:5173
+- `npm run dev`: dev server at http://localhost:5173 (Kotel plaza; add `?level=range` for the
+  movement/gun test range)
 - `npm test`: physics, collision and weapon-logic tests (Node's built-in test runner, no browser needed)
 - `npm run build`: production build into `dist/`
 - `npm run preview`: serve the production build locally
@@ -63,6 +64,19 @@ A browser-based 3D first-person story shooter.
 - `src/world/Environment.js`: sky dome, fog, sun + hemisphere light. Shadows are rendered once
   (static world); call `refreshShadows()` if static geometry changes.
 - `src/world/greybox.js`: procedural 1 m grid texture, color palette, box/ramp geometry with UVs in meters.
+- `src/world/kotel/`: the greybox Western Wall plaza (Mission 1), 1 unit = 1 m.
+  - `config.js`: **every dimension** (wall, prayer area, mechitza, Wilson's Arch, bridge, terraces,
+    buildings, checkpoint, backdrop, spawn, lighting) plus the plain greybox colors. Axes: +X east
+    (toward the wall), +Z south; wall face at x = 0, prayer floor y = 0, men north (-Z) of the
+    mechitza. Facts and estimates behind the numbers: `docs/kotel-reference.md`.
+  - `KotelLevel.js`: builds floors/terraces, the wall, prayer area, Wilson's Arch; `groundY(x, z)`.
+  - `kotelSurroundings.js`: plaza edges, tunnels entrance, stairs, southern checkpoint, dig,
+    Mughrabi Bridge, plaza props, skyline.
+  - `wallStones.js`: procedural instanced ashlar courses (bands, drafted margins, plants).
+    The wall's collision is one invisible blocker just in front of the stone faces.
+  - `batch.js`: StaticBatch merges static boxes per color (few draw calls); `blocker()` adds
+    invisible out-of-bounds walls. `instancing.js` + `props.js`: instanced props, each with one
+    simple collision box.
 - `src/world/TestRange.js`: movement test course (green = step onto, amber = jump,
   red = crouch-jump, blue = crouch under, teal = walkable ramp, dark red = too steep).
 - `src/weapons/`: the rifle.
@@ -82,7 +96,8 @@ A browser-based 3D first-person story shooter.
 - `src/ui/`: Hebrew strings (`strings.he.js`), start/pause overlay (mouse sensitivity, saved in
   localStorage), HUD (spread-sized crosshair, ammo counter, debug readout; toggle the readout
   with the backquote key, shown by default in dev).
-- `tests/`: `node:test` suites for the controller, collision world and weapon logic (`tests/helpers.js` builds
+- `tests/`: `node:test` suites for the controller, collision world, weapon logic and the Kotel
+  level's walkable routes / out-of-bounds (`tests/kotel.test.js`) (`tests/helpers.js` builds
   test worlds and simulates input).
 
 ## Conventions
