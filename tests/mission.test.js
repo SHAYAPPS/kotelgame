@@ -411,7 +411,9 @@ test('mission 1 plays through with a scripted player', () => {
   run(0.1);
   assert.ok(at('after_wave'), `wave cleared (${where()})`);
   assert.equal(enemies.friendlies.length, 0, 'squad back to story NPCs');
-  assert.equal(story.npcs.civiliansOutside, 0, `every civilian sheltered (${outsideAtContact} were still outside at contact)`);
+  const stuck = story.npcs.list.filter((n) => n.isCivilian && !n.sheltered).map((n) => `${n.kind} at ${n.position.x.toFixed(1)},${n.position.y.toFixed(1)},${n.position.z.toFixed(1)}${n.fleeing ? ' fleeing' : ''}${n.frozen ? ' frozen' : ''} -> ${n.shelterSpot ? `${n.shelterSpot.x.toFixed(1)},${n.shelterSpot.z.toFixed(1)}` : '?'}`);
+  if (process.env.DEBUG_STUCK) for (const n of story.npcs.list.filter((c) => c.isCivilian && !c.sheltered)) console.log(n.id, n.kind, 'path', n._path?.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)},${p.z.toFixed(1)}`).join(' '), 'idx', n._pathIndex, 'still', n._still.toFixed(2), 'grounded', n.body.grounded, 'v', n.body.horizontalSpeed.toFixed(2), 'arrived', n.arrived, 'pause', n._pause, 'leg', n._leg, 'route', JSON.stringify(n.route?.points.map((p) => [+p.x.toFixed(1), +p.z.toFixed(1)])));
+  assert.equal(story.npcs.civiliansOutside, 0, `every civilian sheltered (${outsideAtContact} were still outside at contact: ${stuck.join('; ')})`);
   teleport(-50, 0.1, 5);
   runUntil(() => at('defense_orders'), 90);
   assert.ok(at('defense_orders'), `debrief finished (${where()}, cmd arrived ${cmd.arrived})`);

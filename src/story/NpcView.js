@@ -239,6 +239,7 @@ export class NpcView {
     this.state.speaking = false;
     this.lip = new LipSync(rand);
     this._speech = null;
+    this._chatting = false;
     this.stairs = new StairTracker();
     this._flight = { on: 0, dir: 1, zone: null };
     if (!this._build()) this.placeholder = new PlaceholderFigure(npc, this.root, rand);
@@ -310,13 +311,18 @@ export class NpcView {
       this.animator.update(dt, this.state);
     } else {
       const c = this.civ;
+      // In a chat group: listening between turns, not on the phone (joined after spawning).
+      if (n.chat && !this._listening && this.animator.idle) {
+        this._listening = true;
+        this.animator.idle = ['idle_standing', 'idle_weightshift', 'idle_breathing'][Math.floor(this.rand() * 3) % 3];
+      }
       c.speed = n.speed;
       c.pray = n.pray;
       c.frozen = n.frozen;
       c.fleeing = n.fleeing;
       c.sheltered = n.sheltered;
       c.panicking = n.panicking;
-      c.speaking = !!n.speaking;
+      c.speaking = !!n.speaking || n.chatting;
       c.crouched = n.body.crouched;
       this.model.root.rotation.y = n.facing;
       this.animator.update(dt, c);
@@ -329,6 +335,13 @@ export class NpcView {
       if (!sp) this.lip.stop();
       else if (sp.level) this.lip.speakLevel(sp.level);
       else this.lip.speak(sp.text, sp.duration);
+    }
+    // Small talk (an ambient group's turn): made-up words while it lasts.
+    const chat = n.chatting && !sp;
+    if (chat !== this._chatting) {
+      this._chatting = chat;
+      if (chat) this.lip.babble(n.chat?.timer ?? 3);
+      else if (!sp) this.lip.stop();
     }
     this.model.face.mouth = this.lip.update(dt);
     this.model.lookTarget = n.lookAt;

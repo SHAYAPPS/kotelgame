@@ -650,6 +650,12 @@ export class StoryDirector {
           }
         }
       } else if (speaker && n.position.distanceTo(speaker.position) < 7) n.lookAt = speaker.headPoint;
+      else if (n.chat) {
+        // Small talk: the talker looks at one of the others, the others at the talker.
+        const g = n.chat;
+        const other = n === g.talker ? g.listener : g.talker;
+        if (other && other !== n) n.lookAt = other.headPoint;
+      }
     }
   }
 

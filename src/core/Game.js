@@ -352,7 +352,9 @@ export class Game {
 
   frame(timeMs) {
     const now = timeMs / 1000;
-    const dt = this.lastTime === null ? 0 : Math.min(now - this.lastTime, MAX_FRAME_DT);
+    // fixedFrame (dev, automated checks): every frame advances exactly that much game time, so
+    // software rendering at a few frames a second behaves like the game at 60.
+    const dt = this.fixedFrame ?? (this.lastTime === null ? 0 : Math.min(now - this.lastTime, MAX_FRAME_DT));
     this.lastTime = now;
 
     const m = this._mouse;

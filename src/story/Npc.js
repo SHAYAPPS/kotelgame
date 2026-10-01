@@ -21,6 +21,10 @@ export const NPC = {
   // Walking a flight of stairs people slow down (m/s across the flight); runners don't.
   stairUpSpeed: 0.6,
   stairDownSpeed: 0.72,
+  settle: 0.6, // s standing still before the physics sleeps
+  // Small talk: each turn lasts this long (s), now and then a pause with nobody talking.
+  chatTurn: [1.6, 5.5],
+  chatPause: 0.2,
 };
 const _stairs = { on: 0, dir: 1, zone: null };
 
@@ -81,6 +85,25 @@ export class Npc {
     this._escortTimer = 0;
     this.speaking = false; // has the current dialogue line (the view plays talking)
     this.hitShape = null; // hit zones from the animated model (set by the view)
+    // Small talk (an ambient group, NpcManager.updateChats): the group, and whether this one
+    // is the one talking right now.
+    this.chat = null;
+    this.chatting = false;
+    this._still = 0; // s standing still with nothing to do (the physics sleeps after a while)
+    this._dodge = 0; // s left of a sidestep around an obstacle
+    this._dodgeSide = rand() < 0.5 ? 1 : -1;
+  }
+
+  /** Out of a chat group (sent somewhere, panicking...). */
+  leaveChat() {
+    const g = this.chat;
+    if (g) {
+      g.members.splice(g.members.indexOf(this), 1);
+      if (g.talker === this) g.talker = null;
+      if (g.listener === this) g.listener = null;
+    }
+    this.chat = null;
+    this.chatting = false;
   }
 
   /** Reacting to the sirens, before running (the flee delay). */
@@ -95,6 +118,7 @@ export class Npc {
 
   /** Run to a shelter spot after `delay` seconds (panic reaction time). */
   flee(spot, delay = 0) {
+    this.leaveChat();
     this.shelterSpot = spot;
     this.follow = null;
     this.pray = false;
@@ -109,6 +133,7 @@ export class Npc {
 
   /** Freeze in place (cowering) until the player sends them off. */
   freeze() {
+    this.leaveChat();
     this.follow = null;
     this.pray = false;
     this.route = null;
@@ -141,6 +166,7 @@ export class Npc {
   }
 
   place(x, y, z, yaw) {
+    this._still = 0;
     this.body.spawnPoint.set(x, y, z);
     this.body.spawnYaw = yaw;
     this.body.respawn();
@@ -155,6 +181,8 @@ export class Npc {
    *   pause?: number, face?: number }} route
    */
   setRoute(route) {
+    this.leaveChat();
+    this._still = 0;
     this.route = {
       points: route.points.map(([x, z]) => this._floor(x, z)),
       speed: route.speed ?? 1.4,
@@ -275,9 +303,27 @@ export class Npc {
         } else {
           moveYaw = Math.atan2(-dx, -dz);
           speed = r.speed;
+          if (this._dodge > 0) {
+            // Stepping around something the path runs into (a thin post, a knot of people).
+            this._dodge -= dt;
+            moveYaw += this._dodgeSide * 1.25;
+          }
           this._stuck += dt;
           if (this._stuck > 2) {
-            if (this.position.distanceTo(this._lastPos) < 0.3) this._planLeg();
+            if (this.position.distanceTo(this._lastPos) < 0.3) {
+              // Stuck off the walkable floor (pushed into a pit or through a gap in a crowd):
+              // back onto the path. On the floor: a sidestep (the other way each time), then
+              // find the way again.
+              const node = this.nav.nodeAt(this.position.x, this.position.z);
+              if (node < 0 || Math.abs(this.nav.y[node] - this.position.y) > 0.3) {
+                this.body.spawnPoint.copy(wp);
+                this.body.respawn();
+              } else {
+                this._dodgeSide = -this._dodgeSide;
+                this._dodge = 0.7;
+              }
+              this._planLeg();
+            }
             this._stuck = 0;
             this._lastPos.copy(this.position);
           }
@@ -298,6 +344,15 @@ export class Npc {
       this._turnTo(Math.atan2(-(player.position.x - this.position.x), -(player.position.z - this.position.z)), dt);
     } else if (this.faceYaw !== null) {
       this._turnTo(this.faceYaw, dt);
+    }
+    // Standing still with nothing to do (praying, waiting, chatting, frozen): once settled the
+    // physics sleeps, so a big crowd costs next to nothing. A route, a placement or a push from
+    // someone walking by wakes it (NpcManager.update).
+    if (moveYaw === null && this.body.grounded && this.body.horizontalSpeed < 0.03) this._still += dt;
+    else this._still = 0;
+    if (this._still > NPC.settle) {
+      this.speed = 0;
+      return;
     }
     this.body.update(dt, ctl);
     this.speed = this.body.horizontalSpeed;
@@ -366,6 +421,7 @@ export class NpcManager {
     this.list = [];
     this.byId = new Map();
     this._anon = 0;
+    this.chats = []; // small-talk groups: { members, talker, listener, timer }
   }
 
   get(id) {
@@ -376,6 +432,7 @@ export class NpcManager {
     for (const n of this.list) if (this.onRemove) this.onRemove(n);
     this.list.length = 0;
     this.byId.clear();
+    this.chats.length = 0;
   }
 
   spawn({ id = null, kind, speaker = null, at, yaw = 0, pray = false }) {
@@ -392,6 +449,7 @@ export class NpcManager {
   remove(id) {
     const n = this.byId.get(id);
     if (!n) return;
+    n.leaveChat();
     this.byId.delete(id);
     this.list.splice(this.list.indexOf(n), 1);
     if (this.onRemove) this.onRemove(n);
@@ -399,6 +457,30 @@ export class NpcManager {
 
   /** Spawns an ambient group from mission data (see mission1.js `groups`). */
   populate(def) {
+    if (def.chats) {
+      // Small talk: a few people around a spot, facing in, taking turns to talk.
+      for (const g of def.chats) {
+        const group = { members: [], talker: null, listener: null, timer: this.rand() * 2 };
+        const [cx, cz] = g.at;
+        const n = g.kinds.length;
+        const turn = this.rand() * Math.PI * 2;
+        for (let i = 0; i < n; i++) {
+          const a = turn + (i / n) * Math.PI * 2 + (this.rand() - 0.5) * 0.5;
+          const r = (g.radius ?? (n > 2 ? 0.8 : 0.6)) * (0.9 + this.rand() * 0.25);
+          const x = cx + Math.sin(a) * r;
+          const z = cz + Math.cos(a) * r;
+          const node = this.nav.nodeAt(x, z);
+          const npc = this.spawn({ kind: g.kinds[i], at: [x, node >= 0 ? this.nav.y[node] : 0, z], yaw: 0 });
+          npc.faceYaw = Math.atan2(x - cx, z - cz); // yaw 0 looks down -Z: face the middle
+          npc.facing = npc.faceYaw;
+          npc.freezes = !!g.freezes;
+          npc.chat = group;
+          group.members.push(npc);
+        }
+        this.chats.push(group);
+      }
+      return;
+    }
     if (Array.isArray(def)) {
       for (const d of def) {
         if (d.route) {
@@ -519,9 +601,12 @@ export class NpcManager {
 
   update(dt, player, playerBody) {
     for (const n of this.list) n.update(dt, player);
-    // Nobody walks through anybody (the player included).
+    this.updateChats(dt);
+    // Nobody walks through anybody (the player included). Two sleeping bodies can't have
+    // moved into each other; a push wakes a sleeper (its physics settles it again).
     const minD = 0.6;
     const L = this.list;
+    const settle = NPC.settle;
     for (let i = 0; i < L.length; i++) {
       const a = L[i];
       const dx = playerBody.position.x - a.position.x;
@@ -531,19 +616,58 @@ export class NpcManager {
         playerBody.position.x += (dx / d) * (minD - d);
         playerBody.position.z += (dz / d) * (minD - d);
       }
+      const aSleeps = a._still > settle;
       for (let j = i + 1; j < L.length; j++) {
         const b = L[j];
+        if (aSleeps && b._still > settle) continue;
         const ex = b.position.x - a.position.x;
         const ez = b.position.z - a.position.z;
+        if (ex > minD || ex < -minD || ez > minD || ez < -minD) continue;
         const ed = Math.hypot(ex, ez);
         if (ed < minD && ed > 1e-4) {
+          // Apart, but never off the walkable floor (into a pit, through a fence).
           const push = (minD - ed) / 2;
-          b.position.x += (ex / ed) * push;
-          b.position.z += (ez / ed) * push;
-          a.position.x -= (ex / ed) * push;
-          a.position.z -= (ez / ed) * push;
+          const px = (ex / ed) * push;
+          const pz = (ez / ed) * push;
+          if (this.nav.nodeAt(b.position.x + px, b.position.z + pz) >= 0) {
+            b.position.x += px;
+            b.position.z += pz;
+            b._still = 0;
+          }
+          if (this.nav.nodeAt(a.position.x - px, a.position.z - pz) >= 0) {
+            a.position.x -= px;
+            a.position.z -= pz;
+            a._still = 0;
+          }
         }
       }
+    }
+  }
+
+  /**
+   * Small talk: in each group one person talks for a few seconds, then another (now and then
+   * a pause), the others listen. A group goes quiet while any of its people is busy.
+   */
+  updateChats(dt) {
+    for (const g of this.chats) {
+      const M = g.members;
+      if (M.length < 2) {
+        for (const m of M) m.chatting = false;
+        continue;
+      }
+      g.timer -= dt;
+      if (g.timer > 0) continue;
+      const [a, b] = NPC.chatTurn;
+      g.timer = a + this.rand() * (b - a);
+      let next = null;
+      if (this.rand() > NPC.chatPause || !g.talker) {
+        // Someone else's turn (whoever spoke last rarely goes on).
+        next = M[Math.floor(this.rand() * M.length) % M.length];
+        if (next === g.talker && this.rand() < 0.75) next = M[(M.indexOf(next) + 1) % M.length];
+      } else g.timer *= 0.4;
+      g.talker = next;
+      g.listener = next ? M[(M.indexOf(next) + 1 + Math.floor(this.rand() * (M.length - 1))) % M.length] : null;
+      for (const m of M) m.chatting = m === next;
     }
   }
 

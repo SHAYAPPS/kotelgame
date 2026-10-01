@@ -17,9 +17,10 @@ const TO_TERRACES = [[-36, -12.8], [-60, -10], [-90, -8]];
 const offsetRoute = (route, dz) => route.map(([x, z], i) => [x - (i === route.length - 1 ? 1.5 : 1), z + dz]);
 const SQUAD = ['cmd', 'yonatan', 'noam'];
 
-// The covered prayer hall under Wilson's Arch (x -13..0, z -42..-29): a grid of spots.
+// The covered prayer hall under Wilson's Arch (x -13..0, z -42..-29): a grid of spots, close
+// together (a crowd sheltering).
 const SHELTER_SPOTS = [];
-for (let i = 0; i < 9; i++) for (let j = 0; j < 8; j++) SHELTER_SPOTS.push([-11.5 + j * 1.3, -40.5 + i * 1.2]);
+for (let i = 0; i < 12; i++) for (let j = 0; j < 11; j++) SHELTER_SPOTS.push([-11.8 + j * 1.0, -40.8 + i * 1.0]);
 
 // Where the first wave comes in: the southern entrance (behind the checkpoint) and the
 // top of the western (Yehuda HaLevi) stairs.
@@ -37,7 +38,7 @@ const CHECKPOINT = [-67.5, 1.2, 76];
 const STAIRS = [-118, 11.6, 28];
 const WALL = [-3, 0, -8];
 const EMERGE_SPOTS = [];
-for (let i = 0; i < 8; i++) for (let j = 0; j < 5; j++) EMERGE_SPOTS.push([-10 + j * 1.4, -27 + i * 2.4]);
+for (let i = 0; i < 12; i++) for (let j = 0; j < 7; j++) EMERGE_SPOTS.push([-12 + j * 1.4, -27 + i * 2.3]);
 
 export const MISSION1 = {
   id: 'mission1',
@@ -86,6 +87,51 @@ export const MISSION1 = {
       guide: { kind: 'guide', id: 'guide', route: [[-48, -24], [-48, 16], [-72, 22], [-72, -24]], loop: true, speed: 0.9, pause: 7 },
       members: 8,
     },
+    // A busier plaza: a second row of men at the wall and a few farther back, more women in
+    // their section, visitors walking up to the wall and back.
+    worshippers2: [
+      ...[-24.5, -21.5, -18.5, -12, -4.5, 1.5, 4.5, 10.5].map((z, i) => ({ kind: 'worshipper', at: [-3.5 - (i % 2) * 0.6, 0, z], yaw: E, pray: true })),
+      ...[-15, 3.5, 11.5].map((z, i) => ({ kind: 'worshipper', at: [-10 - (i % 2) * 1.5, 0, z], yaw: E + (i % 2 ? 0.25 : -0.2), pray: true })),
+      ...[19.8, 22.2, 24.8, 27.4].map((z, i) => ({ kind: 'worshipperWoman', at: [-3.3 - (i % 2) * 0.5, 0, z], yaw: E, pray: true })),
+      { kind: 'worshipperWoman', at: [-7, 0, 23], yaw: E, pray: true },
+    ],
+    visitors: [
+      { kind: 'civilian', route: [[-24, -14.5], [-2.7, -14.5]], loop: true, speed: 1.1, pause: 22 },
+      { kind: 'tourist', route: [[-27, 7.5], [-2.7, 7.5]], loop: true, speed: 1.0, pause: 18 },
+      { kind: 'worshipper', route: [[-22, -28], [-2.7, -28]], loop: true, speed: 1.2, pause: 30 },
+    ],
+    // Small talk around the plaza (people facing each other, taking turns).
+    chats: {
+      chats: [
+        { at: [-40, -8], kinds: ['civilian', 'civilian', 'tourist'] },
+        { at: [-48, 31.5], kinds: ['worshipper', 'civilian'] },
+        { at: [-64, 6], kinds: ['tourist', 'tourist', 'tourist', 'tourist'], radius: 1.0 },
+        { at: [-90, -16], kinds: ['civilian', 'worshipperWoman'] },
+        { at: [-58, 52], kinds: ['civilian', 'tourist', 'civilian'] },
+        { at: [-17, -3], kinds: ['worshipper', 'worshipper'] },
+        { at: [-15, 23.5], kinds: ['worshipperWoman', 'worshipperWoman'] },
+        { at: [-34, 18], kinds: ['tourist', 'civilian'] },
+      ],
+    },
+    // More people crossing: over both terraces' steps, along the plaza, up and down the
+    // western (Yehuda HaLevi) stairs.
+    crossers2: [
+      { kind: 'civilian', route: [[-49, 44], [-96, 38]], loop: true, speed: 1.3 },
+      { kind: 'tourist', route: [[-92, -34], [-40, -30]], loop: true, speed: 1.1 },
+      { kind: 'worshipper', route: [[-50, 58], [-50, -36]], loop: true, speed: 1.4 },
+      { kind: 'civilian', route: [[-48, -4], [-92, -2]], loop: true, speed: 1.25 },
+      { kind: 'worshipperWoman', route: [[-46, 14], [-90, 18]], loop: true, speed: 1.1 },
+      { kind: 'tourist', route: [[-100, 28], [-127.5, 28]], loop: true, speed: 1.1, pause: 6 },
+      { kind: 'civilian', route: [[-127.5, 31], [-100, 31]], loop: true, speed: 1.2, pause: 4 },
+      { kind: 'civilian', route: [[-36, -22], [-36, 30]], loop: true, speed: 1.3 },
+    ],
+    // Standing around: looking at the wall, taking pictures, waiting at the entrance.
+    standers: [
+      { kind: 'tourist', at: [-37, -2], yaw: E },
+      { kind: 'tourist', at: [-39, 12], yaw: E + 0.3 },
+      { kind: 'tourist', at: [-59, -20], yaw: E - 0.2 },
+      { kind: 'civilian', at: [-62.5, 60], yaw: -0.4 },
+    ],
   },
 
   steps: [
@@ -98,7 +144,12 @@ export const MISSION1 = {
         { type: 'weapon', mode: 'lowered' },
         { type: 'ambience', crowd: 0.55, birds: 0.5 },
         { type: 'populate', group: 'worshippers' },
+        { type: 'populate', group: 'worshippers2' },
+        { type: 'populate', group: 'visitors' },
         { type: 'populate', group: 'crossers' },
+        { type: 'populate', group: 'crossers2' },
+        { type: 'populate', group: 'chats' },
+        { type: 'populate', group: 'standers' },
         { type: 'populate', group: 'tour' },
         { type: 'populate', group: 'bystanders' },
         { type: 'npc', id: 'cmd', spawn: { kind: 'commander', speaker: 'cmd', at: SQUAD_START.cmd } },

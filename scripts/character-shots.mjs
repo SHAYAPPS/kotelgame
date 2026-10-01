@@ -52,6 +52,15 @@ export const GAME_SHOTS = [
   { name: 'game-12-stairs-down', step: 'patrol_wall', at: [-80.4, 2.3, 10.2], look: [-80.4, 2.4, 4.6], wait: 300, untilTimeout: 300000,
     run: "const st = window.__game.story; const a = st.npcs.spawn({ kind: 'soldier', at: [-86.5, 3, 4], yaw: -Math.PI / 2 }); a.setRoute({ points: [[-86.5, 4], [-72, 4]], speed: 1.35 }); const b = st.npcs.spawn({ kind: 'worshipperWoman', at: [-84.5, 3, 5.3], yaw: -Math.PI / 2 }); b.setRoute({ points: [[-84.5, 5.3], [-72, 5.3]], speed: 1.2 }); window.__walker = a;",
     until: 'window.__walker.position.x > -80.7' },
+  // A busier plaza: the crowd from the upper terrace, a chatting group, the rows at the wall.
+  { name: 'game-13-crowd', step: 'patrol_wall', at: [-47, 0, 9], look: [-12, 1.1, -3], wait: 2500 },
+  { name: 'game-14-chat', step: 'patrol_wall', at: [-37.2, 0, -5.6], look: [-40, 1.45, -8], wait: 4000 },
+  { name: 'game-15-wall-rows', step: 'patrol_wall', at: [-8.5, 0, -6], look: [-2, 1.2, -13], wait: 2500 },
+  // Skirts in motion: women up and down the terrace steps, running at the sirens.
+  { name: 'game-16-skirts-stairs', step: 'patrol_wall', at: [-79.6, 2.2, 9.4], look: [-80.6, 2.0, 4.6], wait: 300, untilTimeout: 300000,
+    run: "const st = window.__game.story; const a = st.npcs.spawn({ kind: 'worshipperWoman', at: [-74, 1.2, 4], yaw: Math.PI / 2 }); a.setRoute({ points: [[-74, 4], [-88, 4]], speed: 1.3 }); const b = st.npcs.spawn({ kind: 'worshipperWoman', at: [-87, 3, 5.6], yaw: -Math.PI / 2 }); b.setRoute({ points: [[-87, 5.6], [-72, 5.6]], speed: 1.2 }); window.__walker = a;",
+    until: 'window.__walker.position.x < -80.4' },
+  { name: 'game-17-skirts-run', step: 'sirens', at: [-52, 0, -3], look: [-36, 1.0, -14], wait: 9000 },
   { name: 'game-8-bodies', step: 'defense_orders', at: [-41, 0, 4], look: [-49, 0.2, 3], wait: 3000, god: true,
     // Kill four enemies from different sides, then play their falls through (SwiftShader runs
     // too slowly for game time to get there on its own).
@@ -83,6 +92,17 @@ if (game.length) {
       const g = window.__game;
       g.setActive(true);
       g.input.locked = true;
+      // Game time per frame as at 60 FPS, however slowly software rendering draws (the cloth,
+      // the stairs smoothing and the AI then behave as they do in the game).
+      g.fixedFrame = 1 / 60;
+      if (!window.__frames) {
+        window.__frames = 1;
+        const tick = () => {
+          window.__frames++;
+          requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }
       const st = g.story;
       st.jumpTo(st.mission.indexOf(s.step));
       if (s.god) g.health.damage = () => {};
@@ -121,7 +141,10 @@ if (game.length) {
       g.view.pitch = Math.atan2(look[1] - eyeY, Math.hypot(dx, dz));
       g.view.snap();
     }, s);
-    await page.waitForTimeout(s.wait ?? 2000);
+    // Wait in game time (60 frames a second), drawing small meanwhile (faster frames).
+    await page.setViewportSize({ width: 320, height: 180 });
+    const start = await page.evaluate(() => window.__frames);
+    await page.waitForFunction((n) => window.__frames >= n, start + Math.round(((s.wait ?? 2000) / 1000) * 60), { timeout: 600000, polling: 200 });
     if (s.until) {
       await page.evaluate(() => {
         window.mouth = (id) => {
@@ -144,6 +167,9 @@ if (game.length) {
       });
       await page.waitForTimeout(s.until.includes('mouth(') ? 2500 : 0);
     }
+    await page.setViewportSize({ width: 1280, height: 720 });
+    const drawn = await page.evaluate(() => window.__frames);
+    await page.waitForFunction((n) => window.__frames >= n, drawn + 3, { timeout: 120000, polling: 100 });
     await page.screenshot({ path: `${out}/${s.name}.png` });
     const note = await page.evaluate(() => {
       // How many people are in view and what the nearest few are doing (for the log).

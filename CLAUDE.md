@@ -43,7 +43,12 @@ A browser-based 3D first-person story shooter.
    - [x] Part 2: animated characters (Mixamo) replace the capsules: squad (olive, helmets,
      vests), enemies (dark, faces covered, role-colored headbands), civilians (varied clothes);
      8-way blended locomotion at the real ground speed, cover / reload / grenade / hit
-     overlays, deaths by hit direction, model hit zones, LODs and distance-based update rates
+     overlays, deaths by hit direction, model hit zones, LODs and distance-based update rates;
+     then: civilian clothing (kippot, hats, headscarves, long skirts), talking faces (lip sync,
+     blinks, head turns), stairs (stair clips over the flights, foot IK, smooth camera,
+     footsteps), error-bounded LODs (no collapsed limbs), clothing layers (no waistband through a
+     hem), cloth in motion (skirts and shirt / jacket hems on simulated cloth bones), a busier
+     plaza (about 90 people: rows at the wall, visitors, chatting groups, stair walkers)
    - [ ] Part 3  <- next
 
 ## Commands
@@ -67,9 +72,12 @@ A browser-based 3D first-person story shooter.
   get them). ~15 s per character; rewrites the manifest and `public/assets/CREDITS.md`
 - `npm run character-shots -- [outDir] [name filter]`: Playwright screenshots of the characters
   in the dev preview and at moments of Mission 1 (`GAME_SHOTS`: prayer, patrol, sirens,
-  shelter, combat, bodies, the commander / the guide talking, stairs up / down; dev server
-  must be running). The preview itself: `npm run dev`, then http://localhost:5173/dev/characters.html
-  (`?role=squad|enemy|civilian`, `ids=`, `clip=`, `cam=front|side|back|close|far`, `t=`, `deaths=1`)
+  shelter, combat, bodies, the commander / the guide talking, stairs up / down, the crowd, a
+  chatting group, the rows at the wall, skirts on the stairs and running; dev server must be
+  running). Game shots run with `__game.fixedFrame = 1/60` and wait in game time. The preview
+  itself: `npm run dev`, then http://localhost:5173/dev/characters.html
+  (`?role=squad|enemy|civilian`, `ids=`, `clip=`, `cam=front|side|back|close|far|x,y,z,tx,ty,tz`,
+  `t=`, `deaths=1`, `yaw=`, `move=<m/s>` walks them forward (cloth inertia))
 
 ## Architecture
 
@@ -203,10 +211,13 @@ A browser-based 3D first-person story shooter.
     a fast `runAll` puts every civilian straight into the shelter.
     `jumpTo(i)` replays the earlier steps' state actions in fast mode (no dialogue, NPCs placed at
     their route ends) and enters step i; checkpoints restart this way. `fail()` freezes it.
-  - `mission1.js`: Mission 1's steps, squad routes, checkpoints, crowd groups (worshipers,
-    crossers, tour group, bystanders who freeze at the sirens), the shelter spots (the hall under
-    Wilson's Arch), the defense positions (the low wall at x = -30, then near the wall) and the
-    `chapters` shown on the start screen.
+  - `mission1.js`: Mission 1's steps, squad routes, checkpoints, crowd groups (worshipers in
+    two rows at the wall and in the women's section, visitors walking up to the wall and back,
+    crossers (over the terrace steps and up the western stairs too), chatting groups
+    (`chats`), people standing around, the tour group, bystanders who freeze at the sirens:
+    about 90 people), the shelter spots (the hall under Wilson's Arch, 132 of them), the
+    defense positions (the low wall at x = -30, then near the wall) and the `chapters` shown on
+    the start screen. Every spot and route is on the navmesh (checked when changing them).
   - `difficulty.js`: **all difficulty tuning**: global accuracy/damage/reaction multipliers,
     per-role overrides, grenades (fuse, radius, damage, enemy throw frequency), ammo, prep times,
     spawn points, flank routes and every wave's groups (`expandWave`, `attackerConfig`).
@@ -218,14 +229,22 @@ A browser-based 3D first-person story shooter.
     `radio: true` (or a radio speaker) is shown and heard as radio.
   - `Npc.js`: NPCs on `PlayerController` bodies walking navmesh routes; a `leash` makes the
     squad wait (looking back) only when the player lags behind; tour members follow a leader;
-    `NpcManager` spawns, separates bodies, finds the E talk target, ray-tests friendly fire.
+    walkers slow to a stair pace on a flight (`stairUpSpeed` / `stairDownSpeed`, the level's
+    stair zones); stuck: a sidestep (thin posts slip through the navmesh), or back onto the path
+    when pushed off the floor. Standing still with nothing to do (praying, waiting, chatting)
+    the physics sleeps after `NPC.settle` s (a push, a route or a placement wakes it): a big
+    crowd is cheap. `NpcManager` spawns, separates bodies (never off the navmesh; two sleepers
+    skip), finds the E talk target, ray-tests friendly fire, and runs small talk
+    (`populate({ chats })`: people facing in, taking turns to talk, `npc.chatting`).
     Emergency: `panic()` (civilians flee to shelter spots with staggered reactions, bystanders
     freeze until E), `escort` (squad keeps near the player), `brain` (the combat AI drives the
     body; the NPC only mirrors it).
   - `NpcView.js`: the NPC's animated character: squad members by name (SoldierAnimator,
     relaxed off duty, full combat behavior once their AI takes over), civilians by kind
     (CivilianAnimator); placeholder figures until the characters load (and in tests).
-    StoryDirector sets `npc.speaking` while the NPC has the current line.
+    StoryDirector sets `npc.speaking` while the NPC has the current line; a chatting NPC plays
+    the talk clip with made-up words on its lips (`LipSync.babble`), the others listen and
+    look at it.
   - `AmbientAudio.js`: generated crowd murmur (panic shouts), birds, the rising-and-falling
     siren (three horns into the echo bus), distant booms, radio lines (garbled synthesized voice
     through a band-pass + distortion, with squelches), charging handle, objective chime.
@@ -265,7 +284,8 @@ A browser-based 3D first-person story shooter.
     the source clip held it vs Spine2, left hand on the handguard vs the right hand), bone
     attachments (`attach`, rifle via `addRifle`), and the hit zones in root space (`hit`).
     Performance: LOD by distance, animation every frame < 16 m / every 2nd < 36 m / every 4th,
-    off-screen every 8th; IK < 18 m; shadows < `characterShadows` (Graphics.js); characters
+    off-screen every 8th (never drawn before its first pose); IK < 18 m; shadows <
+    `characterShadows` (Graphics.js); characters
     beyond 20 m on `FAR_LAYER` (drawn, but not in the AO prepass or shadow maps); bone
     matrices uploaded only when the pose or placement changed. Tuning: `config.js`.
   - `SoldierAnimator.js`: squad and enemies from the AI state (`soldierState()` in
@@ -276,13 +296,26 @@ A browser-based 3D first-person story shooter.
     reactions (additive), deaths via `deaths.js` (the clip whose fall direction best follows
     the shot, avoiding walls; the fall ends on its last frame (`model.finish()`, even when
     throttled updates lagged), then the body freezes and stays down).
-  - Stairs: `stairs.js` `stairLegs()` plays a Mixamo stair clip (walking up / down; the
-    converter measures its horizontal speed and climb, takes both out, and marks when each
-    foot is planted: `contacts`) over the lower body (mode `lower`) at the real ground speed
-    while a walker is on stairs (StairTracker); runners keep their run. Views offset the drawn
-    body (`model.body.position.y`) by the tracker. `CharacterModel._feet()` (foot IK within
-    `feetDistance`): planted feet are pinned onto the step under them, swinging ones kept out
-    of the steps, the hips drop so the lower foot reaches, feet stay level.
+  - Stairs: the level lists its flights (`stairZones`: rectangles with the uphill direction;
+    `src/world/stairs.js` `stairsAt()`; Game hangs them on `collision.stairZones`).
+    `stairs.js` `stairLegs()` plays a Mixamo stair clip (walking up / down; the converter
+    measures its horizontal speed and climb, takes both out, and marks when each foot is
+    planted: `contacts`) over the lower body (mode `lower`) while a walker crosses a flight
+    (in at the bottom, out at the top, 0.15 s fades), at the real ground speed within 0.6-1.9x
+    the clip's own pace; runners keep their run. Views offset the drawn body
+    (`model.body.position.y`) by the StairTracker (smooth climb). `CharacterModel._feet()`
+    (foot IK within `feetDistance`): planted feet are pinned onto the step under them,
+    swinging ones kept out of the steps, the hips drop (at most about a riser) so the lower
+    foot reaches, feet stay level.
+  - Cloth (`ClothSim.js`): loose clothes on cloth bones (the converter's chains, manifest
+    `cloth`): a long skirt on 24 chains of two bones (waistband -> knee line -> hem), the
+    lower part of a loose top (shirt, t-shirt, suit jacket) on 8 one-bone chains. Each bone's
+    tail is a damped spring toward its rest direction (inertia: it lags, swings, settles;
+    gravity: it hangs straight when the hips tilt), pushed out of the legs (tapered capsules
+    on thigh and shin, always to the outside: a knee lifted into a skirt goes under it), never
+    into the body; neighbors spread a push (a tent, not a fold). Up close (< 14 m) with
+    dynamics, to 34 m only the legs push it, beyond it rests. Skirted women run with shorter
+    steps (part walk cycle). Tuning: `config.js` `cloth`.
   - `CivilianAnimator.js`: idles by kind, praying (desynchronized), walk / run (scared upper
     body while fleeing), frozen cowering, panic, nervous waiting in the shelter, talking
     (standing: the talk clip; walking: its upper body over the walk).
@@ -323,12 +356,18 @@ A browser-based 3D first-person story shooter.
 - `scripts/assets/characters.mjs` (+ `characters.config.mjs`, `lib/`): the converter. FBX via
   three's FBXLoader in Node (`lib/fbx.mjs`, embedded textures captured) -> skeleton in meters
   with duplicate bone hierarchies merged (`lib/rig.mjs`) -> meshes merged and welded ->
-  hidden skin under clothes removed (`lib/hidden.mjs`) -> civilians' clothing parts
-  (`lib/clothes.mjs`: bare arm / leg skin as parts, split at the borders; the women's long
-  skirt: rings sized from the body, skinned to the hips / thighs / shins, own fabric tile;
-  a shirt under a suit is its own part) -> texture atlas + recolors (olive /
-  dark / "SWAT" lettering removed / painted balaclava or face wrap) (`lib/atlas.mjs`) ->
-  LODs with meshoptimizer (`lib/lod.mjs`; the face is locked in LOD0) -> face rig
+  hidden skin under clothes removed, garments layered (`lib/hidden.mjs` `layerUnder`: where a
+  waistband or a tucked shirt touches the garment over it, it sinks 1 cm under; the skin left
+  just inside a sleeve or a trouser leg sinks 8 mm) -> civilians'
+  clothing parts (`lib/clothes.mjs`: bare arm / leg skin as parts, split at the borders; the
+  women's long skirt: rings sized from the body, its own fabric tile, hung on cloth bones;
+  a shirt under a suit is its own part) -> cloth bones (`lib/cloth.mjs`: the skirt's chains,
+  hem chains for loose tops, leg colliders) -> texture atlas + recolors (olive /
+  dark / "SWAT" lettering removed / painted balaclava or face wrap) (`lib/atlas.mjs`; clothing
+  cut-out texels filled with the fabric around them) -> LODs with meshoptimizer (`lib/lod.mjs`:
+  each LOD bounded by an error, 0.3% / 0.7% / 2% of the body, not a triangle count (a count
+  target collapses limbs once the locked face leaves nothing cheap); LOD0 locks the face, LOD1
+  keeps it to its own smaller error; a skirt's lining is only in LOD0) -> face rig
   (`lib/face.mjs`: lip line from an open lip slit crossing the face's middle, else the groove
   between the lips below the nose tip, or `face.lipY` set in the config when measured with
   the preview's `?lip=`) -> GLB (`lib/glb.mjs`, morph targets shared by the LOD primitives). Clips (`lib/anim.mjs`):
@@ -391,7 +430,9 @@ A browser-based 3D first-person story shooter.
 - Dev builds expose `window.__game` for console debugging and automated checks
   (e.g. `__game.setActive(true)` plays without pointer lock).
 - Headless Chromium (Playwright) renders with SwiftShader: fine for screenshots and logic checks,
-  meaningless for FPS numbers. At ~5 FPS the frame-time cap makes game time run slower than real
+  meaningless for FPS numbers. Set `__game.fixedFrame = 1 / 60` so every frame advances 1/60 s of
+  game time (else long frames hit the 0.1 s cap: springs, cloth and stairs smoothing see huge
+  steps; they are sub-stepped, but the scene then isn't what a player sees). At ~5 FPS the frame-time cap makes game time run slower than real
   time (with every character on screen it can drop under 1 FPS, a few tenths of a second of game
   time in 15 s: fast-forward what a shot needs, e.g. `view.update(0.1)` in a loop for the
   death falls in `character-shots.mjs`). Under pointer lock, Playwright's synthetic mouse events report bogus large movements
@@ -425,6 +466,13 @@ A browser-based 3D first-person story shooter.
   glTF-Transform's `quantize` sorts skin weights once per primitive and scrambles joints when
   primitives share accessors (the LODs do): weights are sorted/quantized in `packSkin` and
   `normalizeWeights` is off. A glTF with every clip was ~60% JSON: hence `anims.bin`.
+- Characters, LODs: a meshoptimizer triangle-count target is a floor, not a budget: with the face
+  and clothing borders locked it reached the count by collapsing arms into blades and feet into
+  spikes (an 8% error). Bound each LOD by error instead (`lib/lod.mjs`).
+- Characters, cloth: the skirt's top ring can sit above the measured trousers (under a top);
+  rings with nothing measured take the size of the ring below (a radius of 0 put every
+  chain's pivot at the hip center and the skirt exploded). Leg capsules start a quarter of the
+  way down the thigh (at the hip joint they swallow the waistband).
 - Characters, runtime: `SkinnedMesh.boundingSphere` is preset (a fixed sphere) so three never
   computes skinned bounds; three calls `skeleton.update()` on every `render()` that draws the
   mesh (the post chain renders the scene more than once), which CharacterModel skips when

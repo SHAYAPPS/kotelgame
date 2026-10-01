@@ -76,6 +76,22 @@ export class LipSync {
     this.level = null;
   }
 
+  /**
+   * Small talk with no line behind it (ambient chats): made-up words for about `seconds`,
+   * the same syllable rhythm as a real line.
+   */
+  babble(seconds) {
+    const letters = 'אבגדהוזחטיכלמנסעפצקרשת';
+    let text = '';
+    const words = Math.max(2, Math.round(seconds * 2.1));
+    for (let w = 0; w < words; w++) {
+      const n = 2 + Math.floor(this.rand() * 5);
+      for (let k = 0; k < n; k++) text += letters[Math.floor(this.rand() * letters.length) % letters.length];
+      text += this.rand() < 0.15 ? ', ' : ' ';
+    }
+    this.speak(text, seconds);
+  }
+
   /** Speak from a recording: `level()` = its current loudness (RMS, 0..1). */
   speakLevel(level) {
     this.level = level;
