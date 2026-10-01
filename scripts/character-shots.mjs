@@ -107,7 +107,7 @@ if (game.length) {
       st.jumpTo(st.mission.indexOf(s.step));
       if (s.god) g.health.damage = () => {};
       for (const el of document.querySelectorAll('.hud, .story-hud, .debug, .hitmarker')) el.style.display = 'none';
-      g.viewmodel.root.visible = false;
+      g.viewmodel.scene.visible = false;
       window.__shot = s;
     }, s);
     if (s.run) await page.evaluate(s.run);

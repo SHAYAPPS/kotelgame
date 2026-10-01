@@ -1,4 +1,4 @@
-import { ACESFilmicToneMapping, Frustum, MathUtils, Matrix4, PCFShadowMap, PerspectiveCamera, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
+import { ACESFilmicToneMapping, Frustum, MathUtils, Matrix4, PCFShadowMap, PerspectiveCamera, Quaternion, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
 import { Input } from './Input.js';
 import { PlayerController } from '../player/PlayerController.js';
 import { PlayerCamera } from '../player/PlayerCamera.js';
@@ -21,6 +21,9 @@ import { RocketSim, RocketView } from '../weapons/Rockets.js';
 import { Impacts } from '../weapons/Impacts.js';
 import { Rifle } from '../weapons/Rifle.js';
 import { Viewmodel } from '../weapons/Viewmodel.js';
+import { Casings, viewToWorld } from '../weapons/Casings.js';
+import { models } from './Models.js';
+import { TRUCK_MODEL } from '../ai/TruckView.js';
 import { WeaponAudio } from '../weapons/WeaponAudio.js';
 import { GrenadeSim, GrenadeView } from '../weapons/Grenades.js';
 import { GrenadeThrower } from '../weapons/GrenadeThrower.js';
@@ -55,6 +58,7 @@ const _size = new Vector2();
 const _c = new Vector3();
 const _down = new Vector3(0, -1, 0);
 const _pv = new Matrix4();
+const _eq = new Quaternion();
 
 export class Game {
   constructor(container) {
@@ -114,10 +118,28 @@ export class Game {
     // Weapon
     this.viewmodel = new Viewmodel();
     this.viewmodel.setAspect(this.camera.aspect);
+    // The real weapon models stream in (greybox ones until then); the truck's too, for later.
+    models.ktx2Loader = this.textures.loader;
+    this.viewmodel.load().catch((e) => console.warn('Weapon models did not load; keeping the greybox ones.', e));
+    if (!range) models.load(TRUCK_MODEL).catch(() => {});
+    this._sunlit = 1; // is the player's weapon in the sun? (a ray toward the sun, a few times a second)
+    this._shadeTimer = 0;
+    this._shadeHit = { point: new Vector3(), normal: new Vector3(), distance: 0 };
     this.post = new PostFX(renderer, this.scene, this.camera, this.viewmodel.scene, this.viewmodel.camera, this.quality);
     this.impacts = new Impacts(this.scene);
     this._dustScale();
+    // Spent casings from the ejection port: world physics, they clink on the stone.
+    this.casings = new Casings(this.scene, this.collision);
+    this._ejectPos = new Vector3();
+    this._ejectVel = new Vector3();
+    this.viewmodel.onEject = (p, v) => {
+      viewToWorld(p, this.viewmodel.camera, this.camera, this._ejectPos);
+      this.camera.getWorldQuaternion(_eq);
+      this._ejectVel.copy(v).applyQuaternion(_eq).add(this.player.velocity);
+      this.casings.eject(this._ejectPos, this._ejectVel);
+    };
     this.audio = new WeaponAudio();
+    this.casings.onBounce = (p, speed, n) => this.audio.casing?.(p, speed, n);
     this.rifle = new Rifle(
       {
         scene: this.scene,
@@ -377,13 +399,24 @@ export class Game {
     this.environment.update(this.camera, dt);
     this.flashes.update(dt);
     const L = this.weapon === 'launcher';
+    // In the sun or in shade: the weapon's light follows (it has no shadow map of its own).
+    this._shadeTimer -= dt;
+    if (this._shadeTimer <= 0) {
+      this._shadeTimer = 0.1;
+      this._sunlit = this.collision.raycast(this.view.eye, this.environment.sunDir, 300, this._shadeHit) ? 0 : 1;
+    }
+    this.viewmodel.setLighting(this.camera, this.environment, this._sunlit, dt);
+    const sw = LAUNCHER.switchTime;
     this.viewmodel.update(dt, {
       aim: L ? this.launcher.state.aim : this.rifle.state.aim,
       reload: L ? this.launcher.state.reloadProgress : this.rifle.state.reloadProgress,
+      reloadEmpty: !L && this.rifle.state.reloading && this.rifle.state.ammo === 0,
       loaded: this.launcher.state.ammo > 0,
       sprinting: this.player.sprinting,
-      lowered: this.rifle.lowered || this.thrower.aiming || this.thrower.busy > 0 || this._switchTime > 0,
+      lowered: this.rifle.lowered || this.thrower.aiming || this.thrower.busy > 0,
+      stow: this._switchTime > 0 ? 1 - Math.abs((2 * this._switchTime) / sw - 1) : 0,
       check: this.rifle.checkProgress,
+      charge: this.rifle.chargeProgress,
       lookX: m.x,
       lookY: m.y,
       bobPhase: this.view.bobPhase,
@@ -396,6 +429,7 @@ export class Game {
     if (this.active) this.thrower.frameUpdate(this.view.eye, this.view.getAimDirection(this._forward), this.player.velocity);
     this.grenadeWarning.update(this._hostileGrenades(), this.player.position, this.view.viewYaw);
     this.impacts.update(dt);
+    this.casings.update(dt);
     // Characters: LOD and animation rates from where the camera is this frame.
     this.camera.updateMatrixWorld();
     characters.frustum.setFromProjectionMatrix(_pv.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse));
@@ -508,6 +542,8 @@ export class Game {
     this.rifle.reset();
     this.enemies.reset();
     this.impacts.clear();
+    this.casings.clear();
+    this.viewmodel.reset();
     this._clearGrenades();
     this.rockets.clear();
     this.rocketView.clear();

@@ -48,6 +48,8 @@ export class Rifle {
     this.mode = 'ready';
     this.checkTime = 0; // magazine check progress in seconds (0 = not checking)
     this.checkDuration = 1.3;
+    this.chargeTime = 0; // charging-handle pull when the rifle is made ready (seconds, 0 = none)
+    this.chargeDuration = 0.8;
     /** Called when a magazine check completes: () => void. */
     this.onMagCheck = null;
     this._lowInput = { trigger: false, aim: false, reload: false, blocked: true };
@@ -65,6 +67,7 @@ export class Rifle {
     this.recoil = new Recoil(this.cfg);
     this.flashTimer = 0;
     this.checkTime = 0;
+    this.chargeTime = 0;
   }
 
   /** Eased 0..1 aim-down-sights amount. */
@@ -97,6 +100,16 @@ export class Rifle {
     return this.checkTime > 0 ? this.checkTime / this.checkDuration : 0;
   }
 
+  /** Racks the charging handle (the story makes the rifle ready). Looks only. */
+  charge() {
+    this.chargeTime = 1e-6;
+  }
+
+  /** 0..1 progress of the charging-handle pull. */
+  get chargeProgress() {
+    return this.chargeTime > 0 ? this.chargeTime / this.chargeDuration : 0;
+  }
+
   fixedUpdate(dt, input, player) {
     const state = this.state;
     if (this.lowered) {
@@ -105,6 +118,10 @@ export class Rifle {
         this.audio.magCheck?.();
       }
       input = this._lowInput;
+    }
+    if (this.chargeTime > 0) {
+      this.chargeTime += dt;
+      if (this.chargeTime >= this.chargeDuration) this.chargeTime = 0;
     }
     if (this.checkTime > 0) {
       this.checkTime += dt;

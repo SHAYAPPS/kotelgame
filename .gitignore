@@ -19,3 +19,9 @@ screenshots/
 
 # raw third-party sources (Mixamo files may not be redistributed on their own; see DOWNLOADS.md)
 assets-src/
+
+# Scratch models for the dev model viewer (not shipped)
+public/_tmp/
+
+# Throwaway dev scripts
+scripts/.scratch/

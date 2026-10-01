@@ -16,7 +16,9 @@
     "assets:fetch": "node scripts/assets/fetch.mjs",
     "screenshots": "node scripts/screenshots.mjs",
     "assets:characters": "node scripts/assets/characters.mjs",
-    "character-shots": "node scripts/character-shots.mjs"
+    "character-shots": "node scripts/character-shots.mjs",
+    "assets:weapons": "node scripts/assets/weapons.mjs",
+    "weapon-shots": "node scripts/weapon-shots.mjs"
   },
   "dependencies": {
     "three": "^0.186.1"

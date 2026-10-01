@@ -22,6 +22,18 @@ export async function writeCredits() {
   const tex = await json(new URL('textures/manifest.json', ASSETS));
   const hdri = await json(new URL('hdri/manifest.json', ASSETS));
   const chars = await json(new URL('characters/manifest.json', ASSETS));
+  const weapons = await json(new URL('weapons/manifest.json', ASSETS));
+  const WEAPON_USE = {
+    rifle: 'The assault rifle (rear sight folded, textures packed, metalness toned down)',
+    arms: 'The first-person arms (gloves and olive sleeves painted over the bare-skin texture, new normal map)',
+    launcher: 'The rocket launcher and its rocket (re-oriented, smoothed normals)',
+    truck: "The armed pickup (resized, smoothed normals, the maker's badge removed, materials by part)",
+  };
+  const weaponRows = Object.entries(weapons.models ?? {}).map(([id, m]) => {
+    const s = m.source ?? {};
+    const lic = s.licenseUrl ? `[${s.license}](${s.licenseUrl})` : s.license;
+    return `| \`${m.file}\` | ${WEAPON_USE[id] ?? id} | [${s.title}](${s.url}) by ${s.author} | ${lic} |`;
+  });
   const clipRows = Object.entries(chars.anims?.clips ?? {}).map(([name, c]) => `| \`${name}\` | ${c.source ?? name} |`);
   const lines = [
     '# Asset credits',
@@ -70,6 +82,17 @@ export async function writeCredits() {
     '',
     'Rifles, vest, headbands, kippot, hats and headscarves on the characters are built from',
     'primitive shapes in code (`src/characters/weapons.js`, `attachments.js`): CC0 (this project).',
+    '',
+    '## Weapons and vehicles (`public/assets/weapons/`)',
+    '',
+    'Converted by `scripts/assets/weapons.mjs` (sources: `scripts/assets/weapons.config.mjs`). The game',
+    'uses generic names for them. CC-BY models are credited here as their license requires.',
+    '',
+    '| File | Used as | Source | License |',
+    '| --- | --- | --- | --- |',
+    ...weaponRows,
+    '| Red dot sight | Built from primitives in code (`src/weapons/RedDot.js`) | This project | CC0 |',
+    '| Spent casings | Built in code (`src/weapons/Casings.js`) | This project | CC0 |',
     '',
     '## Other files',
     '',

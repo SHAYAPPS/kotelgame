@@ -16,8 +16,12 @@ import {
   Sprite,
   SpriteMaterial,
 } from 'three';
+import { Matrix4 } from 'three';
 import { TRUCK_GUN } from './Truck.js';
 import { characters } from '../characters/registry.js';
+import { models } from '../core/Models.js';
+
+export const TRUCK_MODEL = 'assets/weapons/truck.glb';
 
 function sprite(stops) {
   if (typeof document === 'undefined') return null;
@@ -53,7 +57,65 @@ function assets() {
   return shared;
 }
 
-/** Placeholder armed pickup (white, dented), a gunner behind a shield; a burning wreck when destroyed. */
+// The pickup model's materials by role (scripts/assets/weapons.mjs names them): an off-white
+// paint job under a layer of dust that thickens toward the wheels, black plastics, glass.
+let looks = null;
+function truckLooks() {
+  if (looks) return looks;
+  const uniforms = { uInvRoot: { value: new Matrix4() }, uCharred: { value: 0 } };
+  const dusty = (m, amount) => {
+    m.onBeforeCompile = (shader) => {
+      shader.uniforms.uInvRoot = uniforms.uInvRoot;
+      shader.uniforms.uCharred = uniforms.uCharred;
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nuniform mat4 uInvRoot;\nvarying vec3 vTruck;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvTruck = (uInvRoot * modelMatrix * vec4(transformed, 1.0)).xyz;');
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          '#include <common>',
+          `#include <common>
+          uniform float uCharred;
+          varying vec3 vTruck;
+          float tHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+          float tNoise(vec3 x) {
+            vec3 i = floor(x); vec3 f = fract(x); f = f * f * (3.0 - 2.0 * f);
+            return mix(mix(mix(tHash(i), tHash(i + vec3(1,0,0)), f.x), mix(tHash(i + vec3(0,1,0)), tHash(i + vec3(1,1,0)), f.x), f.y),
+                       mix(mix(tHash(i + vec3(0,0,1)), tHash(i + vec3(1,0,1)), f.x), mix(tHash(i + vec3(0,1,1)), tHash(i + vec3(1,1,1)), f.x), f.y), f.z);
+          }`,
+        )
+        .replace(
+          '#include <color_fragment>',
+          `#include <color_fragment>
+          float tn = tNoise(vTruck * 3.1) * 0.6 + tNoise(vTruck * 13.0) * 0.4;
+          float tDirt = clamp((1.25 - vTruck.y) * 0.85 + (tn - 0.5) * 0.9, 0.0, 1.0) * ${amount.toFixed(2)};
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.36, 0.3, 0.23), tDirt);
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.02, 0.018, 0.016) * (0.6 + tn), uCharred);`,
+        )
+        .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.95, max(tDirt, uCharred));');
+    };
+    m.customProgramCacheKey = () => `truck-dust-${amount}`;
+    return m;
+  };
+  const std = (o) => new MeshStandardMaterial(o);
+  looks = {
+    uniforms,
+    paint: dusty(std({ color: 0xd8d2c4, roughness: 0.45 }), 0.75),
+    cladding: dusty(std({ color: 0x2c2c2b, roughness: 0.72 }), 0.6),
+    trim: dusty(std({ color: 0x161616, roughness: 0.75 }), 0.55),
+    rubber: dusty(std({ color: 0x141413, roughness: 0.92 }), 0.5),
+    wheelwell: std({ color: 0x0f0e0d, roughness: 1 }),
+    glass: dusty(std({ color: 0x0a0d10, roughness: 0.07, envMapIntensity: 1.6 }), 0.2),
+    rim: dusty(std({ color: 0x8d9093, roughness: 0.42, metalness: 0.7 }), 0.45),
+    hub: std({ color: 0x2b2b2b, roughness: 0.6, metalness: 0.4 }),
+    lamp: std({ color: 0xd9d7cf, roughness: 0.12, metalness: 0.6 }),
+    indicator: std({ color: 0xd2861c, roughness: 0.25 }),
+    taillight: std({ color: 0x8c120e, roughness: 0.22 }),
+    chrome: dusty(std({ color: 0xc8c8c8, roughness: 0.2, metalness: 1 }), 0.3),
+  };
+  return looks;
+}
+
+/** The armed pickup (a gunner behind a shield on the bed); a burning wreck when destroyed. Box placeholder until the model loads. */
 export class TruckView {
   constructor(truck) {
     const a = assets();
@@ -122,6 +184,36 @@ export class TruckView {
     this._shots = truck.shotsFired;
     this._flash = 0;
     this._wrecked = false;
+    this.wheels = [];
+    this._spin = 0;
+    this._last = truck.position.clone();
+    if (typeof document !== 'undefined') {
+      models.load(TRUCK_MODEL).then(
+        (gltf) => this._buildModel(gltf),
+        (e) => console.warn('Truck model did not load; keeping the box one.', e),
+      );
+    }
+  }
+
+  /** The real pickup replaces the boxes (the turret, gun and gunner stay). */
+  _buildModel(gltf) {
+    if (this.disposed) return;
+    const L = truckLooks();
+    const body = gltf.scene.clone(true);
+    body.traverse((o) => {
+      if (!o.isMesh) return;
+      o.material = L[o.material.name] ?? L.trim;
+      o.castShadow = true;
+      o.receiveShadow = true;
+    });
+    for (const name of ['wheel_fl', 'wheel_fr', 'wheel_rl', 'wheel_rr']) {
+      const w = body.getObjectByName(name);
+      if (w) this.wheels.push(w);
+    }
+    for (const child of [...this.body.children]) if (child !== this.turret) child.visible = false;
+    this.body.add(body);
+    this.model = body;
+    this.painted = [];
   }
 
   /** The animated gunner (an enemy model holding the gun's grips), once loaded. */
@@ -154,8 +246,20 @@ export class TruckView {
     if (this.gunnerModel && !this._wrecked) this.gunnerModel.update(dt, characters);
     this.flash.visible = this._flash > 0;
     this._flash -= dt;
-    // Slight body roll while driving.
+    // Slight body roll while driving; wheels turn with the distance covered.
     this.body.rotation.z = t.driving ? Math.sin(t.time * 9) * 0.012 : 0;
+    const moved = Math.hypot(t.position.x - this._last.x, t.position.z - this._last.z);
+    this._last.copy(t.position);
+    if (this.model && moved > 0 && moved < 2) {
+      this._spin -= moved / 0.4;
+      for (const w of this.wheels) w.rotation.x = this._spin;
+    }
+    if (this.model) {
+      const L = truckLooks();
+      this.root.updateMatrixWorld();
+      L.uniforms.uInvRoot.value.copy(this.root.matrixWorld).invert();
+      L.uniforms.uCharred.value = this._wrecked ? Math.min(1, (t.deadTime ?? 1) * 1.5) * 0.85 : 0;
+    }
     if (!t.alive) this._wreck(dt);
   }
 
@@ -186,6 +290,8 @@ export class TruckView {
   }
 
   dispose() {
+    this.disposed = true;
+    if (looks) looks.uniforms.uCharred.value = 0;
     this.gunnerModel?.dispose();
     this.root.removeFromParent();
   }

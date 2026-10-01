@@ -49,7 +49,12 @@ A browser-based 3D first-person story shooter.
      footsteps), error-bounded LODs (no collapsed limbs), clothing layers (no waistband through a
      hem), cloth in motion (skirts and shirt / jacket hems on simulated cloth bones), a busier
      plaza (about 90 people: rows at the wall, visitors, chatting groups, stair walkers)
-   - [ ] Part 3  <- next
+   - [ ] Part 3: weapons and sound  <- in progress
+     - [x] Weapons: an M4-style rifle with a red dot (collimated dot), gloved arms on IK,
+       procedural reload (magazine out / in, bolt release on empty), sprint, aim, recoil, dust
+       cover, charging handle; ejected casings; launcher and pickup models
+     - [ ] Sound: recordings, layered gunshots, plaza reverb, suppression, surface footsteps,
+       ambience, music, ducking, volume sliders
 
 ## Commands
 
@@ -70,6 +75,16 @@ A browser-based 3D first-person story shooter.
 - `npm run assets:characters [id ... | anims]`: rebuild the characters (`public/assets/characters/`)
   from the Mixamo FBX files in `assets-src/mixamo/` (git-ignored; see `DOWNLOADS.md` for how to
   get them). ~15 s per character; rewrites the manifest and `public/assets/CREDITS.md`
+- `npm run assets:weapons [rifle|arms|launcher|truck ...]`: rebuild `public/assets/weapons/`
+  (GLB + KTX2) from free models (CC0 / CC-BY; sources, URLs and credits in
+  `scripts/assets/weapons.config.mjs`). The raw downloads go to `assets-src/models/<id>/`
+  (git-ignored) and are fetched again when missing. Rewrites the manifest and `CREDITS.md`.
+- `npm run weapon-shots -- [outDir] [name filter]`: Playwright screenshots of the weapon in the
+  game (hip, aimed, in shade, firing, reload out / in, sprint, casings, launcher). The weapon on
+  its own: http://localhost:5173/dev/viewmodel.html (`weapon=rifle|launcher`,
+  `state=hip|ads|sprint|lowered|stow|reload|check|charge`, `t=<s>`, `empty=1`,
+  `cam=view|side|left|top|front|port`). Any model file: http://localhost:5173/dev/models.html
+  (`url=`, `map=`/`normal=`/`rough=`/`metal=`, `cam=`, `only=<mesh regex>`)
 - `npm run character-shots -- [outDir] [name filter]`: Playwright screenshots of the characters
   in the dev preview and at moments of Mission 1 (`GAME_SHOTS`: prayer, patrol, sirens,
   shelter, combat, bodies, the commander / the guide talking, stairs up / down, the crowd, a
@@ -104,6 +119,8 @@ A browser-based 3D first-person story shooter.
   raycasts with no allocations. Built from meshes; `userData.noCollision` skips a mesh.
   Use `raycast()` for bullets too.
 - `src/world/capsuleContact.js`: exact capsule-vs-triangle contact (closest points).
+- `src/core/Models.js`: `models.load(path)` loads a GLB once (meshopt, KTX2 via the
+  TextureLibrary's loader, set by Game).
 - `src/core/Graphics.js`: the `QUALITY` presets (low / medium / high: pixel ratio, MSAA, shadow
   cascades / map size / distance, AO, bloom, flash-light count, anisotropy), saved in
   localStorage (`kotelgame.graphics`); picked on the start/pause screen, `Game.setQuality()`
@@ -146,16 +163,39 @@ A browser-based 3D first-person story shooter.
 - `src/world/TestRange.js`: movement test course (green = step onto, amber = jump,
   red = crouch-jump, blue = crouch under, teal = walkable ramp, dark red = too steep).
 - `src/weapons/`: the rifle.
-  - `config.js`: all weapon tuning (fire rate, magazine, reload time, spread, recoil, ADS).
+  - `config.js`: all weapon tuning (fire rate, magazine, reload time, spread, recoil, ADS), the
+    red dot (`RED_DOT`) and the first-person poses / reload timeline (`VIEWMODEL`).
   - `WeaponState.js`: magazine / fire-rate / reload / aim logic (pure, unit-tested).
   - `Recoil.js`: view kick that springs back to the aim point (pure, unit-tested); the rifle
     writes it into `PlayerCamera.offsetPitch/offsetYaw`, plus `fovScale`/`lookScale` for ADS.
   - `Rifle.js`: ties it together; hitscan via `CollisionWorld.raycast` from the eye along
     `PlayerCamera.getAimDirection()` plus a spread cone. `rifle.onHit(hit, dir)` is the hook
     for damaging enemies later.
-  - `Viewmodel.js`: placeholder rifle + hands in its own scene/camera, drawn after the world
-    with a cleared depth buffer (no wall clipping). Model origin = rear sight, so the ADS pose
-    puts it on the view axis. Poses: hip, ADS, sprint, reload; sway, bob, shot kick, muzzle flash.
+  - `Viewmodel.js`: the weapon in hand, its own scene/camera (view space), drawn after the
+    world with a cleared depth buffer (no wall clipping). `load()` swaps the greybox weapons
+    (`placeholders.js`) for `public/assets/weapons/` (rifle, arms, launcher). The root's origin
+    is the sight point (the red dot's rear lens / the launcher's rear sight), so the ADS pose
+    puts it on the view axis. Poses blend hip -> ADS (with a small arc) -> sprint -> lowered ->
+    stowed (weapon switch), plus `reload` / `check` offsets that turn the magwell toward the
+    eye; sway, bob, breathing, recoil springs (pivoting near the shoulder). Hands: right on the
+    grip (index on the trigger when ready), left from a timeline (`_leftHand`): handguard ->
+    magazine (pulled out, carried to the pouch, a new one brought up and seated, a tap; empty:
+    the old one drops and the left hand slaps the bolt release) -> handguard; also the
+    magazine check and the charging-handle pull (`rifle.charge()`, when the story makes the
+    rifle ready). Dust cover closed until the first shot, then springs open; `onEject` hands a
+    casing to the game. `setLighting()`: the world's sun (direction into view space, dimmed in
+    shade: Game raycasts toward the sun), sky light (environment rotated with the camera), a
+    soft fill. Timings that sounds share: `VIEWMODEL.reload` (magOut, magIn, bolt).
+  - `ArmsRig.js`: the first-person arms: hands placed by palm position / finger direction / palm
+    facing (`placeHand`), two-bone IK with a pole per elbow, the forearm taking part of the
+    wrist's twist, the shoulder sliding forward when a hand is out of reach, finger curls per
+    joint (`curl`). The rig's hands hang off control bones, not the forearms.
+  - `RedDot.js`: the tube sight from primitives; its rear lens draws the dot where the eye looks
+    along the sight's axis (`axis` uniform, view space), so the dot sits at infinity on the aim
+    point and slides off the glass off-axis. Lower 1/3 riser: the front sight post shows under it.
+  - `Casings.js`: spent casings (one InstancedMesh, raycast bounces, `onBounce` for the clink,
+    then they lie flat; the oldest is reused). `viewToWorld()` carries the port's screen
+    position from the viewmodel camera to the world camera.
   - `Impacts.js`: pooled bullet-hole decals (one InstancedMesh), sparks (one Points), stone
     dust puffs (`puff()`, one Points with a soft-particle shader) and scorch decals (`scorch()`).
   - `WeaponAudio.js`: Web Audio procedural shot / dry-fire / reload sounds; `unlock()` must be
@@ -186,7 +226,9 @@ A browser-based 3D first-person story shooter.
     check on the player (`campTime`); `explode()` / `explosionDamageAt()` for blasts.
   - `Truck.js` / `TruckView.js`: the armed pickup (kinematic: drives a path, parks; turret MG with
     its own target LOS, bursts and suppressive fire; box hit test; bullets barely hurt it; wreck
-    with fire/smoke). It sits in EnemyManager's list like an Enemy (`isVehicle`); `spawnTruck()`,
+    with fire/smoke). The view uses `public/assets/weapons/truck.glb` (materials by role: dusty
+    off-white paint with dirt toward the wheels in a shader, `uCharred` for the wreck; the wheels
+    turn with the distance driven), boxes until it loads. It sits in EnemyManager's list like an Enemy (`isVehicle`); `spawnTruck()`,
     `onVehicleDestroyed`, `applyDamage()` (rocket hits, with kill bookkeeping).
   - Friendly bounding: `anchorOverride` / `anchorRadius` / `holdPosition` / `relocate()` on the
     squad's AI (set by StoryDirector during the counterattack).
@@ -375,6 +417,18 @@ A browser-based 3D first-person story shooter.
   measured then removed for locomotion (speed in the manifest), cycles shifted so the left
   foot plants at phase 0, IK hand targets baked from the source skeleton; packed by
   `lib/animbin.mjs` (meshopt codec, quaternion / exponential filters).
+- `scripts/assets/weapons.mjs` (+ `weapons.config.mjs`, `lib/model.mjs`, `lib/paint.mjs`): the
+  weapon / vehicle converter. Rifle: FBX in cm -> meters, parts as pivot nodes (magazine at its
+  feed lips, dust cover on its hinge, charging handle; a pivot holds the mesh node because
+  quantization moves the mesh node's own transform), rear sight folded, markers in the root's
+  extras (rail top, bore / muzzle, port, magwell, grip, handguard, dust cover angles), metalness
+  toned down (anodized, not chrome). Arms: rest pose baked, bones without the rig's 0.1 scale,
+  glove vs sleeve per vertex (distance along the forearm from the wrist), sleeves inflated off
+  the skin, color + normal painted per texel from 3D (`paintTriangles`: fabric creases and
+  weave, the skin texture's wrinkles kept on the gloves). Launcher: principal axes -> tube
+  along -Z, grips down, origin on the rear sight, scaled to 0.95 m. Truck: a GLB read with
+  glTF-Transform, real size, front toward -Z, wheels as nodes, source materials -> roles per
+  triangle (`TRUCK_ROLES`; the maker's badge dropped), crease-angle normals (`creaseNormals`).
 - `dev/characters.html`: the character preview (dev only, not in the build); `outfit=none`
   shows a model as converted, `cam=face` / `faces` close-ups, `lip=<y>|auto` draws a lip
   line on the face (check / measure `face.lipY`), `ruler=1` height marks.

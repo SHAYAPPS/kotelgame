@@ -187,7 +187,10 @@ export class StoryDirector {
       npc: (a, fast) => this._npcAction(a, fast),
       populate: (group) => this.npcs.populate(this.script.groups[group]),
       weapon: (mode, fast) => {
-        if (mode === 'ready' && this.rifle.mode !== 'ready' && !fast) this.ambient.play('charge');
+        if (mode === 'ready' && this.rifle.mode !== 'ready' && !fast) {
+          this.ambient.play('charge');
+          this.rifle.charge?.();
+        }
         this.rifle.mode = mode;
       },
       sound: (id, at) => (id === 'gunfire' ? this._volley(at) : this.ambient.play(id)),

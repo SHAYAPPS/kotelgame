@@ -131,6 +131,20 @@ free/CC0-only rule, made for the characters.
 Rifles, vest, headbands, kippot, hats and headscarves on the characters are built from
 primitive shapes in code (`src/characters/weapons.js`, `attachments.js`): CC0 (this project).
 
+## Weapons and vehicles (`public/assets/weapons/`)
+
+Converted by `scripts/assets/weapons.mjs` (sources: `scripts/assets/weapons.config.mjs`). The game
+uses generic names for them. CC-BY models are credited here as their license requires.
+
+| File | Used as | Source | License |
+| --- | --- | --- | --- |
+| `rifle.glb` | The assault rifle (rear sight folded, textures packed, metalness toned down) | [M4A1 Assault Rifle](https://opengameart.org/content/m4a1-assault-rifle) by nisu | CC0 |
+| `arms.glb` | The first-person arms (gloves and olive sleeves painted over the bare-skin texture, new normal map) | [FPS Arms (rigged only)](https://opengameart.org/content/fps-arms-rigged-only) by para | CC0 |
+| `launcher.glb` | The rocket launcher and its rocket (re-oriented, smoothed normals) | [Low poly RPG7](https://opengameart.org/content/low-poly-rpg7) by Lucian Pavel | CC0 |
+| `truck.glb` | The armed pickup (resized, smoothed normals, the maker's badge removed, materials by part) | [Mitsubishi L200](https://poly.pizza/m/4qjS9tFhsJg) by Muhammad Reyhan | [CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/) |
+| Red dot sight | Built from primitives in code (`src/weapons/RedDot.js`) | This project | CC0 |
+| Spent casings | Built in code (`src/weapons/Casings.js`) | This project | CC0 |
+
 ## Other files
 
 | File | Source | License |

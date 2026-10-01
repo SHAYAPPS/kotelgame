@@ -229,7 +229,7 @@ export const STORY_UI = {
   missionComplete: 'המשימה הושלמה',
   missionName: 'משימה 1: הכותל',
   stats: { time: 'זמן', accuracy: 'דיוק', headshots: 'פגיעות ראש', kills: 'מחבלים שנוטרלו' },
-  weaponRifle: 'M4',
+  weaponRifle: 'רובה סער',
   weaponLauncher: 'מטול',
   resupplied: 'תחמושת ורימונים מולאו',
   lowAmmo: 'תחמושת נמוכה: לך לארגז התחמושת',

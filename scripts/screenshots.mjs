@@ -30,7 +30,7 @@ await page.evaluate(() => {
   const s = g.story;
   s.jumpTo(s.mission.indexOf('patrol_wall'));
   for (const el of document.querySelectorAll('.hud, .story-hud, .debug')) el.style.display = 'none';
-  g.viewmodel.root.visible = false;
+  g.viewmodel.scene.visible = false;
 });
 // Wait for the textures and the HDRI.
 await page.waitForFunction(async () => {

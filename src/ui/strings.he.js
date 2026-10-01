@@ -5,7 +5,7 @@ export const HE = {
   buildLabel: 'אב־טיפוס · משימה 1 · מעבר ריאליזם, חלק 1',
   start: 'לחצו כדי להתחיל',
   chaptersTitle: 'או התחילו מחלק מסוים',
-  weapons: { rifle: 'M4', launcher: 'מטול רקטות' },
+  weapons: { rifle: 'רובה סער', launcher: 'מטול רקטות' }, // generic names (no real models or brands)
   graphics: { title: 'איכות גרפיקה', low: 'נמוכה', medium: 'בינונית', high: 'גבוהה' },
   resume: 'לחצו כדי להמשיך',
   paused: 'המשחק מושהה',
