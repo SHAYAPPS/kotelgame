@@ -317,6 +317,14 @@ export function createKotelLevel() {
     environment: KOTEL.environment,
     navBounds: KOTEL.ai.navBounds,
     stairZones: stairZones(),
+    // Big flat surfaces that throw a gunshot back (WeaponAudio's slap-back echoes): the
+    // Western Wall (x = 0) and the buildings' fronts along the plaza's north side.
+    acoustics: {
+      walls: [
+        { n: [1, 0, 0], d: -KOTEL.wall.faceX, absorb: 0.62, reach: 240 },
+        { n: [0, 0, 1], d: -KOTEL.plaza.northZ, absorb: 0.4, reach: 200 },
+      ],
+    },
     enemySpawns: KOTEL.ai.enemySpawns.map((e) => ({ position: new Vector3(e.x, groundY(e.x, e.z), e.z), yaw: e.yaw })),
     stats: { stones },
     /** Stream the stone textures in (the level shows plain colors until they arrive). */

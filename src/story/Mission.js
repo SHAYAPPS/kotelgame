@@ -179,6 +179,9 @@ export class Mission {
         return fast ? undefined : c.wave(a);
       case 'ambience':
         return c.ambience(a);
+      case 'music':
+        // A state (the mood carries over a fast-forward / checkpoint restart).
+        return c.music?.(a.state ?? null);
       case 'fade':
         return fast ? undefined : c.fade(a.to, a.time ?? 1);
       case 'title':

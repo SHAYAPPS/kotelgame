@@ -40,8 +40,14 @@ export class CollisionWorld {
    */
   build(roots) {
     const tris = [];
+    this._surfaceOf = [];
     for (const root of Array.isArray(roots) ? roots : [roots]) this._collect(root, tris);
     this._index(tris);
+    // Surface per triangle (mesh.userData.surface, e.g. 'wood'; default 'stone'): what a
+    // ray hit is made of (footsteps). 0 = stone.
+    this.surfaceNames = ['stone', ...new Set(this._surfaceOf.filter(Boolean))];
+    this.surfaces = Uint8Array.from(this._surfaceOf, (s) => (s ? this.surfaceNames.indexOf(s) : 0));
+    this._surfaceOf = null;
     return this;
   }
 
@@ -61,7 +67,10 @@ export class CollisionWorld {
         _b.fromBufferAttribute(pos, ib).applyMatrix4(obj.matrixWorld);
         _c.fromBufferAttribute(pos, ic).applyMatrix4(obj.matrixWorld);
         const tri = new Triangle(_a.clone(), _b.clone(), _c.clone());
-        if (tri.getArea() > 1e-8) tris.push(tri);
+        if (tri.getArea() > 1e-8) {
+          tris.push(tri);
+          this._surfaceOf.push(obj.userData.surface ?? null);
+        }
       }
     });
   }
@@ -265,6 +274,7 @@ export class CollisionWorld {
     if (bestIndex < 0) return null;
     out.normal.copy(this.normals[bestIndex]);
     out.distance = best;
+    out.surface = this.surfaces ? this.surfaceNames[this.surfaces[bestIndex]] : 'stone';
     return out;
   }
 }

@@ -36,7 +36,7 @@ export class Overlay {
    * @param {{ onStart, sensitivity, onSensitivity, chapters?: { label: string }[],
    *   onChapter?: (i: number) => void }} opts chapters: start-from buttons (the mission's parts)
    */
-  constructor(parent, { onStart, sensitivity, onSensitivity, chapters = [], onChapter = null, quality = 'medium', onQuality = null }) {
+  constructor(parent, { onStart, sensitivity, onSensitivity, chapters = [], onChapter = null, quality = 'medium', onQuality = null, volumes = null, onVolume = null }) {
     this.root = el('div', 'overlay');
     const panel = el('div', 'overlay-panel');
 
@@ -95,6 +95,29 @@ export class Overlay {
     setting.append(slider, output);
     panel.append(setting);
 
+    // Volume: master, music, effects, voice (0..100 %, saved by the audio).
+    if (volumes && onVolume) {
+      panel.append(el('h2', 'overlay-section-title', HE.volume.title));
+      for (const key of ['master', 'music', 'sfx', 'voice']) {
+        const row = el('label', 'overlay-setting overlay-volume');
+        row.append(el('span', null, HE.volume[key]));
+        const v = el('input');
+        v.type = 'range';
+        v.min = '0';
+        v.max = '100';
+        v.step = '1';
+        v.value = String(Math.round((volumes[key] ?? 1) * 100));
+        const out = el('output', null, `${v.value}%`);
+        out.dir = 'ltr';
+        v.addEventListener('input', () => {
+          out.textContent = `${v.value}%`;
+          onVolume(key, parseInt(v.value, 10) / 100);
+        });
+        row.append(v, out);
+        panel.append(row);
+      }
+    }
+
     // Graphics quality: low / medium / high (medium targets 60 FPS on an average laptop).
     if (onQuality) {
       const row = el('div', 'overlay-setting overlay-quality');
@@ -117,6 +140,13 @@ export class Overlay {
       row.append(group);
       panel.append(row);
     }
+
+    // Who made the models, sounds and music (CC-BY works must be credited).
+    const credits = el('a', 'overlay-credits', HE.credits);
+    credits.href = `${import.meta.env?.BASE_URL ?? '/'}assets/CREDITS.md`;
+    credits.target = '_blank';
+    credits.rel = 'noopener';
+    panel.append(credits);
 
     this.root.append(panel);
     parent.append(this.root);

@@ -54,6 +54,7 @@ function recorder(overrides = {}) {
     weapon: rec('weapon'),
     sound: rec('sound'),
     ambience: rec('ambience'),
+    music: rec('music'),
     fade: rec('fade'),
     title: rec('title'),
     endCard: rec('endCard'),

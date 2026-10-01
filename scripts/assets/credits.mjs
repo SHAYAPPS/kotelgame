@@ -23,6 +23,11 @@ export async function writeCredits() {
   const hdri = await json(new URL('hdri/manifest.json', ASSETS));
   const chars = await json(new URL('characters/manifest.json', ASSETS));
   const weapons = await json(new URL('weapons/manifest.json', ASSETS));
+  const audio = await json(new URL('audio/manifest.json', ASSETS));
+  const audioRows = Object.values(audio.credits ?? {}).map((c) => {
+    const lic = c.licenseUrl ? `[${c.license}](${c.licenseUrl})` : c.license;
+    return `| ${c.sounds.map((x) => `\`${x}\``).join(', ')} | [${c.title}](${c.page}) by ${c.author} | ${lic} |`;
+  });
   const WEAPON_USE = {
     rifle: 'The assault rifle (rear sight folded, textures packed, metalness toned down)',
     arms: 'The first-person arms (gloves and olive sleeves painted over the bare-skin texture, new normal map)',
@@ -94,13 +99,27 @@ export async function writeCredits() {
     '| Red dot sight | Built from primitives in code (`src/weapons/RedDot.js`) | This project | CC0 |',
     '| Spent casings | Built in code (`src/weapons/Casings.js`) | This project | CC0 |',
     '',
+    '## Sounds and music (`public/assets/audio/`)',
+    '',
+    'Recordings sliced, filtered, re-pitched, looped and loudness-matched by',
+    '`scripts/assets/audio.mjs` (sources: `scripts/assets/audio.config.mjs`), encoded as Ogg Opus.',
+    'The plaza reverb is generated in code (`src/audio/reverb.js`, CC0, this project). CC-BY works',
+    'are credited here as their licenses require.',
+    '',
+    '| Sounds | Source | License |',
+    '| --- | --- | --- |',
+    ...audioRows,
+    '',
+    'Music: "Desert City", "Drums of the Deep", "Urban Gauntlet", "The Escalation" and "Heart of',
+    'Nowhere" by Kevin MacLeod (incompetech.com), licensed under Creative Commons: By Attribution',
+    '4.0 License, http://creativecommons.org/licenses/by/4.0/',
+    '',
     '## Other files',
     '',
     '| File | Source | License |',
     '| --- | --- | --- |',
     '| Basis Universal transcoder (`basis_transcoder.{js,wasm}`, bundled from three.js `examples/jsm/libs/basis/` at build time) | Binomial LLC, via three.js | Apache-2.0 |',
     '| Leaf cards, prayer notes, bullet holes, scorch marks, dust | Drawn at runtime on canvases / in shaders by the game code | CC0 (this project) |',
-    '| All sounds | Synthesized at runtime with Web Audio (`src/weapons/WeaponAudio.js`, `src/story/AmbientAudio.js`) | CC0 (this project) |',
     '',
   ];
   await writeFile(new URL('CREDITS.md', ASSETS), lines.join('\n'));

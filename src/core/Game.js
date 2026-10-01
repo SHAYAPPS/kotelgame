@@ -139,6 +139,7 @@ export class Game {
       this.casings.eject(this._ejectPos, this._ejectVel);
     };
     this.audio = new WeaponAudio();
+    this.audio.walls = level.acoustics?.walls ?? []; // slap-back echoes off the level's big walls
     this.casings.onBounce = (p, speed, n) => this.audio.casing?.(p, speed, n);
     this.rifle = new Rifle(
       {
@@ -193,7 +194,7 @@ export class Game {
     this.rockets.targets = { raycast: (o, d, max) => this.enemies.raycast(o, d, max) };
     this.rockets.onImpact = (r, point, normal, target) => this._rocketImpact(r, point, target);
     this.launcher.onFire = (eye, dir) => this._launchRocket(eye, dir);
-    this.launcher.onReload = () => this.audio.reload(LAUNCHER.reloadTime);
+    this.launcher.onReload = () => this.audio.reload(LAUNCHER.reloadTime, { launcher: true });
     this._playerInfo = {
       position: this.player.position,
       head: new Vector3(),
@@ -293,6 +294,8 @@ export class Game {
       },
       quality: this.qualityName,
       onQuality: (q) => this.setQuality(q),
+      volumes: this.audio.volumes,
+      onVolume: (key, v) => this.audio.setVolumes({ [key]: v }),
       // Chapter select: start (or restart) the mission at one of its parts.
       chapters: this.story ? MISSION1.chapters : [],
       onChapter: (i) => {
@@ -437,6 +440,8 @@ export class Game {
     this.enemies.frameUpdate(dt);
     this.debugDraw.update();
     this.audio.setListener(this.camera, this.view.getAimDirection(this._forward));
+    this.audio.update(dt);
+    this.post.setSuppression?.(this.audio.blur);
     if (this.story) this.story.frameUpdate(dt, this.camera, this.view.eye, this._forward);
     const fade = this.deathTime < 0 ? 0 : MathUtils.clamp((this.deathTime - 0.4) / 1.2, 0, 1);
     this.damage.update(dt, this.health, this.player.position, this.view.viewYaw, this._fadeIn ?? fade);
@@ -455,11 +460,18 @@ export class Game {
     const p = this.player;
     const level = p.crouched ? 0.35 : p.sprinting ? 0.95 : 0.6;
     const n = v.steps.steps; // (starts over at 0 when the camera snaps)
-    if (n > (this._stairSteps ?? n) && p.grounded) this.audio.footstep(level, true);
+    if (n > (this._stairSteps ?? n) && p.grounded) this.audio.footstep(level, true, this._surface());
     this._stairSteps = n;
     const phase = Math.floor(v.bobPhase + 0.5);
-    if (phase !== (this._stepPhase ?? phase) && p.grounded && p.horizontalSpeed > 0.5 && v.steps.amount < 0.3) this.audio.footstep(level, false);
+    if (phase !== (this._stepPhase ?? phase) && p.grounded && p.horizontalSpeed > 0.5 && v.steps.amount < 0.3) this.audio.footstep(level, false, this._surface());
     this._stepPhase = phase;
+  }
+
+  /** What the player stands on ('stone', 'wood'): a short ray down from the feet. */
+  _surface() {
+    const p = this.player.position;
+    const hit = this.collision.raycast(_c.set(p.x, p.y + 0.3, p.z), _down, 0.8, this._stepHit ?? (this._stepHit = { point: new Vector3(), normal: new Vector3(), distance: 0 }));
+    return hit?.surface ?? 'stone';
   }
 
   _fixedStep(dt) {
@@ -544,6 +556,7 @@ export class Game {
     this.impacts.clear();
     this.casings.clear();
     this.viewmodel.reset();
+    this.audio.reset?.();
     this._clearGrenades();
     this.rockets.clear();
     this.rocketView.clear();
@@ -638,7 +651,7 @@ export class Game {
     const p = truck.position;
     for (const [dx, dy, dz] of [[0, 1.2, 0], [0.8, 1.8, -1.2], [-0.7, 1.5, 1.3]]) this.grenadeView.explode(_o.set(p.x + dx, p.y + dy, p.z + dz), 2.2);
     this.audio.explosion(_o.set(p.x, p.y + 1, p.z));
-    this.audio.explosion(_o.set(p.x, p.y + 1, p.z));
+    this.audio.explosion(_o.set(p.x, p.y + 1.5, p.z));
     this.flashes.flash(_o.set(p.x, p.y + 2, p.z), { color: 0xff9040, intensity: 4000, distance: 32, duration: 0.8 });
     this.impacts.scorch(_c.set(p.x, p.y + 0.02, p.z), _up, 7);
     this._blast(_o.set(p.x, p.y + 1, p.z), 9, 120, 320, null, 0);
@@ -675,7 +688,7 @@ export class Game {
     const at = _b.copy(pos);
     if (fx > 0) {
       this.grenadeView.explode(at, fx);
-      this.audio.explosion(at);
+      this.audio.explosion(at, radius < 5 ? 'small' : 'big');
       this.impacts.burst(at, _up, [0.45, 0.4, 0.33], 26);
       this.flashes.flash(at, { color: 0xffa050, intensity: 900 * fx, distance: 16 + 6 * fx, duration: 0.35 });
       // Scorch the surface under it and kick up stone dust.

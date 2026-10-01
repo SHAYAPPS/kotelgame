@@ -99,6 +99,8 @@ export class StoryDirector {
         const rec = this.voices?.play(line.id, npc ? npc.position : null, { radio: line.radio }) ?? null;
         if (rec) line.duration = Math.max(line.duration, rec.duration + 0.3);
         else if (line.radio) this.ambient.radioLine(line.duration);
+        // Dialogue gets priority: the rest of the mix dips while the line plays.
+        this.audio.speaking?.(line.duration);
         if (npc) npc.speech = { text: line.text, duration: line.duration, level: rec ? rec.level : null, to: line.to };
       },
     });
@@ -200,6 +202,7 @@ export class StoryDirector {
       wave: (a) => this._wave(a),
       crate: (a) => this._crate(a),
       ambience: (a) => this.ambient.set(a),
+      music: (state) => this.audio.setMusic?.(state),
       fade: (to, time) => {
         this.fadeTarget = to;
         this.fadeSpeed = 1 / Math.max(0.05, time);

@@ -117,7 +117,9 @@ function truckLooks() {
 
 /** The armed pickup (a gunner behind a shield on the bed); a burning wreck when destroyed. Box placeholder until the model loads. */
 export class TruckView {
-  constructor(truck) {
+  /** @param {import('../weapons/WeaponAudio.js').WeaponAudio} [audio] for the engine */
+  constructor(truck, audio = null) {
+    this.audio = audio;
     const a = assets();
     this.truck = truck;
     this.root = new Group();
@@ -260,7 +262,23 @@ export class TruckView {
       L.uniforms.uInvRoot.value.copy(this.root.matrixWorld).invert();
       L.uniforms.uCharred.value = this._wrecked ? Math.min(1, (t.deadTime ?? 1) * 1.5) * 0.85 : 0;
     }
+    this._engine(t);
     if (!t.alive) this._wreck(dt);
+  }
+
+  /** The engine: a loop that follows the truck, revving with its speed; dies with it. */
+  _engine(t) {
+    const a = this.audio;
+    if (!a?.ready || !a.bank?.ready) return;
+    if (!this.engine && t.alive) this.engine = a.loop('truck_engine', { at: t.position, ref: 7, gain: 1.1, hrtf: true, bus: a.master, fadeIn: 0.3 });
+    if (!this.engine) return;
+    if (!t.alive) {
+      this.engine.stop(0.4);
+      this.engine = null;
+      return;
+    }
+    this.engine.setPosition(t.position);
+    this.engine.setRate(0.75 + Math.min(1, Math.abs(t.speed) / 9) * 0.55);
   }
 
   _wreck(dt) {
@@ -291,6 +309,8 @@ export class TruckView {
 
   dispose() {
     this.disposed = true;
+    this.engine?.stop(0.2);
+    this.engine = null;
     if (looks) looks.uniforms.uCharred.value = 0;
     this.gunnerModel?.dispose();
     this.root.removeFromParent();

@@ -44,6 +44,49 @@ const GradeShader = {
 };
 
 /**
+ * Suppression: under heavy fire the edges of the view smear (a radial blur that grows toward
+ * the borders) and darken a little. Off (the pass disabled) when not suppressed.
+ */
+const SuppressionShader = {
+  uniforms: {
+    tDiffuse: { value: null },
+    amount: { value: 0 },
+    aspect: { value: 1.78 },
+    texel: { value: new Vector2(1 / 1920, 1 / 1080) },
+  },
+  vertexShader: /* glsl */ `
+    varying vec2 vUv;
+    void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+  `,
+  fragmentShader: /* glsl */ `
+    uniform sampler2D tDiffuse;
+    uniform float amount, aspect;
+    uniform vec2 texel;
+    varying vec2 vUv;
+    void main() {
+      vec4 c = texture2D(tDiffuse, vUv);
+      vec2 d = vUv - 0.5;
+      float r = length(d * vec2(aspect, 1.0)) / (0.5 * aspect);
+      float m = smoothstep(0.32, 0.95, r) * amount;
+      if (m < 0.002) { gl_FragColor = c; return; }
+      // Radial smear toward the center plus a small ring of taps.
+      vec3 acc = vec3(0.0);
+      for (int i = 0; i < 8; i++) {
+        float t = float(i) / 7.0;
+        acc += texture2D(tDiffuse, vUv - d * t * 0.06 * m).rgb;
+      }
+      vec2 o = texel * 7.0 * m;
+      acc += texture2D(tDiffuse, vUv + vec2(o.x, 0.0)).rgb + texture2D(tDiffuse, vUv - vec2(o.x, 0.0)).rgb;
+      acc += texture2D(tDiffuse, vUv + vec2(0.0, o.y)).rgb + texture2D(tDiffuse, vUv - vec2(0.0, o.y)).rgb;
+      acc /= 12.0;
+      vec3 col = mix(c.rgb, acc, min(1.0, m * 1.4));
+      col *= 1.0 - 0.28 * m;
+      gl_FragColor = vec4(col, c.a);
+    }
+  `,
+};
+
+/**
  * The frame: world (HDR, MSAA) -> ambient occlusion -> the weapon on top (depth cleared,
  * no AO on it) -> bloom (only really bright things: flashes, fire, the sun) -> filmic tone
  * mapping + sRGB -> color grade.
@@ -99,12 +142,27 @@ export class PostFX {
     composer.addPass(new OutputPass());
     this.grade = new ShaderPass(GradeShader);
     composer.addPass(this.grade);
+    this.suppression = new ShaderPass(SuppressionShader);
+    this.suppression.enabled = false;
+    composer.addPass(this.suppression);
     this.setSize(size.x, size.y);
+  }
+
+  /** 0..1: how blurred the edges are (suppression, from the audio's state). */
+  setSuppression(amount) {
+    const p = this.suppression;
+    if (!p) return;
+    p.enabled = amount > 0.01;
+    p.uniforms.amount.value = amount;
   }
 
   /** Drawing-buffer size in pixels. */
   setSize(w, h) {
     this.composer.setSize(w, h);
+    if (this.suppression) {
+      this.suppression.uniforms.aspect.value = w / Math.max(1, h);
+      this.suppression.uniforms.texel.value.set(1 / Math.max(1, w), 1 / Math.max(1, h));
+    }
     // Half-resolution AO on medium.
     if (this.ao && this.q.ao === 'half') this.ao.setSize(Math.max(1, Math.floor(w / 2)), Math.max(1, Math.floor(h / 2)));
     if (this.bloom) this.bloom.setSize(Math.floor(w / 2), Math.floor(h / 2));

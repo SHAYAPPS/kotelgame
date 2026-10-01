@@ -132,7 +132,7 @@ export class Rifle {
     }
     const shots = state.update(dt, input);
     if (state.dryFire) this.audio.dryFire();
-    if (state.reloadStarted) this.audio.reload(this.cfg.reloadTime);
+    if (state.reloadStarted) this.audio.reload(this.cfg.reloadTime, { empty: state.ammo === 0 });
     for (let i = 0; i < shots; i++) this._fire(player);
 
     this.recoil.update(dt);

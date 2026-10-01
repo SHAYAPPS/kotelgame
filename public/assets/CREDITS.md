@@ -145,10 +145,48 @@ uses generic names for them. CC-BY models are credited here as their license req
 | Red dot sight | Built from primitives in code (`src/weapons/RedDot.js`) | This project | CC0 |
 | Spent casings | Built in code (`src/weapons/Casings.js`) | This project | CC0 |
 
+## Sounds and music (`public/assets/audio/`)
+
+Recordings sliced, filtered, re-pitched, looped and loudness-matched by
+`scripts/assets/audio.mjs` (sources: `scripts/assets/audio.config.mjs`), encoded as Ogg Opus.
+The plaza reverb is generated in code (`src/audio/reverb.js`, CC0, this project). CC-BY works
+are credited here as their licenses require.
+
+| Sounds | Source | License |
+| --- | --- | --- |
+| `rifle_close`, `rifle_tail`, `ar_near`, `ar_mid`, `ar_far`, `ak_near`, `ak_mid`, `ak_far`, `crack` | [The Free Firearm Sound Library](https://opengameart.org/content/the-free-firearm-sound-library) by Ben Jaszczak, Brian Nelson, Kevin Heras and Matthew Nanney | CC0 |
+| `rifle_mech`, `grenade_pin`, `dry_fire` | [2 Metal Weapon Clicks](https://opengameart.org/content/2-metal-weapon-clicks) by Michel Baradari (apollo-music.de) | [CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/) |
+| `whiz`, `grenade_throw` | [Air Whoosh](https://opengameart.org/content/air-whoosh) by pyranostudios | CC0 |
+| `explosion`, `explosion_small` | [2 High Quality Explosions](https://opengameart.org/content/2-high-quality-explosions) by Michel Baradari (apollo-music.de) | [CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/) |
+| `explosion`, `explosion_small` | [Explosions](https://opengameart.org/content/explosions-4) by EZduzziteh | CC0 |
+| `boom_far`, `siren` | [Civil defense siren and missile explosions sounds in Israel during Iran war 2026](https://commons.wikimedia.org/wiki/File:Civil_defense_siren_and_missile_explosions_sounds_in_Israel_during_Iran_war_2026.ogg) by Yoram Shurek (יורם שורק) | CC0 |
+| `rocket_launch` | [4 Projectile Launches](https://opengameart.org/content/4-projectile-launches) by Michel Baradari (apollo-music.de) | [CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/) |
+| `grenade_bounce`, `casing`, `launcher_load`, `step_stone`, `step_wood` | [Impact Sounds](https://kenney.nl/assets/impact-sounds) by Kenney (www.kenney.nl) | CC0 |
+| `mag_out`, `mag_in`, `bolt`, `charge`, `launcher_load` | [Gun Reload Sounds](https://opengameart.org/content/gun-reload-sounds) by SpringySpringo | CC0 |
+| `mag_check`, `resupply` | [Gun Reload Sound Effects](https://opengameart.org/content/gun-reload-sound-effects) by BMacZero | CC0 |
+| `gear`, `resupply` | [Equipment Clicks II](https://opengameart.org/content/equipment-clicks-ii) by LFA | CC0 |
+| `hit`, `hit_head`, `chime` | [Interface Sounds](https://kenney.nl/assets/interface-sounds) by Kenney (www.kenney.nl) | CC0 |
+| `radio_squelch` | [Frequency Static Sound Effects](https://opengameart.org/content/frequency-static-sound-effects) by bretbernhoft | CC0 |
+| `radio_static` | [Static](https://opengameart.org/content/static) by xhunterko | CC0 |
+| `scream` | [Female Screams (the CC0 ones: tcrocker68, pushkin, Archeos via Freesound)](https://opengameart.org/content/female-screams) by congusbongus (compilation) | CC0 |
+| `scream` | [Aargh (male screams; the CC0 ones: JohnsonBrandEditing via Freesound)](https://opengameart.org/content/aargh-male-screams) by congusbongus (compilation) | CC0 |
+| `amb_city` | [High traffic road sounds](https://opengameart.org/content/high-traffic-road-sounds) by IgnasD | CC0 |
+| `amb_street` | [Karlova 0001 (street ambience, Prague)](https://commons.wikimedia.org/wiki/File:Karlova_0001.ogg) by Juan de Vojníkov | Public domain |
+| `amb_crowd` | [Festival concert people crowd](https://commons.wikimedia.org/wiki/File:Festival_concert_people_crowd.ogg) by stephan | Public domain |
+| `amb_birds` | [Ambient Bird Sounds](https://opengameart.org/content/ambient-bird-sounds) by isaiah658 | CC0 |
+| `amb_wind` | [Park ambiences](https://opengameart.org/content/park-ambiences) by Thimras | CC0 |
+| `amb_panic` | [Crowd shouting/speaking ambience](https://opengameart.org/content/crowd-shoutingspeaking-ambience) by StarNinjas | CC0 |
+| `truck_engine` | [Car Engine Loop (96kHz 4s)](https://opengameart.org/content/car-engine-loop-96khz-4s) by qubodup | [CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/) |
+| `radio_words` | [Lingua Libre Hebrew word recordings](https://commons.wikimedia.org/wiki/Category:Lingua_Libre_pronunciation-heb) by YaronSh (Lingua Libre) | CC0 |
+| `Desert City`, `Drums of the Deep`, `Urban Gauntlet`, `The Escalation`, `Heart of Nowhere` | [Music by Kevin MacLeod (incompetech.com)](https://incompetech.com/music/royalty-free/) by Kevin MacLeod | [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+
+Music: "Desert City", "Drums of the Deep", "Urban Gauntlet", "The Escalation" and "Heart of
+Nowhere" by Kevin MacLeod (incompetech.com), licensed under Creative Commons: By Attribution
+4.0 License, http://creativecommons.org/licenses/by/4.0/
+
 ## Other files
 
 | File | Source | License |
 | --- | --- | --- |
 | Basis Universal transcoder (`basis_transcoder.{js,wasm}`, bundled from three.js `examples/jsm/libs/basis/` at build time) | Binomial LLC, via three.js | Apache-2.0 |
 | Leaf cards, prayer notes, bullet holes, scorch marks, dust | Drawn at runtime on canvases / in shaders by the game code | CC0 (this project) |
-| All sounds | Synthesized at runtime with Web Audio (`src/weapons/WeaponAudio.js`, `src/story/AmbientAudio.js`) | CC0 (this project) |

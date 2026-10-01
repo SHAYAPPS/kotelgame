@@ -31,6 +31,8 @@ export const HE = {
     { keys: ['F2'], label: 'כלי פיתוח: קפיצה לשלב במשימה' },
   ],
   sensitivity: 'רגישות עכבר',
+  credits: 'קרדיטים: מודלים, צלילים ומוזיקה',
+  volume: { title: 'עוצמת שמע', master: 'ראשי', music: 'מוזיקה', sfx: 'אפקטים', voice: 'דיבור' },
   screenshot: {
     savedTo: 'צילום המסך נשמר:',
     downloaded: 'צילום המסך נשמר בתיקיית ההורדות',

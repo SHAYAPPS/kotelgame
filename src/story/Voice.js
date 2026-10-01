@@ -84,11 +84,11 @@ export class VoicePlayer {
     out.connect(gain);
     if (position && !radio) {
       const panner = a._panner(position, 3);
-      gain.connect(panner).connect(a.master);
+      gain.connect(panner).connect(a.voiceBus);
       const send = ctx.createGain();
       send.gain.value = 0.18;
-      gain.connect(send).connect(a.echoBus ?? a.master);
-    } else gain.connect(a.master);
+      gain.connect(send).connect(a.echoBus);
+    } else gain.connect(a.voiceBus);
     src.start();
     const data = new Float32Array(analyser.fftSize);
     let playing = true;

@@ -125,7 +125,7 @@ export class EnemyManager {
       if (this.onVehicleDestroyed) this.onVehicleDestroyed(truck);
     };
     if (threatPosition) truck.engage(threatPosition);
-    const view = new TruckView(truck);
+    const view = new TruckView(truck, this.audio);
     this.scene.add(view.root);
     this.list.push({ enemy: truck, view });
     return truck;
@@ -302,7 +302,7 @@ export class EnemyManager {
       this.tracers.add(vm, _p.divideScalar(Math.max(len, 1e-3)), len);
     } else this.tracers.add(shot.origin, shot.dir, shot.distance);
     if (this.onShotFx) this.onShotFx(shot);
-    this.audio.shotAt(shot.origin);
+    this.audio.shotAt(shot.origin, shot.shooter.isVehicle ? 'mg' : shot.shooter.faction === 'friendly' ? 'ar' : 'ak');
     const victim = shot.hitPlayer ? shot.target.agent : null;
     if (victim) {
       // One combatant hit another.
@@ -315,8 +315,12 @@ export class EnemyManager {
       if (shot.hitWorld) this.impacts.add(shot.point, shot.normal, shot.dir);
     } else if (shot.hitPlayer) {
       this.health.damage(shot.damage, shot.origin);
+      this.audio.hurt?.();
     } else {
-      if (shot.hitWorld) this.impacts.add(shot.point, shot.normal, shot.dir);
+      if (shot.hitWorld) {
+        this.impacts.add(shot.point, shot.normal, shot.dir);
+        if (shot.shooter.faction !== 'friendly') this.audio.nearImpact?.(shot.point); // rounds slapping in close
+      }
       // A near miss past your head: the supersonic crack.
       const h = this._listenerHead;
       _a.subVectors(h, shot.origin);

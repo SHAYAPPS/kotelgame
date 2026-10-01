@@ -1,0 +1,1013 @@
+{
+ "sounds": {
+  "rifle_close": {
+   "files": [
+    "rifle_close_0.ogg",
+    "rifle_close_1.ogg"
+   ],
+   "duration": [
+    0.628,
+    0.633
+   ],
+   "loop": false,
+   "channels": 2,
+   "packs": [
+    "firearms"
+   ]
+  },
+  "rifle_tail": {
+   "files": [
+    "rifle_tail_0.ogg",
+    "rifle_tail_1.ogg"
+   ],
+   "duration": [
+    1.34,
+    1.335
+   ],
+   "loop": false,
+   "channels": 2,
+   "packs": [
+    "firearms"
+   ]
+  },
+  "rifle_mech": {
+   "files": [
+    "rifle_mech_0.ogg",
+    "rifle_mech_1.ogg"
+   ],
+   "duration": [
+    0.103,
+    0.088
+   ],
+   "loop": false,
+   "channels": 1,
+   "packs": [
+    "weaponClicks"
+   ]
+  },
+  "ar_near": {
+   "files": [
+    "ar_near_0.ogg",
+    "ar_near_1.ogg"
+   ],
+   "duration": [
+    0.558,
+    0.563
+   ],
+   "loop": false,
+   "channels": 1,
+   "packs": [
+    "firearms"
+   ]
+  },
+  "ar_mid": {
+   "files": [
+    "ar_mid_0.ogg",
+    "ar_mid_1.ogg"
+   ],
+   "duration": [
+    1.325,
+    1.32
+   ],
+   "loop": false,
+   "channels": 1,
+   "packs": [
+    "firearms"
+   ]
+  },
+  "ar_far": {
+   "files": [
+    "ar_far_0.ogg",
+    "ar_far_1.ogg"
+   ],
+   "duration": [
+    1.425,
+    1.42
+   ],
+   "loop": false,
+   "channels": 1,
+   "packs": [
+    "firearms"
+   ]
+  },
+  "ak_near": {
+   "files": [
+    "ak_near_0.ogg",
+    "ak_near_1.ogg",
+    "ak_near_2.ogg",
+    "ak_near_3.ogg"
+   ],
+   "duration": [
+    0.598,
+    0.603,
+    0.588,
+    0.603
+   ],
+   "loop": false,
+   "channels": 1,
+   "packs": [
+    "firearms"
+   ]
+  },
+  "ak_mid": {
+   "files": [
+    "ak_mid_0.ogg",
+    "ak_mid_1.ogg"
+   ],
+   "duration": [
+    1.25,
+    1.19
+   ],
+   "loop": false,
+   "channels": 1,
+   "packs": [
+    "firearms"
+   ]
+  },
+  "ak_far": {
+   "files": [
+    "ak_far_0.ogg",
+    "ak_far_1.ogg"
+   ],
+   "duration": [
+    1.35,
+    1.29
+   ],
+   "loop": false,
+   "channels": 1,
+   "packs": [
+    "firearms"
+   ]
+  },
+  "crack": {
+   "files": [
+    "crack_0.ogg",
+    "crack_1.ogg",
+    "crack_2.ogg",
+    "crack_3.ogg"
+   ],
+   "duration": [
+    0.031,
+    0.03,
+    0.023,
+    0.018
+   ],
+   "loop": false,
+   "channels": 1,
+   "packs": [
+    "firearms"
+   ]
+  },
+  "whiz": {
+   "files": [
+    "whiz_0.ogg",
+    "whiz_1.ogg",
+    "whiz_2.ogg",
+    "whiz_3.ogg"
+   ],
+   "duration": [
+    0.21,
+    0.202,
+    0.195,
+    0.188
+   ],
+   "loop": false,
+   "channels": 1,
+   "packs": [
+    "whoosh"
+   ]
+  },
+  "explosion": {
+   "files": [
+    "explosion_0.ogg",
+    "explosion_1.ogg",
+    "explosion_2.ogg"
+   ],
+   "duration": [
+    1.723,
+    4.042,
+    1.694
+   ],
+   "loop": false,
+   "channels": 1,
+   "packs": [
+    "explosionsHQ",
+    "explosions"
+   ]
+  },
+  "explosion_small": {
+   "files": [
+    "explosion_small_0.ogg",
+    "explosion_small_1.ogg",
+    "explosion_small_2.ogg"
+   ],
+   "duration": [
+    1.572,
+    0.645,
+    0.562
+   ],
+   "loop": false,
+   "channels": 1,
+   "packs": [
+    "explosionsHQ",
+    "explosions"
+   ]
+  },
+  "boom_far": {
+   "files": [
+    "boom_far_0.ogg",
+    "boom_far_1.ogg",
+    "boom_far_2.ogg",
+    "boom_far_3.ogg"
+   ],
+   "duration": [
+    5.8,
+    2.45,
+    4.6,
+    4.6
+   ],
+   "loop": false,
+   "channels": 1,
+   "packs": [
+    "siren"
+   ]
+  },
+  "rocket_launch": {
+   "files": [
+    "rocket_launch.ogg"
+   ],
+   "duration": [
+    2.74
+   ],
+   "loop": false,
+   "channels": 2,
+   "packs": [
+    "launches"
+   ]
+  },
+  "grenade_pin": {
+   "files": [
+    "grenade_pin.ogg"
+   ],
+   "duration": [
+    0.16
+   ],
+   "loop": false,
+   "channels": 1,
+   "packs": [
+    "weaponClicks"
+   ]
+  },
+  "grenade_throw": {
+   "files": [
+    "grenade_throw.ogg"
+   ],
+   "duration": [
+    0.514
+   ],
+   "loop": false,
+   "channels": 1,
+   "packs": [
+    "whoosh"
+   ]
+  },
+  "grenade_bounce": {
+   "files": [
+    "grenade_bounce_0.ogg",
+    "grenade_bounce_1.ogg",
+    "grenade_bounce_2.ogg"
+   ],
+   "duration": [
+    0.183,
+    0.396,
+    0.127
+   ],
+   "loop": false,
+   "channels": 1,
+   "packs": [
+    "kenneyImpact"
+   ]
+  },
+  "casing": {
+   "files": [
+    "casing_0.ogg",
+    "casing_1.ogg",
+    "casing_2.ogg",
+    "casing_3.ogg",
+    "casing_4.ogg"
+   ],
+   "duration": [
+    0.241,
+    0.149,
+    0.13,
+    0.311,
+    0.126
+   ],
+   "loop": false,
+   "channels": 1,
+   "packs": [
+    "kenneyImpact"
+   ]
+  },
+  "mag_out": {
+   "files": [
+    "mag_out.ogg"
+   ],
+   "duration": [
+    0.42
+   ],
+   "loop": false,
+   "channels": 1,
+   "packs": [
+    "reloads"
+   ]
+  },
+  "mag_in": {
+   "files": [
+    "mag_in.ogg"
+   ],
+   "duration": [
+    0.571
+   ],
+   "loop": false,
+   "channels": 1,
+   "packs": [
+    "reloads"
+   ]
+  },
+  "bolt": {
+   "files": [
+    "bolt.ogg"
+   ],
+   "duration": [
+    0.334
+   ],
+   "loop": false,
+   "channels": 1,
+   "packs": [
+    "reloads"
+   ]
+  },
+  "charge": {
+   "files": [
+    "charge.ogg"
+   ],
+   "duration": [
+    0.664
+   ],
+   "loop": false,
+   "channels": 1,
+   "packs": [
+    "reloads"
+   ]
+  },
+  "dry_fire": {
+   "files": [
+    "dry_fire.ogg"
+   ],
+   "duration": [
+    0.216
+   ],
+   "loop": false,
+   "channels": 1,
+   "packs": [
+    "weaponClicks"
+   ]
+  },
+  "mag_check": {
+   "files": [
+    "mag_check_0.ogg",
+    "mag_check_1.ogg"
+   ],
+   "duration": [
+    0.255,
+    0.209
+   ],
+   "loop": false,
+   "channels": 1,
+   "packs": [
+    "clipload"
+   ]
+  },
+  "launcher_load": {
+   "files": [
+    "launcher_load.ogg"
+   ],
+   "duration": [
+    0.641
+   ],
+   "loop": false,
+   "channels": 1,
+   "packs": [
+    "reloads",
+    "kenneyImpact"
+   ]
+  },
+  "gear": {
+   "files": [
+    "gear_0.ogg",
+    "gear_1.ogg",
+    "gear_2.ogg",
+    "gear_3.ogg",
+    "gear_4.ogg",
+    "gear_5.ogg"
+   ],
+   "duration": [
+    0.62,
+    0.65,
+    0.6,
+    0.7,
+    0.65,
+    0.65
+   ],
+   "loop": false,
+   "channels": 1,
+   "packs": [
+    "gear"
+   ]
+  },
+  "step_stone": {
+   "files": [
+    "step_stone_0.ogg",
+    "step_stone_1.ogg",
+    "step_stone_2.ogg",
+    "step_stone_3.ogg",
+    "step_stone_4.ogg"
+   ],
+   "duration": [
+    0.103,
+    0.105,
+    0.11,
+    0.108,
+    0.111
+   ],
+   "loop": false,
+   "channels": 1,
+   "packs": [
+    "kenneyImpact"
+   ]
+  },
+  "step_wood": {
+   "files": [
+    "step_wood_0.ogg",
+    "step_wood_1.ogg",
+    "step_wood_2.ogg",
+    "step_wood_3.ogg",
+    "step_wood_4.ogg"
+   ],
+   "duration": [
+    0.271,
+    0.249,
+    0.249,
+    0.249,
+    0.245
+   ],
+   "loop": false,
+   "channels": 1,
+   "packs": [
+    "kenneyImpact"
+   ]
+  },
+  "hit": {
+   "files": [
+    "hit_0.ogg",
+    "hit_1.ogg"
+   ],
+   "duration": [
+    0.02,
+    0.055
+   ],
+   "loop": false,
+   "channels": 2,
+   "packs": [
+    "kenneyUI"
+   ]
+  },
+  "hit_head": {
+   "files": [
+    "hit_head.ogg"
+   ],
+   "duration": [
+    0.102
+   ],
+   "loop": false,
+   "channels": 2,
+   "packs": [
+    "kenneyUI"
+   ]
+  },
+  "chime": {
+   "files": [
+    "chime.ogg"
+   ],
+   "duration": [
+    0.539
+   ],
+   "loop": false,
+   "channels": 2,
+   "packs": [
+    "kenneyUI"
+   ]
+  },
+  "resupply": {
+   "files": [
+    "resupply.ogg"
+   ],
+   "duration": [
+    1.294
+   ],
+   "loop": false,
+   "channels": 1,
+   "packs": [
+    "clipload",
+    "gear"
+   ]
+  },
+  "radio_squelch": {
+   "files": [
+    "radio_squelch_0.ogg",
+    "radio_squelch_1.ogg",
+    "radio_squelch_2.ogg"
+   ],
+   "duration": [
+    0.11,
+    0.11,
+    0.11
+   ],
+   "loop": false,
+   "channels": 1,
+   "packs": [
+    "staticBursts"
+   ]
+  },
+  "radio_static": {
+   "files": [
+    "radio_static.ogg"
+   ],
+   "duration": [
+    8
+   ],
+   "loop": true,
+   "channels": 1,
+   "packs": [
+    "static"
+   ]
+  },
+  "scream": {
+   "files": [
+    "scream_0.ogg",
+    "scream_1.ogg",
+    "scream_2.ogg",
+    "scream_3.ogg",
+    "scream_4.ogg",
+    "scream_5.ogg",
+    "scream_6.ogg",
+    "scream_7.ogg",
+    "scream_8.ogg"
+   ],
+   "duration": [
+    0.609,
+    1.258,
+    1.314,
+    0.924,
+    0.84,
+    0.91,
+    1.05,
+    1.33,
+    0.84
+   ],
+   "loop": false,
+   "channels": 1,
+   "packs": [
+    "screamsF",
+    "screamsM"
+   ]
+  },
+  "amb_city": {
+   "files": [
+    "amb_city.ogg"
+   ],
+   "duration": [
+    32
+   ],
+   "loop": true,
+   "channels": 1,
+   "packs": [
+    "traffic"
+   ]
+  },
+  "amb_street": {
+   "files": [
+    "amb_street.ogg"
+   ],
+   "duration": [
+    32
+   ],
+   "loop": true,
+   "channels": 2,
+   "packs": [
+    "street"
+   ]
+  },
+  "amb_crowd": {
+   "files": [
+    "amb_crowd.ogg"
+   ],
+   "duration": [
+    32
+   ],
+   "loop": true,
+   "channels": 2,
+   "packs": [
+    "crowdMurmur"
+   ]
+  },
+  "amb_birds": {
+   "files": [
+    "amb_birds.ogg"
+   ],
+   "duration": [
+    28.688
+   ],
+   "loop": true,
+   "channels": 2,
+   "packs": [
+    "birds"
+   ]
+  },
+  "amb_wind": {
+   "files": [
+    "amb_wind.ogg"
+   ],
+   "duration": [
+    32
+   ],
+   "loop": true,
+   "channels": 1,
+   "packs": [
+    "wind"
+   ]
+  },
+  "amb_panic": {
+   "files": [
+    "amb_panic.ogg"
+   ],
+   "duration": [
+    24.884
+   ],
+   "loop": true,
+   "channels": 2,
+   "packs": [
+    "crowdShouting"
+   ]
+  },
+  "siren": {
+   "files": [
+    "siren.ogg"
+   ],
+   "duration": [
+    38.58
+   ],
+   "loop": true,
+   "channels": 2,
+   "packs": [
+    "siren"
+   ]
+  },
+  "truck_engine": {
+   "files": [
+    "truck_engine.ogg"
+   ],
+   "duration": [
+    3.8
+   ],
+   "loop": true,
+   "channels": 1,
+   "packs": [
+    "engine"
+   ]
+  },
+  "radio_words": {
+   "files": [
+    "radio_words_0.ogg",
+    "radio_words_1.ogg",
+    "radio_words_2.ogg",
+    "radio_words_3.ogg",
+    "radio_words_4.ogg",
+    "radio_words_5.ogg",
+    "radio_words_6.ogg",
+    "radio_words_7.ogg",
+    "radio_words_8.ogg",
+    "radio_words_9.ogg",
+    "radio_words_10.ogg"
+   ],
+   "duration": [
+    0.658,
+    0.912,
+    0.735,
+    0.61,
+    0.609,
+    0.376,
+    0.591,
+    0.805,
+    0.651,
+    0.921,
+    0.756
+   ],
+   "loop": false,
+   "channels": 1,
+   "packs": [
+    "hebrew"
+   ]
+  }
+ },
+ "credits": {
+  "firearms": {
+   "title": "The Free Firearm Sound Library",
+   "author": "Ben Jaszczak, Brian Nelson, Kevin Heras and Matthew Nanney",
+   "license": "CC0",
+   "page": "https://opengameart.org/content/the-free-firearm-sound-library",
+   "sounds": [
+    "rifle_close",
+    "rifle_tail",
+    "ar_near",
+    "ar_mid",
+    "ar_far",
+    "ak_near",
+    "ak_mid",
+    "ak_far",
+    "crack"
+   ]
+  },
+  "weaponClicks": {
+   "title": "2 Metal Weapon Clicks",
+   "author": "Michel Baradari (apollo-music.de)",
+   "license": "CC-BY 3.0",
+   "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+   "page": "https://opengameart.org/content/2-metal-weapon-clicks",
+   "sounds": [
+    "rifle_mech",
+    "grenade_pin",
+    "dry_fire"
+   ]
+  },
+  "whoosh": {
+   "title": "Air Whoosh",
+   "author": "pyranostudios",
+   "license": "CC0",
+   "page": "https://opengameart.org/content/air-whoosh",
+   "sounds": [
+    "whiz",
+    "grenade_throw"
+   ]
+  },
+  "explosionsHQ": {
+   "title": "2 High Quality Explosions",
+   "author": "Michel Baradari (apollo-music.de)",
+   "license": "CC-BY 3.0",
+   "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+   "page": "https://opengameart.org/content/2-high-quality-explosions",
+   "sounds": [
+    "explosion",
+    "explosion_small"
+   ]
+  },
+  "explosions": {
+   "title": "Explosions",
+   "author": "EZduzziteh",
+   "license": "CC0",
+   "page": "https://opengameart.org/content/explosions-4",
+   "sounds": [
+    "explosion",
+    "explosion_small"
+   ]
+  },
+  "siren": {
+   "title": "Civil defense siren and missile explosions sounds in Israel during Iran war 2026",
+   "author": "Yoram Shurek (יורם שורק)",
+   "license": "CC0",
+   "page": "https://commons.wikimedia.org/wiki/File:Civil_defense_siren_and_missile_explosions_sounds_in_Israel_during_Iran_war_2026.ogg",
+   "sounds": [
+    "boom_far",
+    "siren"
+   ]
+  },
+  "launches": {
+   "title": "4 Projectile Launches",
+   "author": "Michel Baradari (apollo-music.de)",
+   "license": "CC-BY 3.0",
+   "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+   "page": "https://opengameart.org/content/4-projectile-launches",
+   "sounds": [
+    "rocket_launch"
+   ]
+  },
+  "kenneyImpact": {
+   "title": "Impact Sounds",
+   "author": "Kenney (www.kenney.nl)",
+   "license": "CC0",
+   "page": "https://kenney.nl/assets/impact-sounds",
+   "sounds": [
+    "grenade_bounce",
+    "casing",
+    "launcher_load",
+    "step_stone",
+    "step_wood"
+   ]
+  },
+  "reloads": {
+   "title": "Gun Reload Sounds",
+   "author": "SpringySpringo",
+   "license": "CC0",
+   "page": "https://opengameart.org/content/gun-reload-sounds",
+   "sounds": [
+    "mag_out",
+    "mag_in",
+    "bolt",
+    "charge",
+    "launcher_load"
+   ]
+  },
+  "clipload": {
+   "title": "Gun Reload Sound Effects",
+   "author": "BMacZero",
+   "license": "CC0",
+   "page": "https://opengameart.org/content/gun-reload-sound-effects",
+   "sounds": [
+    "mag_check",
+    "resupply"
+   ]
+  },
+  "gear": {
+   "title": "Equipment Clicks II",
+   "author": "LFA",
+   "license": "CC0",
+   "page": "https://opengameart.org/content/equipment-clicks-ii",
+   "sounds": [
+    "gear",
+    "resupply"
+   ]
+  },
+  "kenneyUI": {
+   "title": "Interface Sounds",
+   "author": "Kenney (www.kenney.nl)",
+   "license": "CC0",
+   "page": "https://kenney.nl/assets/interface-sounds",
+   "sounds": [
+    "hit",
+    "hit_head",
+    "chime"
+   ]
+  },
+  "staticBursts": {
+   "title": "Frequency Static Sound Effects",
+   "author": "bretbernhoft",
+   "license": "CC0",
+   "page": "https://opengameart.org/content/frequency-static-sound-effects",
+   "sounds": [
+    "radio_squelch"
+   ]
+  },
+  "static": {
+   "title": "Static",
+   "author": "xhunterko",
+   "license": "CC0",
+   "page": "https://opengameart.org/content/static",
+   "sounds": [
+    "radio_static"
+   ]
+  },
+  "screamsF": {
+   "title": "Female Screams (the CC0 ones: tcrocker68, pushkin, Archeos via Freesound)",
+   "author": "congusbongus (compilation)",
+   "license": "CC0",
+   "page": "https://opengameart.org/content/female-screams",
+   "sounds": [
+    "scream"
+   ]
+  },
+  "screamsM": {
+   "title": "Aargh (male screams; the CC0 ones: JohnsonBrandEditing via Freesound)",
+   "author": "congusbongus (compilation)",
+   "license": "CC0",
+   "page": "https://opengameart.org/content/aargh-male-screams",
+   "sounds": [
+    "scream"
+   ]
+  },
+  "traffic": {
+   "title": "High traffic road sounds",
+   "author": "IgnasD",
+   "license": "CC0",
+   "page": "https://opengameart.org/content/high-traffic-road-sounds",
+   "sounds": [
+    "amb_city"
+   ]
+  },
+  "street": {
+   "title": "Karlova 0001 (street ambience, Prague)",
+   "author": "Juan de Vojníkov",
+   "license": "Public domain",
+   "page": "https://commons.wikimedia.org/wiki/File:Karlova_0001.ogg",
+   "sounds": [
+    "amb_street"
+   ]
+  },
+  "crowdMurmur": {
+   "title": "Festival concert people crowd",
+   "author": "stephan",
+   "license": "Public domain",
+   "page": "https://commons.wikimedia.org/wiki/File:Festival_concert_people_crowd.ogg",
+   "sounds": [
+    "amb_crowd"
+   ]
+  },
+  "birds": {
+   "title": "Ambient Bird Sounds",
+   "author": "isaiah658",
+   "license": "CC0",
+   "page": "https://opengameart.org/content/ambient-bird-sounds",
+   "sounds": [
+    "amb_birds"
+   ]
+  },
+  "wind": {
+   "title": "Park ambiences",
+   "author": "Thimras",
+   "license": "CC0",
+   "page": "https://opengameart.org/content/park-ambiences",
+   "sounds": [
+    "amb_wind"
+   ]
+  },
+  "crowdShouting": {
+   "title": "Crowd shouting/speaking ambience",
+   "author": "StarNinjas",
+   "license": "CC0",
+   "page": "https://opengameart.org/content/crowd-shoutingspeaking-ambience",
+   "sounds": [
+    "amb_panic"
+   ]
+  },
+  "engine": {
+   "title": "Car Engine Loop (96kHz 4s)",
+   "author": "qubodup",
+   "license": "CC-BY 3.0",
+   "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+   "page": "https://opengameart.org/content/car-engine-loop-96khz-4s",
+   "sounds": [
+    "truck_engine"
+   ]
+  },
+  "hebrew": {
+   "title": "Lingua Libre Hebrew word recordings",
+   "author": "YaronSh (Lingua Libre)",
+   "license": "CC0",
+   "page": "https://commons.wikimedia.org/wiki/Category:Lingua_Libre_pronunciation-heb",
+   "sounds": [
+    "radio_words"
+   ]
+  },
+  "music": {
+   "title": "Music by Kevin MacLeod (incompetech.com)",
+   "author": "Kevin MacLeod",
+   "license": "CC-BY 4.0",
+   "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+   "page": "https://incompetech.com/music/royalty-free/",
+   "sounds": [
+    "Desert City",
+    "Drums of the Deep",
+    "Urban Gauntlet",
+    "The Escalation",
+    "Heart of Nowhere"
+   ]
+  }
+ },
+ "music": {
+  "calm": {
+   "file": "music/calm.ogg",
+   "title": "Desert City",
+   "duration": 89.4
+  },
+  "tense": {
+   "file": "music/tense.ogg",
+   "title": "Drums of the Deep",
+   "duration": 174.2
+  },
+  "combat": {
+   "file": "music/combat.ogg",
+   "title": "Urban Gauntlet",
+   "duration": 209.1
+  },
+  "push": {
+   "file": "music/push.ogg",
+   "title": "The Escalation",
+   "duration": 327.4
+  },
+  "end": {
+   "file": "music/end.ogg",
+   "title": "Heart of Nowhere",
+   "duration": 172.4
+  }
+ }
+}

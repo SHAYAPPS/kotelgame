@@ -18,6 +18,7 @@
     "assets:characters": "node scripts/assets/characters.mjs",
     "character-shots": "node scripts/character-shots.mjs",
     "assets:weapons": "node scripts/assets/weapons.mjs",
+    "assets:audio": "node scripts/assets/audio.mjs",
     "weapon-shots": "node scripts/weapon-shots.mjs"
   },
   "dependencies": {

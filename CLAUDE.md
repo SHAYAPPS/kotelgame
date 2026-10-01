@@ -49,12 +49,14 @@ A browser-based 3D first-person story shooter.
      footsteps), error-bounded LODs (no collapsed limbs), clothing layers (no waistband through a
      hem), cloth in motion (skirts and shirt / jacket hems on simulated cloth bones), a busier
      plaza (about 90 people: rows at the wall, visitors, chatting groups, stair walkers)
-   - [ ] Part 3: weapons and sound  <- in progress
+   - [x] Part 3: weapons and sound
      - [x] Weapons: an M4-style rifle with a red dot (collimated dot), gloved arms on IK,
        procedural reload (magazine out / in, bolt release on empty), sprint, aim, recoil, dust
        cover, charging handle; ejected casings; launcher and pickup models
-     - [ ] Sound: recordings, layered gunshots, plaza reverb, suppression, surface footsteps,
-       ambience, music, ducking, volume sliders
+     - [x] Sound: recordings everywhere (layered gunshots by distance, real cracks, the real
+       siren), plaza reverb + wall slap-backs, suppression (muffle + edge blur), footsteps on
+       stone / wood, city / crowd / birds ambience, music by mood, dialogue ducking, volume
+       sliders
 
 ## Commands
 
@@ -79,6 +81,10 @@ A browser-based 3D first-person story shooter.
   (GLB + KTX2) from free models (CC0 / CC-BY; sources, URLs and credits in
   `scripts/assets/weapons.config.mjs`). The raw downloads go to `assets-src/models/<id>/`
   (git-ignored) and are fetched again when missing. Rewrites the manifest and `CREDITS.md`.
+- `npm run assets:audio [id ... | music]`: rebuild `public/assets/audio/` (Ogg Opus + manifest)
+  from free recordings (CC0 / public domain / CC-BY; sources, slices and processing in
+  `scripts/assets/audio.config.mjs`; raw files in `assets-src/sfx/<pack>/`, git-ignored, fetched
+  when missing). Needs ffmpeg with libopus. Rewrites `CREDITS.md`.
 - `npm run weapon-shots -- [outDir] [name filter]`: Playwright screenshots of the weapon in the
   game (hip, aimed, in shade, firing, reload out / in, sprint, casings, launcher). The weapon on
   its own: http://localhost:5173/dev/viewmodel.html (`weapon=rifle|launcher`,
@@ -198,8 +204,31 @@ A browser-based 3D first-person story shooter.
     position from the viewmodel camera to the world camera.
   - `Impacts.js`: pooled bullet-hole decals (one InstancedMesh), sparks (one Points), stone
     dust puffs (`puff()`, one Points with a soft-particle shader) and scorch decals (`scorch()`).
-  - `WeaponAudio.js`: Web Audio procedural shot / dry-fire / reload sounds; `unlock()` must be
-    called from a user gesture (the start click).
+  - `WeaponAudio.js`: the game's sound (it kept its name and interface): recorded effects
+    through `src/audio/` (see below). `play(id, { at, ref, gain, rate, delay, send, lowpass,
+    bus })` and `loop(id, ...)` (a handle: setPosition / setRate / setGain / stop). Your shot =
+    close blast + action + the mid mic's tail + reverb + slap-backs off the level's walls
+    (`walls`, from the level's `acoustics`: `wallEcho` in `src/audio/reverb.js`). Other guns
+    (`shotAt(p, 'ak' | 'ar' | 'mg')`): near / mid / far recordings crossfaded by distance, a
+    lowpass for air absorption, more reverb farther out, heard after the sound's travel time
+    (343 m/s). Near misses: real supersonic cracks + whizzes, and suppression. Footsteps by
+    surface (`footstep(level, stair, surface)`), casings, reload sounds on the animation's
+    marks (`VIEWMODEL.reload`). `speaking(s)` ducks the rest under dialogue; `setMusic(mood)`;
+    `update(dt)` drives muffle / ducking; `blur` (suppression) goes to PostFX. `unlock()` must
+    be called from a user gesture (the start click); then every sound is fetched and decoded.
+- `src/audio/`: the sound system.
+  - `Mixer.js`: buses: effects (-> muffle lowpass -> duck -> volume), ambience (into effects),
+    reverb (a convolver with the plaza IR, returns into effects), music, voice (never ducked),
+    a limiter on the master. Volumes (master / music / effects / voice, the overlay's sliders)
+    saved in localStorage (`kotelgame.volume`).
+  - `SoundBank.js`: `public/assets/audio/manifest.json` -> decoded variants; `buffer(id)`
+    never repeats the last variant.
+  - `reverb.js` (pure): the plaza impulse response (early slaps off the wall and buildings, a
+    short damped tail) and `wallEcho()` (mirror-image slap-back off a wall plane).
+  - `Suppression.js` (pure): near misses, close impacts, hits and blasts build a level that
+    holds then drains; `muffle` (the lowpass over the world) and `blur` (PostFX's edge blur).
+  - `Music.js`: one streamed track per mood (calm / tense / combat / push / end, Kevin
+    MacLeod, CC-BY), crossfaded; mission1 sets the mood with `music` actions.
 - `src/ai/`: enemies.
   - `config.js`: all AI tuning (health/damage, vision, hearing, reaction time, burst fire,
     spread tightening, cover timings, speeds) and the nav grid settings.
@@ -287,17 +316,19 @@ A browser-based 3D first-person story shooter.
     StoryDirector sets `npc.speaking` while the NPC has the current line; a chatting NPC plays
     the talk clip with made-up words on its lips (`LipSync.babble`), the others listen and
     look at it.
-  - `AmbientAudio.js`: generated crowd murmur (panic shouts), birds, the rising-and-falling
-    siren (three horns into the echo bus), distant booms, radio lines (garbled synthesized voice
-    through a band-pass + distortion, with squelches), charging handle, objective chime.
+  - `AmbientAudio.js`: recorded beds (city traffic far off, a street crowd, the plaza's murmur,
+    birds, wind; panic + random screams), the real Israeli civil-defense siren from three
+    far-off emitters once the attack starts (`ambience` levels), distant booms (the real
+    interception booms), radio lines (squelch, static, real Hebrew words through a radio's
+    band and distortion: `radioLine`), the story's one-shots (`play`).
   - `StoryDirector.js`: the mission context; tutorial events (move/sprint/crouch/mag check),
     E to talk / send a frozen civilian off, friendly fire -> fail -> restart at the last
     checkpoint, F2 jumps, the objective counters, kill callouts, booms + camera shake timed by
     the speed of sound.
 - `src/world/SkyFx.js`: rocket barrage over the city (pooled interceptor trails, flashes, smoke
   puffs, horizon impacts); `onFlash(distance, strength)`.
-- `WeaponAudio.echoBus`: the plaza reverb (generated impulse response: stone reflections + tail);
-  distant gunshots, your shots, the siren, shouts and booms send into it.
+- `WeaponAudio.echoBus`: the plaza reverb's send (`Mixer.reverb`); gunshots, explosions, the
+  siren, shouts and voices send into it.
 - `PlayerCamera.addShake(amount)`: view-only shake (the aim is unaffected).
 - `src/weapons/Grenades.js`: `GrenadeSim` (pure: gravity, bounces off the collision world, rest,
   fuse, `predict()` for the aiming arc), `solveThrow()` (ballistic launch velocity to a point),

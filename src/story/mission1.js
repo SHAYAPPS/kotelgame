@@ -139,6 +139,7 @@ export const MISSION1 = {
       id: 'intro',
       label: 'פתיחה: כרטיס כותרת',
       do: [
+        { type: 'music', state: 'calm' },
         { type: 'fade', to: 0, time: 2.5 },
         { type: 'title', card: 'intro' },
         { type: 'weapon', mode: 'lowered' },
@@ -278,6 +279,7 @@ export const MISSION1 = {
       id: 'sirens',
       label: 'צפירות: אזעקה ברחבה',
       do: [
+        { type: 'music', state: 'tense' },
         { type: 'dialogue', lines: ['radio_7', 'siren_1', 'siren_2', 'siren_3', 'radio_8'], interrupt: true },
         { type: 'sound', id: 'radioCut' },
         { type: 'ambience', crowd: 1, birds: 0, siren: 1, panic: true },
@@ -317,6 +319,7 @@ export const MISSION1 = {
       id: 'contact',
       label: 'מגע ראשון: גל מחבלים',
       do: [
+        { type: 'music', state: 'combat' },
         { type: 'hint', hint: null },
         { type: 'civilians', do: 'runAll' },
         { type: 'ambience', siren: 0.45, crowd: 0.6, panic: true },
@@ -339,6 +342,7 @@ export const MISSION1 = {
       id: 'after_wave',
       label: 'אחרי הגל: התארגנות',
       do: [
+        { type: 'music', state: 'tense' },
         { type: 'combat', squad: SQUAD, on: false },
         { type: 'ambience', siren: 0, crowd: 0.25, panic: false },
         { type: 'sky', barrage: 0.25 },
@@ -388,6 +392,7 @@ export const MISSION1 = {
       id: 'wave1',
       label: 'גל 1: רובאים מהמדרגות המערביות (נקודת שמירה)',
       do: [
+        { type: 'music', state: 'combat' },
         { type: 'checkpoint', at: LINE1, yaw: W },
         { type: 'hint', hint: null },
         { type: 'objective', text: 'hold_line', target: null },
@@ -464,6 +469,7 @@ export const MISSION1 = {
       id: 'lull',
       label: 'הפוגה: הם מתארגנים למתקפה גדולה',
       do: [
+        { type: 'music', state: 'tense' },
         { type: 'ambience', siren: 0, crowd: 0.2, panic: false },
         { type: 'dialogue', lines: ['lull_1', 'lull_2', 'lull_3', 'lull_4', 'lull_5', 'lull_6'], interrupt: true },
       ],
@@ -484,6 +490,7 @@ export const MISSION1 = {
       id: 'final_push',
       label: 'המתקפה האחרונה: מכל הכיוונים',
       do: [
+        { type: 'music', state: 'push' },
         { type: 'ambience', siren: 0.5, crowd: 0.3, panic: true },
         { type: 'sky', barrage: 0.6 },
         { type: 'objective', text: 'final_hold', target: null },
@@ -574,6 +581,7 @@ export const MISSION1 = {
       id: 'reinforcements',
       label: 'סיום: התגבורת מגיעה',
       do: [
+        { type: 'music', state: 'end' },
         { type: 'bounding', squad: SQUAD, off: true },
         { type: 'combat', squad: SQUAD, on: false },
         { type: 'ambience', siren: 0, crowd: 0, birds: 0.15, panic: false },

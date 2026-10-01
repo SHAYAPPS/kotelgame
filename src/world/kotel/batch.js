@@ -111,6 +111,8 @@ export class StaticBatch {
       for (const [color, geos] of map) {
         const mesh = new Mesh(mergeGeometries(geos), this.material(color));
         mesh.name = `${collide ? 'solid' : 'deco'}:${color}`;
+        // What it's made of, for footsteps (CollisionWorld keeps it per triangle).
+        if (/wood/i.test(color)) mesh.userData.surface = 'wood';
         mesh.castShadow = true;
         mesh.receiveShadow = true;
         if (!collide) mesh.userData.noCollision = true;
