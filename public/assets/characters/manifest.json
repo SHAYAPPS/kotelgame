@@ -34,7 +34,7 @@
     "min": [
      -0.189,
      -0.1775,
-     -0.2047
+     -0.183
     ],
     "max": [
      0.189,
@@ -58,9 +58,9 @@
     0.3
    ],
    "tris": [
-    14084,
-    4490,
-    1500
+    10658,
+    3131,
+    1176
    ],
    "alpha": false,
    "vest": false,
@@ -81,11 +81,13 @@
       "h": 0.0083
      }
     ]
-   }
+   },
+   "cloth": null
   },
   "squad_swatguy": {
    "file": "squad_swatguy.glb",
    "source": "Swat Guy",
+   "credit": "recolored olive",
    "role": "squad",
    "sex": "m",
    "height": 1.795,
@@ -133,16 +135,21 @@
     0.3,
     0.3,
     0.3,
+    0.3,
+    0.3,
+    0.3,
+    0.3,
     0.3
    ],
    "tris": [
-    13999,
-    4494,
-    2564
+    15299,
+    5176,
+    2415
    ],
    "alpha": false,
    "vest": false,
-   "credit": "recolored olive"
+   "face": null,
+   "cloth": null
   },
   "squad_steve": {
    "file": "squad_steve.glb",
@@ -176,13 +183,13 @@
    },
    "chest": {
     "min": [
-     -0.1741,
+     -0.1752,
      -0.1801,
-     -0.1144
+     -0.1153
     ],
     "max": [
      0.1798,
-     0.2059,
+     0.2148,
      0.1478
     ]
    },
@@ -202,9 +209,9 @@
     0.3
    ],
    "tris": [
-    15152,
-    4499,
-    1499
+    19572,
+    2059,
+    598
    ],
    "alpha": false,
    "vest": true,
@@ -225,11 +232,13 @@
       "h": 0.009
      }
     ]
-   }
+   },
+   "cloth": null
   },
   "enemy_ninja": {
    "file": "enemy_ninja.glb",
    "source": "Ninja",
+   "credit": "darkened",
    "role": "enemy",
    "sex": "m",
    "height": 1.742,
@@ -258,13 +267,13 @@
    },
    "chest": {
     "min": [
-     -0.1707,
+     -0.1682,
      -0.1848,
-     -0.1555
+     -0.1541
     ],
     "max": [
-     0.1685,
-     0.2352,
+     0.1596,
+     0.2341,
      0.1778
     ]
    },
@@ -277,20 +286,26 @@
     0.3,
     0.3,
     0.3,
+    0.3,
+    0.3,
+    0.3,
+    0.3,
     0.3
    ],
    "tris": [
-    12000,
-    3999,
-    1299
+    3304,
+    850,
+    236
    ],
    "alpha": false,
    "vest": false,
-   "credit": "darkened"
+   "face": null,
+   "cloth": null
   },
   "enemy_david": {
    "file": "enemy_david.glb",
    "source": "David",
+   "credit": "darkened; hair removed, balaclava painted on",
    "role": "enemy",
    "sex": "m",
    "height": 1.758,
@@ -320,41 +335,49 @@
    "chest": {
     "min": [
      -0.1834,
-     -0.1418,
-     -0.1139
+     -0.1406,
+     -0.1134
     ],
     "max": [
-     0.1886,
-     0.2282,
-     0.1482
+     0.182,
+     0.2219,
+     0.1479
     ]
    },
    "parts": [
     0,
     1,
     2,
-    3
+    3,
+    8,
+    9
    ],
    "partLum": [
-    0.0506,
+    0.0501,
     0.0055,
     0.0062,
     0.0746,
     0.3,
-    0.3
+    0.3,
+    0.3,
+    0.3,
+    0.0976,
+    0.0698
    ],
    "tris": [
-    11999,
-    3998,
-    1299
+    4303,
+    1092,
+    351
    ],
    "alpha": false,
    "vest": false,
-   "credit": "darkened; hair removed, balaclava painted on"
+   "face": null,
+   "cloth": null
   },
   "enemy_alex": {
    "file": "enemy_alex.glb",
    "source": "Alex",
+   "credit": "darkened; face wrap painted on",
    "role": "enemy",
    "sex": "m",
    "height": 1.751,
@@ -384,8 +407,8 @@
    "chest": {
     "min": [
      -0.1863,
-     -0.1755,
-     -0.1224
+     -0.1743,
+     -0.1051
     ],
     "max": [
      0.1925,
@@ -402,16 +425,21 @@
     0.3,
     0.3,
     0.3,
+    0.3,
+    0.3,
+    0.3,
+    0.3,
     0.3
    ],
    "tris": [
-    11997,
-    3975,
-    1300
+    5625,
+    1473,
+    430
    ],
    "alpha": false,
    "vest": false,
-   "credit": "darkened; face wrap painted on"
+   "face": null,
+   "cloth": null
   },
   "civ_brian": {
    "file": "civ_brian.glb",
@@ -445,13 +473,13 @@
    },
    "chest": {
     "min": [
-     -0.1778,
-     -0.1421,
-     -0.1243
+     -0.1924,
+     -0.1481,
+     -0.1266
     ],
     "max": [
      0.1924,
-     0.2008,
+     0.2023,
      0.1552
     ]
    },
@@ -475,9 +503,9 @@
     0.3
    ],
    "tris": [
-    10083,
-    3199,
-    1098
+    13001,
+    1441,
+    435
    ],
    "alpha": false,
    "vest": false,
@@ -496,6 +524,128 @@
       "y": 0.0812,
       "w": 0.0255,
       "h": 0.009
+     }
+    ]
+   },
+   "cloth": {
+    "chains": [
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem0"
+      ],
+      "tip": [
+       0,
+       -0.15,
+       -0.0145
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem1"
+      ],
+      "tip": [
+       -0.0042,
+       -0.15,
+       -0.0042
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem2"
+      ],
+      "tip": [
+       0.0088,
+       -0.15,
+       0
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem3"
+      ],
+      "tip": [
+       0.0017,
+       -0.15,
+       -0.0017
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem4"
+      ],
+      "tip": [
+       0,
+       -0.15,
+       -0.0181
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem5"
+      ],
+      "tip": [
+       -0.0109,
+       -0.15,
+       -0.0109
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem6"
+      ],
+      "tip": [
+       -0.0024,
+       -0.15,
+       0
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem7"
+      ],
+      "tip": [
+       -0.0034,
+       -0.15,
+       0.0034
+      ]
+     }
+    ],
+    "colliders": [
+     {
+      "a": "LeftUpLeg",
+      "b": "LeftLeg",
+      "r": 0.107,
+      "r2": 0.086,
+      "from": 0.25
+     },
+     {
+      "a": "LeftLeg",
+      "b": "LeftFoot",
+      "r": 0.086,
+      "r2": 0.086,
+      "from": 0
+     },
+     {
+      "a": "RightUpLeg",
+      "b": "RightLeg",
+      "r": 0.107,
+      "r2": 0.084,
+      "from": 0.25
+     },
+     {
+      "a": "RightLeg",
+      "b": "RightFoot",
+      "r": 0.084,
+      "r2": 0.078,
+      "from": 0
      }
     ]
    }
@@ -532,14 +682,14 @@
    },
    "chest": {
     "min": [
-     -0.1197,
-     -0.111,
-     -0.0629
+     -0.1556,
+     -0.1669,
+     -0.1029
     ],
     "max": [
-     0.1212,
-     0.1797,
-     0.1353
+     0.1608,
+     0.2074,
+     0.1454
     ]
    },
    "parts": [
@@ -565,9 +715,9 @@
     0.3
    ],
    "tris": [
-    15135,
-    3200,
-    1100
+    19237,
+    2264,
+    434
    ],
    "alpha": true,
    "vest": false,
@@ -586,6 +736,128 @@
       "y": 0.1042,
       "w": 0.027,
       "h": 0.009
+     }
+    ]
+   },
+   "cloth": {
+    "chains": [
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem0"
+      ],
+      "tip": [
+       0,
+       -0.15,
+       0.0091
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem1"
+      ],
+      "tip": [
+       0.0047,
+       -0.15,
+       0.0047
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem2"
+      ],
+      "tip": [
+       0.0169,
+       -0.15,
+       0
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem3"
+      ],
+      "tip": [
+       0.017,
+       -0.15,
+       -0.017
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem4"
+      ],
+      "tip": [
+       0,
+       -0.15,
+       -0.0188
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem5"
+      ],
+      "tip": [
+       -0.0146,
+       -0.15,
+       -0.0146
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem6"
+      ],
+      "tip": [
+       -0.0154,
+       -0.15,
+       0
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem7"
+      ],
+      "tip": [
+       -0.01,
+       -0.15,
+       0.01
+      ]
+     }
+    ],
+    "colliders": [
+     {
+      "a": "LeftUpLeg",
+      "b": "LeftLeg",
+      "r": 0.098,
+      "r2": 0.074,
+      "from": 0.25
+     },
+     {
+      "a": "LeftLeg",
+      "b": "LeftFoot",
+      "r": 0.073,
+      "r2": 0.069,
+      "from": 0
+     },
+     {
+      "a": "RightUpLeg",
+      "b": "RightLeg",
+      "r": 0.103,
+      "r2": 0.075,
+      "from": 0.25
+     },
+     {
+      "a": "RightLeg",
+      "b": "RightFoot",
+      "r": 0.075,
+      "r2": 0.073,
+      "from": 0
      }
     ]
    }
@@ -622,14 +894,14 @@
    },
    "chest": {
     "min": [
-     -0.1197,
-     -0.1046,
-     -0.0623
+     -0.1723,
+     -0.1687,
+     -0.1018
     ],
     "max": [
-     0.1212,
-     0.1849,
-     0.1351
+     0.1765,
+     0.197,
+     0.1452
     ]
    },
    "parts": [
@@ -655,9 +927,9 @@
     0.3
    ],
    "tris": [
-    13809,
-    3200,
-    1100
+    18401,
+    2276,
+    459
    ],
    "alpha": true,
    "vest": false,
@@ -676,6 +948,128 @@
       "y": 0.0981,
       "w": 0.0252,
       "h": 0.009
+     }
+    ]
+   },
+   "cloth": {
+    "chains": [
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem0"
+      ],
+      "tip": [
+       0,
+       -0.15,
+       0.0091
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem1"
+      ],
+      "tip": [
+       0.0047,
+       -0.15,
+       0.0047
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem2"
+      ],
+      "tip": [
+       0.0169,
+       -0.15,
+       0
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem3"
+      ],
+      "tip": [
+       0.017,
+       -0.15,
+       -0.017
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem4"
+      ],
+      "tip": [
+       0,
+       -0.15,
+       -0.0188
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem5"
+      ],
+      "tip": [
+       -0.0146,
+       -0.15,
+       -0.0146
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem6"
+      ],
+      "tip": [
+       -0.0154,
+       -0.15,
+       0
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem7"
+      ],
+      "tip": [
+       -0.0099,
+       -0.15,
+       0.0099
+      ]
+     }
+    ],
+    "colliders": [
+     {
+      "a": "LeftUpLeg",
+      "b": "LeftLeg",
+      "r": 0.103,
+      "r2": 0.075,
+      "from": 0.25
+     },
+     {
+      "a": "LeftLeg",
+      "b": "LeftFoot",
+      "r": 0.075,
+      "r2": 0.072,
+      "from": 0
+     },
+     {
+      "a": "RightUpLeg",
+      "b": "RightLeg",
+      "r": 0.111,
+      "r2": 0.075,
+      "from": 0.25
+     },
+     {
+      "a": "RightLeg",
+      "b": "RightFoot",
+      "r": 0.076,
+      "r2": 0.075,
+      "from": 0
      }
     ]
    }
@@ -712,14 +1106,14 @@
    },
    "chest": {
     "min": [
-     -0.0794,
-     0.0044,
-     -0.0312
+     -0.1547,
+     -0.152,
+     -0.088
     ],
     "max": [
-     0.1243,
-     0.1959,
-     0.1066
+     0.1555,
+     0.1974,
+     0.1186
     ]
    },
    "parts": [
@@ -739,9 +1133,9 @@
     0.3
    ],
    "tris": [
-    16428,
-    3200,
-    1100
+    19794,
+    1343,
+    317
    ],
    "alpha": true,
    "vest": false,
@@ -762,7 +1156,8 @@
       "h": 0.009
      }
     ]
-   }
+   },
+   "cloth": null
   },
   "civ_remy": {
    "file": "civ_remy.glb",
@@ -796,14 +1191,14 @@
    },
    "chest": {
     "min": [
-     -0.1893,
-     -0.0063,
-     -0.0916
+     -0.1929,
+     -0.2374,
+     -0.1162
     ],
     "max": [
-     0.1866,
-     0.1778,
-     0.1021
+     0.2049,
+     0.1848,
+     0.1629
     ]
    },
    "parts": [
@@ -828,9 +1223,9 @@
     0.4061
    ],
    "tris": [
-    10480,
-    3200,
-    1100
+    15282,
+    2036,
+    382
    ],
    "alpha": false,
    "vest": false,
@@ -849,6 +1244,128 @@
       "y": 0.098,
       "w": 0.0198,
       "h": 0.0075
+     }
+    ]
+   },
+   "cloth": {
+    "chains": [
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem0"
+      ],
+      "tip": [
+       0,
+       -0.15,
+       0.0183
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem1"
+      ],
+      "tip": [
+       0.0093,
+       -0.15,
+       0.0093
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem2"
+      ],
+      "tip": [
+       0.0179,
+       -0.15,
+       0
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem3"
+      ],
+      "tip": [
+       0.001,
+       -0.15,
+       -0.001
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem4"
+      ],
+      "tip": [
+       0,
+       -0.15,
+       -0.0128
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem5"
+      ],
+      "tip": [
+       -0.0048,
+       -0.15,
+       -0.0048
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem6"
+      ],
+      "tip": [
+       -0.0188,
+       -0.15,
+       0
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem7"
+      ],
+      "tip": [
+       -0.019,
+       -0.15,
+       0.019
+      ]
+     }
+    ],
+    "colliders": [
+     {
+      "a": "LeftUpLeg",
+      "b": "LeftLeg",
+      "r": 0.117,
+      "r2": 0.109,
+      "from": 0.25
+     },
+     {
+      "a": "LeftLeg",
+      "b": "LeftFoot",
+      "r": 0.103,
+      "r2": 0.053,
+      "from": 0
+     },
+     {
+      "a": "RightUpLeg",
+      "b": "RightLeg",
+      "r": 0.121,
+      "r2": 0.114,
+      "from": 0.25
+     },
+     {
+      "a": "RightLeg",
+      "b": "RightFoot",
+      "r": 0.097,
+      "r2": 0.055,
+      "from": 0
      }
     ]
    }
@@ -885,14 +1402,14 @@
    },
    "chest": {
     "min": [
-     -0.0994,
-     0.0013,
-     -0.029
+     -0.165,
+     -0.1572,
+     -0.099
     ],
     "max": [
-     0.0695,
-     0.1961,
-     0.1234
+     0.1657,
+     0.1986,
+     0.1295
     ]
    },
    "parts": [
@@ -917,9 +1434,9 @@
     0.1878
    ],
    "tris": [
-    15640,
-    3200,
-    1100
+    19098,
+    2289,
+    450
    ],
    "alpha": true,
    "vest": false,
@@ -938,6 +1455,128 @@
       "y": 0.1153,
       "w": 0.0262,
       "h": 0.009
+     }
+    ]
+   },
+   "cloth": {
+    "chains": [
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem0"
+      ],
+      "tip": [
+       0,
+       -0.15,
+       0.0044
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem1"
+      ],
+      "tip": [
+       0.0114,
+       -0.15,
+       0.0114
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem2"
+      ],
+      "tip": [
+       0.0156,
+       -0.15,
+       0
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem3"
+      ],
+      "tip": [
+       0.0138,
+       -0.15,
+       -0.0138
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem4"
+      ],
+      "tip": [
+       0,
+       -0.15,
+       -0.0065
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem5"
+      ],
+      "tip": [
+       -0.0163,
+       -0.15,
+       -0.0163
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem6"
+      ],
+      "tip": [
+       -0.0157,
+       -0.15,
+       0
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem7"
+      ],
+      "tip": [
+       -0.0099,
+       -0.15,
+       0.0099
+      ]
+     }
+    ],
+    "colliders": [
+     {
+      "a": "LeftUpLeg",
+      "b": "LeftLeg",
+      "r": 0.105,
+      "r2": 0.09,
+      "from": 0.25
+     },
+     {
+      "a": "LeftLeg",
+      "b": "LeftFoot",
+      "r": 0.082,
+      "r2": 0.061,
+      "from": 0
+     },
+     {
+      "a": "RightUpLeg",
+      "b": "RightLeg",
+      "r": 0.102,
+      "r2": 0.087,
+      "from": 0.25
+     },
+     {
+      "a": "RightLeg",
+      "b": "RightFoot",
+      "r": 0.081,
+      "r2": 0.06,
+      "from": 0
      }
     ]
    }
@@ -974,14 +1613,14 @@
    },
    "chest": {
     "min": [
-     -0.1333,
-     -0.1676,
-     -0.0622
+     -0.1495,
+     -0.1984,
+     -0.0641
     ],
     "max": [
-     0.1228,
-     0.1734,
-     0.1582
+     0.1467,
+     0.1815,
+     0.168
     ]
    },
    "parts": [
@@ -1007,9 +1646,9 @@
     0.3
    ],
    "tris": [
-    14790,
-    3400,
-    1150
+    18182,
+    2445,
+    487
    ],
    "alpha": true,
    "vest": false,
@@ -1028,6 +1667,416 @@
       "y": 0.0975,
       "w": 0.0258,
       "h": 0.009
+     }
+    ]
+   },
+   "cloth": {
+    "chains": [
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt0a",
+       "ClothSkirt0b"
+      ],
+      "tip": [
+       0,
+       -0.3099,
+       0.0909
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt1a",
+       "ClothSkirt1b"
+      ],
+      "tip": [
+       0.029,
+       -0.3099,
+       0.0798
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt2a",
+       "ClothSkirt2b"
+      ],
+      "tip": [
+       0.039,
+       -0.3099,
+       0.0675
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt3a",
+       "ClothSkirt3b"
+      ],
+      "tip": [
+       0.0498,
+       -0.3099,
+       0.0418
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt4a",
+       "ClothSkirt4b"
+      ],
+      "tip": [
+       0.0543,
+       -0.3099,
+       0.0313
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt5a",
+       "ClothSkirt5b"
+      ],
+      "tip": [
+       0.061,
+       -0.3099,
+       0.0108
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt6a",
+       "ClothSkirt6b"
+      ],
+      "tip": [
+       0.062,
+       -0.3099,
+       0
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt7a",
+       "ClothSkirt7b"
+      ],
+      "tip": [
+       0.0582,
+       -0.3099,
+       -0.0212
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt8a",
+       "ClothSkirt8b"
+      ],
+      "tip": [
+       0.0539,
+       -0.3099,
+       -0.0311
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt9a",
+       "ClothSkirt9b"
+      ],
+      "tip": [
+       0.0441,
+       -0.3099,
+       -0.0525
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt10a",
+       "ClothSkirt10b"
+      ],
+      "tip": [
+       0.039,
+       -0.3099,
+       -0.0676
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt11a",
+       "ClothSkirt11b"
+      ],
+      "tip": [
+       0.017,
+       -0.3099,
+       -0.0965
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt12a",
+       "ClothSkirt12b"
+      ],
+      "tip": [
+       0,
+       -0.3099,
+       -0.0986
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt13a",
+       "ClothSkirt13b"
+      ],
+      "tip": [
+       -0.0274,
+       -0.3099,
+       -0.0752
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt14a",
+       "ClothSkirt14b"
+      ],
+      "tip": [
+       -0.0352,
+       -0.3099,
+       -0.0609
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt15a",
+       "ClothSkirt15b"
+      ],
+      "tip": [
+       -0.0479,
+       -0.3099,
+       -0.0402
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt16a",
+       "ClothSkirt16b"
+      ],
+      "tip": [
+       -0.0537,
+       -0.3099,
+       -0.031
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt17a",
+       "ClothSkirt17b"
+      ],
+      "tip": [
+       -0.061,
+       -0.3099,
+       -0.0108
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt18a",
+       "ClothSkirt18b"
+      ],
+      "tip": [
+       -0.062,
+       -0.3099,
+       0
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt19a",
+       "ClothSkirt19b"
+      ],
+      "tip": [
+       -0.0584,
+       -0.3099,
+       0.0213
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt20a",
+       "ClothSkirt20b"
+      ],
+      "tip": [
+       -0.0549,
+       -0.3099,
+       0.0317
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt21a",
+       "ClothSkirt21b"
+      ],
+      "tip": [
+       -0.0473,
+       -0.3099,
+       0.0563
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt22a",
+       "ClothSkirt22b"
+      ],
+      "tip": [
+       -0.0405,
+       -0.3099,
+       0.0702
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt23a",
+       "ClothSkirt23b"
+      ],
+      "tip": [
+       -0.0157,
+       -0.3099,
+       0.0888
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem0"
+      ],
+      "tip": [
+       0,
+       -0.15,
+       0.0041
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem1"
+      ],
+      "tip": [
+       0.0093,
+       -0.15,
+       0.0093
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem2"
+      ],
+      "tip": [
+       0.0371,
+       -0.15,
+       0
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem3"
+      ],
+      "tip": [
+       0.0373,
+       -0.15,
+       -0.0373
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem4"
+      ],
+      "tip": [
+       0,
+       -0.15,
+       -0.0214
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem5"
+      ],
+      "tip": [
+       -0.0344,
+       -0.15,
+       -0.0344
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem6"
+      ],
+      "tip": [
+       -0.0269,
+       -0.15,
+       0
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem7"
+      ],
+      "tip": [
+       -0.0039,
+       -0.15,
+       0.0039
+      ]
+     }
+    ],
+    "colliders": [
+     {
+      "a": "LeftUpLeg",
+      "b": "LeftLeg",
+      "r": 0.097,
+      "r2": 0.078,
+      "from": 0.25
+     },
+     {
+      "a": "LeftLeg",
+      "b": "LeftFoot",
+      "r": 0.066,
+      "r2": 0.056,
+      "from": 0
+     },
+     {
+      "a": "RightUpLeg",
+      "b": "RightLeg",
+      "r": 0.099,
+      "r2": 0.078,
+      "from": 0.25
+     },
+     {
+      "a": "RightLeg",
+      "b": "RightFoot",
+      "r": 0.065,
+      "r2": 0.057,
+      "from": 0
      }
     ]
    }
@@ -1064,12 +2113,12 @@
    },
    "chest": {
     "min": [
-     -0.0536,
-     -0.0368,
-     -0.0313
+     -0.1415,
+     -0.1527,
+     -0.0785
     ],
     "max": [
-     0.0775,
+     0.1463,
      0.2922,
      0.1741
     ]
@@ -1097,9 +2146,9 @@
     0.1078
    ],
    "tris": [
-    16114,
-    3400,
-    1150
+    20142,
+    2749,
+    672
    ],
    "alpha": true,
    "vest": false,
@@ -1118,6 +2167,416 @@
       "y": 0.0912,
       "w": 0.0243,
       "h": 0.009
+     }
+    ]
+   },
+   "cloth": {
+    "chains": [
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt0a",
+       "ClothSkirt0b"
+      ],
+      "tip": [
+       0,
+       -0.3187,
+       0.0793
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt1a",
+       "ClothSkirt1b"
+      ],
+      "tip": [
+       0.0242,
+       -0.3187,
+       0.0665
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt2a",
+       "ClothSkirt2b"
+      ],
+      "tip": [
+       0.0333,
+       -0.3187,
+       0.0577
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt3a",
+       "ClothSkirt3b"
+      ],
+      "tip": [
+       0.0489,
+       -0.3187,
+       0.041
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt4a",
+       "ClothSkirt4b"
+      ],
+      "tip": [
+       0.0552,
+       -0.3187,
+       0.0319
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt5a",
+       "ClothSkirt5b"
+      ],
+      "tip": [
+       0.0628,
+       -0.3187,
+       0.0111
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt6a",
+       "ClothSkirt6b"
+      ],
+      "tip": [
+       0.0637,
+       -0.3187,
+       0
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt7a",
+       "ClothSkirt7b"
+      ],
+      "tip": [
+       0.0599,
+       -0.3187,
+       -0.0218
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt8a",
+       "ClothSkirt8b"
+      ],
+      "tip": [
+       0.0552,
+       -0.3187,
+       -0.0319
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt9a",
+       "ClothSkirt9b"
+      ],
+      "tip": [
+       0.0417,
+       -0.3187,
+       -0.0497
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt10a",
+       "ClothSkirt10b"
+      ],
+      "tip": [
+       0.0341,
+       -0.3187,
+       -0.059
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt11a",
+       "ClothSkirt11b"
+      ],
+      "tip": [
+       0.0135,
+       -0.3187,
+       -0.0765
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt12a",
+       "ClothSkirt12b"
+      ],
+      "tip": [
+       0,
+       -0.3187,
+       -0.0775
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt13a",
+       "ClothSkirt13b"
+      ],
+      "tip": [
+       -0.0233,
+       -0.3187,
+       -0.0641
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt14a",
+       "ClothSkirt14b"
+      ],
+      "tip": [
+       -0.0325,
+       -0.3187,
+       -0.0563
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt15a",
+       "ClothSkirt15b"
+      ],
+      "tip": [
+       -0.0488,
+       -0.3187,
+       -0.041
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt16a",
+       "ClothSkirt16b"
+      ],
+      "tip": [
+       -0.0552,
+       -0.3187,
+       -0.0319
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt17a",
+       "ClothSkirt17b"
+      ],
+      "tip": [
+       -0.0628,
+       -0.3187,
+       -0.0111
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt18a",
+       "ClothSkirt18b"
+      ],
+      "tip": [
+       -0.0637,
+       -0.3187,
+       0
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt19a",
+       "ClothSkirt19b"
+      ],
+      "tip": [
+       -0.0599,
+       -0.3187,
+       0.0218
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt20a",
+       "ClothSkirt20b"
+      ],
+      "tip": [
+       -0.0552,
+       -0.3187,
+       0.0319
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt21a",
+       "ClothSkirt21b"
+      ],
+      "tip": [
+       -0.0422,
+       -0.3187,
+       0.0503
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt22a",
+       "ClothSkirt22b"
+      ],
+      "tip": [
+       -0.0347,
+       -0.3187,
+       0.0601
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt23a",
+       "ClothSkirt23b"
+      ],
+      "tip": [
+       -0.0137,
+       -0.3187,
+       0.0777
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem0"
+      ],
+      "tip": [
+       0,
+       -0.15,
+       -0.0361
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem1"
+      ],
+      "tip": [
+       0.0043,
+       -0.15,
+       0.0043
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem2"
+      ],
+      "tip": [
+       0.0215,
+       -0.15,
+       0
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem3"
+      ],
+      "tip": [
+       0.0412,
+       -0.15,
+       -0.0412
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem4"
+      ],
+      "tip": [
+       0,
+       -0.15,
+       -0.0536
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem5"
+      ],
+      "tip": [
+       -0.0427,
+       -0.15,
+       -0.0427
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem6"
+      ],
+      "tip": [
+       -0.0254,
+       -0.15,
+       0
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem7"
+      ],
+      "tip": [
+       -0.0002,
+       -0.15,
+       0.0002
+      ]
+     }
+    ],
+    "colliders": [
+     {
+      "a": "LeftUpLeg",
+      "b": "LeftLeg",
+      "r": 0.098,
+      "r2": 0.075,
+      "from": 0.25
+     },
+     {
+      "a": "LeftLeg",
+      "b": "LeftFoot",
+      "r": 0.072,
+      "r2": 0.061,
+      "from": 0
+     },
+     {
+      "a": "RightUpLeg",
+      "b": "RightLeg",
+      "r": 0.107,
+      "r2": 0.074,
+      "from": 0.25
+     },
+     {
+      "a": "RightLeg",
+      "b": "RightFoot",
+      "r": 0.072,
+      "r2": 0.064,
+      "from": 0
      }
     ]
    }
@@ -1154,14 +2613,14 @@
    },
    "chest": {
     "min": [
-     -0.0971,
-     0.1039,
-     -0.0496
+     -0.1384,
+     -0.1618,
+     -0.071
     ],
     "max": [
-     0.0971,
-     0.1503,
-     0.0877
+     0.1341,
+     0.18,
+     0.1814
     ]
    },
    "parts": [
@@ -1187,9 +2646,9 @@
     0.1323
    ],
    "tris": [
-    19702,
-    3400,
-    1149
+    22502,
+    6000,
+    988
    ],
    "alpha": true,
    "vest": false,
@@ -1208,6 +2667,416 @@
       "y": 0.0965,
       "w": 0.0256,
       "h": 0.009
+     }
+    ]
+   },
+   "cloth": {
+    "chains": [
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt0a",
+       "ClothSkirt0b"
+      ],
+      "tip": [
+       0,
+       -0.3076,
+       0.0923
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt1a",
+       "ClothSkirt1b"
+      ],
+      "tip": [
+       0.0289,
+       -0.3076,
+       0.0794
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt2a",
+       "ClothSkirt2b"
+      ],
+      "tip": [
+       0.0385,
+       -0.3076,
+       0.0667
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt3a",
+       "ClothSkirt3b"
+      ],
+      "tip": [
+       0.0494,
+       -0.3076,
+       0.0415
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt4a",
+       "ClothSkirt4b"
+      ],
+      "tip": [
+       0.0539,
+       -0.3076,
+       0.0311
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt5a",
+       "ClothSkirt5b"
+      ],
+      "tip": [
+       0.0606,
+       -0.3076,
+       0.0107
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt6a",
+       "ClothSkirt6b"
+      ],
+      "tip": [
+       0.0615,
+       -0.3076,
+       0
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt7a",
+       "ClothSkirt7b"
+      ],
+      "tip": [
+       0.0579,
+       -0.3076,
+       -0.0211
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt8a",
+       "ClothSkirt8b"
+      ],
+      "tip": [
+       0.0538,
+       -0.3076,
+       -0.0311
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt9a",
+       "ClothSkirt9b"
+      ],
+      "tip": [
+       0.0455,
+       -0.3076,
+       -0.0542
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt10a",
+       "ClothSkirt10b"
+      ],
+      "tip": [
+       0.0407,
+       -0.3076,
+       -0.0704
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt11a",
+       "ClothSkirt11b"
+      ],
+      "tip": [
+       0.0176,
+       -0.3076,
+       -0.0997
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt12a",
+       "ClothSkirt12b"
+      ],
+      "tip": [
+       0,
+       -0.3076,
+       -0.1017
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt13a",
+       "ClothSkirt13b"
+      ],
+      "tip": [
+       -0.0284,
+       -0.3076,
+       -0.078
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt14a",
+       "ClothSkirt14b"
+      ],
+      "tip": [
+       -0.0362,
+       -0.3076,
+       -0.0626
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt15a",
+       "ClothSkirt15b"
+      ],
+      "tip": [
+       -0.0478,
+       -0.3076,
+       -0.0401
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt16a",
+       "ClothSkirt16b"
+      ],
+      "tip": [
+       -0.0534,
+       -0.3076,
+       -0.0308
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt17a",
+       "ClothSkirt17b"
+      ],
+      "tip": [
+       -0.0606,
+       -0.3076,
+       -0.0107
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt18a",
+       "ClothSkirt18b"
+      ],
+      "tip": [
+       -0.0615,
+       -0.3076,
+       0
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt19a",
+       "ClothSkirt19b"
+      ],
+      "tip": [
+       -0.0581,
+       -0.3076,
+       0.0212
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt20a",
+       "ClothSkirt20b"
+      ],
+      "tip": [
+       -0.055,
+       -0.3076,
+       0.0317
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt21a",
+       "ClothSkirt21b"
+      ],
+      "tip": [
+       -0.048,
+       -0.3076,
+       0.0572
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt22a",
+       "ClothSkirt22b"
+      ],
+      "tip": [
+       -0.0411,
+       -0.3076,
+       0.0712
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt23a",
+       "ClothSkirt23b"
+      ],
+      "tip": [
+       -0.0159,
+       -0.3076,
+       0.0902
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem0"
+      ],
+      "tip": [
+       0,
+       -0.15,
+       -0.0271
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem1"
+      ],
+      "tip": [
+       -0.0021,
+       -0.15,
+       -0.0021
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem2"
+      ],
+      "tip": [
+       0.0247,
+       -0.15,
+       0
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem3"
+      ],
+      "tip": [
+       0.0448,
+       -0.15,
+       -0.0448
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem4"
+      ],
+      "tip": [
+       0,
+       -0.15,
+       -0.0461
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem5"
+      ],
+      "tip": [
+       -0.0474,
+       -0.15,
+       -0.0474
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem6"
+      ],
+      "tip": [
+       -0.026,
+       -0.15,
+       0
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem7"
+      ],
+      "tip": [
+       0.0023,
+       -0.15,
+       -0.0023
+      ]
+     }
+    ],
+    "colliders": [
+     {
+      "a": "LeftUpLeg",
+      "b": "LeftLeg",
+      "r": 0.107,
+      "r2": 0.074,
+      "from": 0.25
+     },
+     {
+      "a": "LeftLeg",
+      "b": "LeftFoot",
+      "r": 0.063,
+      "r2": 0.054,
+      "from": 0
+     },
+     {
+      "a": "RightUpLeg",
+      "b": "RightLeg",
+      "r": 0.107,
+      "r2": 0.075,
+      "from": 0.25
+     },
+     {
+      "a": "RightLeg",
+      "b": "RightFoot",
+      "r": 0.064,
+      "r2": 0.056,
+      "from": 0
      }
     ]
    }
@@ -1244,14 +3113,14 @@
    },
    "chest": {
     "min": [
-     -0.0864,
-     -0.0184,
-     -0.0848
+     -0.1816,
+     -0.1584,
+     -0.1181
     ],
     "max": [
-     0.0753,
+     0.19,
      0.1894,
-     0.1646
+     0.1669
     ]
    },
    "parts": [
@@ -1276,9 +3145,9 @@
     0.2625
    ],
    "tris": [
-    14947,
-    3400,
-    1150
+    19205,
+    2254,
+    433
    ],
    "alpha": true,
    "vest": false,
@@ -1297,6 +3166,416 @@
       "y": 0.1002,
       "w": 0.0242,
       "h": 0.009
+     }
+    ]
+   },
+   "cloth": {
+    "chains": [
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt0a",
+       "ClothSkirt0b"
+      ],
+      "tip": [
+       0,
+       -0.3273,
+       0.0655
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt1a",
+       "ClothSkirt1b"
+      ],
+      "tip": [
+       0.0224,
+       -0.3273,
+       0.0615
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt2a",
+       "ClothSkirt2b"
+      ],
+      "tip": [
+       0.0327,
+       -0.3273,
+       0.0567
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt3a",
+       "ClothSkirt3b"
+      ],
+      "tip": [
+       0.0501,
+       -0.3273,
+       0.0421
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt4a",
+       "ClothSkirt4b"
+      ],
+      "tip": [
+       0.0567,
+       -0.3273,
+       0.0327
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt5a",
+       "ClothSkirt5b"
+      ],
+      "tip": [
+       0.0645,
+       -0.3273,
+       0.0114
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt6a",
+       "ClothSkirt6b"
+      ],
+      "tip": [
+       0.0655,
+       -0.3273,
+       0
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt7a",
+       "ClothSkirt7b"
+      ],
+      "tip": [
+       0.0615,
+       -0.3273,
+       -0.0224
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt8a",
+       "ClothSkirt8b"
+      ],
+      "tip": [
+       0.0567,
+       -0.3273,
+       -0.0327
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt9a",
+       "ClothSkirt9b"
+      ],
+      "tip": [
+       0.0421,
+       -0.3273,
+       -0.0501
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt10a",
+       "ClothSkirt10b"
+      ],
+      "tip": [
+       0.0327,
+       -0.3273,
+       -0.0567
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt11a",
+       "ClothSkirt11b"
+      ],
+      "tip": [
+       0.0114,
+       -0.3273,
+       -0.0645
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt12a",
+       "ClothSkirt12b"
+      ],
+      "tip": [
+       0,
+       -0.3273,
+       -0.0655
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt13a",
+       "ClothSkirt13b"
+      ],
+      "tip": [
+       -0.0224,
+       -0.3273,
+       -0.0615
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt14a",
+       "ClothSkirt14b"
+      ],
+      "tip": [
+       -0.0327,
+       -0.3273,
+       -0.0567
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt15a",
+       "ClothSkirt15b"
+      ],
+      "tip": [
+       -0.0501,
+       -0.3273,
+       -0.0421
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt16a",
+       "ClothSkirt16b"
+      ],
+      "tip": [
+       -0.0567,
+       -0.3273,
+       -0.0327
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt17a",
+       "ClothSkirt17b"
+      ],
+      "tip": [
+       -0.0645,
+       -0.3273,
+       -0.0114
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt18a",
+       "ClothSkirt18b"
+      ],
+      "tip": [
+       -0.0655,
+       -0.3273,
+       0
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt19a",
+       "ClothSkirt19b"
+      ],
+      "tip": [
+       -0.0615,
+       -0.3273,
+       0.0224
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt20a",
+       "ClothSkirt20b"
+      ],
+      "tip": [
+       -0.0567,
+       -0.3273,
+       0.0327
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt21a",
+       "ClothSkirt21b"
+      ],
+      "tip": [
+       -0.0421,
+       -0.3273,
+       0.0501
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt22a",
+       "ClothSkirt22b"
+      ],
+      "tip": [
+       -0.0327,
+       -0.3273,
+       0.0567
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt23a",
+       "ClothSkirt23b"
+      ],
+      "tip": [
+       -0.0114,
+       -0.3273,
+       0.0645
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem0"
+      ],
+      "tip": [
+       0,
+       -0.15,
+       -0.0854
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem1"
+      ],
+      "tip": [
+       0.0099,
+       -0.15,
+       0.0099
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem2"
+      ],
+      "tip": [
+       0.0254,
+       -0.15,
+       0
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem3"
+      ],
+      "tip": [
+       0.0046,
+       -0.15,
+       -0.0046
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem4"
+      ],
+      "tip": [
+       0,
+       -0.15,
+       0.005
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem5"
+      ],
+      "tip": [
+       -0.0103,
+       -0.15,
+       -0.0103
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem6"
+      ],
+      "tip": [
+       -0.0218,
+       -0.15,
+       0
+      ]
+     },
+     {
+      "kind": "hem",
+      "bones": [
+       "ClothHem7"
+      ],
+      "tip": [
+       -0.009,
+       -0.15,
+       0.009
+      ]
+     }
+    ],
+    "colliders": [
+     {
+      "a": "LeftUpLeg",
+      "b": "LeftLeg",
+      "r": 0.094,
+      "r2": 0.075,
+      "from": 0.25
+     },
+     {
+      "a": "LeftLeg",
+      "b": "LeftFoot",
+      "r": 0.074,
+      "r2": 0.054,
+      "from": 0
+     },
+     {
+      "a": "RightUpLeg",
+      "b": "RightLeg",
+      "r": 0.094,
+      "r2": 0.074,
+      "from": 0.25
+     },
+     {
+      "a": "RightLeg",
+      "b": "RightFoot",
+      "r": 0.074,
+      "r2": 0.055,
+      "from": 0
      }
     ]
    }
@@ -1333,14 +3612,14 @@
    },
    "chest": {
     "min": [
-     -0.0579,
-     -0.1233,
-     -0.0284
+     -0.134,
+     -0.1434,
+     -0.067
     ],
     "max": [
-     0.0628,
-     0.1652,
-     0.161
+     0.1348,
+     0.1791,
+     0.1673
     ]
    },
    "parts": [
@@ -1365,9 +3644,9 @@
     0.3
    ],
    "tris": [
-    15541,
-    3399,
-    1150
+    20223,
+    2565,
+    631
    ],
    "alpha": true,
    "vest": false,
@@ -1386,6 +3665,328 @@
       "y": 0.0882,
       "w": 0.0248,
       "h": 0.009
+     }
+    ]
+   },
+   "cloth": {
+    "chains": [
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt0a",
+       "ClothSkirt0b"
+      ],
+      "tip": [
+       0,
+       -0.3599,
+       0.072
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt1a",
+       "ClothSkirt1b"
+      ],
+      "tip": [
+       0.0246,
+       -0.3599,
+       0.0676
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt2a",
+       "ClothSkirt2b"
+      ],
+      "tip": [
+       0.036,
+       -0.3599,
+       0.0623
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt3a",
+       "ClothSkirt3b"
+      ],
+      "tip": [
+       0.0551,
+       -0.3599,
+       0.0463
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt4a",
+       "ClothSkirt4b"
+      ],
+      "tip": [
+       0.0623,
+       -0.3599,
+       0.036
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt5a",
+       "ClothSkirt5b"
+      ],
+      "tip": [
+       0.0709,
+       -0.3599,
+       0.0125
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt6a",
+       "ClothSkirt6b"
+      ],
+      "tip": [
+       0.072,
+       -0.3599,
+       0
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt7a",
+       "ClothSkirt7b"
+      ],
+      "tip": [
+       0.0676,
+       -0.3599,
+       -0.0246
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt8a",
+       "ClothSkirt8b"
+      ],
+      "tip": [
+       0.0623,
+       -0.3599,
+       -0.036
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt9a",
+       "ClothSkirt9b"
+      ],
+      "tip": [
+       0.0471,
+       -0.3599,
+       -0.0561
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt10a",
+       "ClothSkirt10b"
+      ],
+      "tip": [
+       0.0384,
+       -0.3599,
+       -0.0665
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt11a",
+       "ClothSkirt11b"
+      ],
+      "tip": [
+       0.0155,
+       -0.3599,
+       -0.0879
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt12a",
+       "ClothSkirt12b"
+      ],
+      "tip": [
+       0,
+       -0.3599,
+       -0.0897
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt13a",
+       "ClothSkirt13b"
+      ],
+      "tip": [
+       -0.0265,
+       -0.3599,
+       -0.0728
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt14a",
+       "ClothSkirt14b"
+      ],
+      "tip": [
+       -0.0367,
+       -0.3599,
+       -0.0636
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt15a",
+       "ClothSkirt15b"
+      ],
+      "tip": [
+       -0.0551,
+       -0.3599,
+       -0.0463
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt16a",
+       "ClothSkirt16b"
+      ],
+      "tip": [
+       -0.0623,
+       -0.3599,
+       -0.036
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt17a",
+       "ClothSkirt17b"
+      ],
+      "tip": [
+       -0.0709,
+       -0.3599,
+       -0.0125
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt18a",
+       "ClothSkirt18b"
+      ],
+      "tip": [
+       -0.072,
+       -0.3599,
+       0
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt19a",
+       "ClothSkirt19b"
+      ],
+      "tip": [
+       -0.0676,
+       -0.3599,
+       0.0246
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt20a",
+       "ClothSkirt20b"
+      ],
+      "tip": [
+       -0.0623,
+       -0.3599,
+       0.036
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt21a",
+       "ClothSkirt21b"
+      ],
+      "tip": [
+       -0.0463,
+       -0.3599,
+       0.0551
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt22a",
+       "ClothSkirt22b"
+      ],
+      "tip": [
+       -0.036,
+       -0.3599,
+       0.0623
+      ]
+     },
+     {
+      "kind": "skirt",
+      "bones": [
+       "ClothSkirt23a",
+       "ClothSkirt23b"
+      ],
+      "tip": [
+       -0.0125,
+       -0.3599,
+       0.0709
+      ]
+     }
+    ],
+    "colliders": [
+     {
+      "a": "LeftUpLeg",
+      "b": "LeftLeg",
+      "r": 0.097,
+      "r2": 0.072,
+      "from": 0.25
+     },
+     {
+      "a": "LeftLeg",
+      "b": "LeftFoot",
+      "r": 0.076,
+      "r2": 0.071,
+      "from": 0
+     },
+     {
+      "a": "RightUpLeg",
+      "b": "RightLeg",
+      "r": 0.098,
+      "r2": 0.072,
+      "from": 0.25
+     },
+     {
+      "a": "RightLeg",
+      "b": "RightFoot",
+      "r": 0.072,
+      "r2": 0.069,
+      "from": 0
      }
     ]
    }

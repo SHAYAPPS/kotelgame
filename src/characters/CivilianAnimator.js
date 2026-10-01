@@ -31,6 +31,8 @@ export class CivilianAnimator {
     // Davening: the standing sway (each worshiper at his own rate and phase, see below).
     this.pray = 'praying_swaying';
     this.shelterIdle = rand() < 0.6 ? 'idle_nervous' : 'terrified';
+    // A long skirt: running is quicker, shorter steps (part walk cycle), knees and heels lower.
+    this.maxRun = model.info.cloth?.chains?.some((c) => c.kind === 'skirt') ? 0.55 : 1;
     this.speed = 0;
     this.phase = rand();
     this.mix = new Map(); // standing clip -> share
@@ -91,7 +93,7 @@ export class CivilianAnimator {
 
     if (move > 0) {
       // Walk / run blend by speed; both cycles share the foot phase.
-      const kRun = MathUtils.clamp((speed - 1.5) / 1.4, 0, 1);
+      const kRun = MathUtils.clamp((speed - 1.5) / 1.4, 0, this.maxRun);
       let stride = 0;
       for (let k = 0; k < 2; k++) {
         const clip = k ? this.run : this.walk;

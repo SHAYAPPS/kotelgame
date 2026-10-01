@@ -5,6 +5,7 @@
 //   from the body at every height and skinned to the hips and thighs so it swings with the
 //   legs, with a fabric tile (folds) of its own in the atlas.
 import sharp from 'sharp';
+import { addClothBone } from './cloth.mjs';
 
 const ARM = /^(Left|Right)(Arm|ForeArm)$/;
 const LEG = /^(Left|Right)(UpLeg|Leg)$/;
@@ -131,15 +132,16 @@ const smooth01 = (a, b, x) => {
  * A long skirt around the legs. Rings from `top` (the waistband, m) down to `hem`; each
  * ring's radius per direction is the body's extent there (points picked by `include`) plus a
  * margin, never narrower than the ring above plus the flare (an A-line), at least `hemRadius`
- * at the bottom. Skinned to the hips, and lower down to the thigh on its side (front and back
- * share both), so it swings with the stride. Outer and inner surface plus a lip at the waist.
- * @returns {Uint32Array} the skirt's triangles (its vertices are appended to `geo`)
+ * at the bottom. Sits on the hips down to `pivotDrop` below the waist; below that it hangs on
+ * cloth bones (chains around it, added to `skeleton`). Outer surface, lining and a lip at
+ * the waist.
+ * @returns {{ tris: Uint32Array, chains: object[] }} the skirt's triangles (its vertices are
+ *   appended to `geo`) and its cloth chains (bone names, tip offset) for the manifest
  */
 export function addSkirt(geo, index, skeleton, opts) {
-  const { part, mat, top, hem, knee, center, include, seg = 36, rings = 13, flare = 0.13, hemRadius = 0.25 } = opts;
+  const { part, mat, top, hem, knee, center, include, seg = 36, rings = 13, flare = 0.2, hemRadius = 0.32, chains = 24, pivotDrop = 0 } = opts;
   const bone = (n) => skeleton.bones.findIndex((b) => b.name === n);
-  const [hips, lUp, rUp, lLeg, rLeg] = ['Hips', 'LeftUpLeg', 'RightUpLeg', 'LeftLeg', 'RightLeg'].map(bone);
-  const tKnee = (top - knee) / (top - hem);
+  const hips = bone('Hips');
   const [cx, cz] = center;
   const ys = Array.from({ length: rings }, (_, k) => top - (top - hem) * Math.pow(k / (rings - 1), 1.15));
   const slab = Math.max(0.025, ((top - hem) / (rings - 1)) * 0.6);
@@ -184,27 +186,59 @@ export function addSkirt(geo, index, skeleton, opts) {
     }
   }
 
+  // Rings above the measured body (a waistband above the trousers, under a top) take the size
+  // of the ring below, a little narrower: no cone into the body (and the chains pivot there).
+  for (let k = rings - 2; k >= 0; k--) for (let j = 0; j < seg; j++) if (radius[k][j] < 0.06) radius[k][j] = radius[k + 1][j] * 0.97;
+
   const pos = (k, j) => {
     const a = (j / seg) * Math.PI * 2;
     const r = radius[k][j % seg];
     return [cx + Math.sin(a) * r, ys[k], cz + Math.cos(a) * r];
   };
   const verts = [];
-  // Skinning down the skirt: the hips at the waist, then the thigh on its side, below the knee
-  // more and more the shin (a crouch drapes it over the knees, a stride kicks the back out).
-  // Front and back share both legs. Top four influences kept.
+  // Cloth bones: `chains` chains around the skirt, two bones each: from the hip line down to
+  // the knee line, then to the hem (the game swings them and the legs push them out of the
+  // way: ClothSim.js). Above the hip line the skirt sits on the hips. Between two chains a
+  // vertex blends both; the top four influences are kept.
+  const tOf = (k) => (top - ys[k]) / (top - hem);
+  let kHip = 0;
+  while (kHip < rings - 3 && top - ys[kHip] < pivotDrop) kHip++;
+  let kKnee = kHip + 1;
+  for (let k = kHip + 1; k < rings - 1; k++) if (Math.abs(ys[k] - knee) < Math.abs(ys[kKnee] - knee)) kKnee = k;
+  const tHip = tOf(kHip);
+  const tKneeRing = tOf(kKnee);
+  const per = seg / chains;
+  const chainBones = [];
+  const chainInfo = [];
+  for (let c = 0; c < chains; c++) {
+    const j = Math.round(c * per);
+    const head = pos(kHip, j);
+    const mid = pos(kKnee, j);
+    const tip = pos(rings - 1, j);
+    const a = addClothBone(skeleton, `ClothSkirt${c}a`, hips, head);
+    const b = addClothBone(skeleton, `ClothSkirt${c}b`, a, mid);
+    chainBones.push([a, b]);
+    chainInfo.push({ kind: 'skirt', bones: [`ClothSkirt${c}a`, `ClothSkirt${c}b`], tip: tip.map((v, i) => +(v - mid[i]).toFixed(4)) });
+  }
   const skin = (k, j) => {
-    const t = (top - ys[k]) / (top - hem);
-    const hipsW = 1 - 0.72 * smooth01(0.04, 0.42, t);
-    const legs = 1 - hipsW;
-    const shin = legs * 0.72 * smooth01(tKnee - 0.12, tKnee + 0.3, t);
-    const thigh = legs - shin;
-    const side = Math.sin((j / seg) * Math.PI * 2); // +1 = left
-    const left = Math.min(1, Math.max(0, 0.5 + 0.75 * side));
-    const inf = [[hips, hipsW], [lUp, thigh * left], [rUp, thigh * (1 - left)], [lLeg, shin * left], [rLeg, shin * (1 - left)]]
-      .sort((a, b) => b[1] - a[1])
+    const t = tOf(k);
+    const hipsW = 1 - smooth01(tHip - 0.07, tHip + 0.03, t);
+    const lower = smooth01(tKneeRing - 0.07, tKneeRing + 0.07, t);
+    const f = (j % seg) / per;
+    const c0 = Math.floor(f) % chains;
+    const c1 = (c0 + 1) % chains;
+    const s1 = f - Math.floor(f);
+    const rest = 1 - hipsW;
+    const inf = [
+      [hips, hipsW],
+      [chainBones[c0][0], rest * (1 - lower) * (1 - s1)],
+      [chainBones[c1][0], rest * (1 - lower) * s1],
+      [chainBones[c0][1], rest * lower * (1 - s1)],
+      [chainBones[c1][1], rest * lower * s1],
+    ]
+      .sort((x, y) => y[1] - x[1])
       .slice(0, 4);
-    const sum = inf.reduce((s, x) => s + x[1], 0);
+    const sum = inf.reduce((sm, x) => sm + x[1], 0);
     return { j: inf.map((x) => x[0]), w: inf.map((x) => x[1] / sum) };
   };
   const ring = (k) => Array.from({ length: seg + 1 }, (_, j) => pos(k, j));
@@ -243,7 +277,7 @@ export function addSkirt(geo, index, skeleton, opts) {
           w: s.w,
           part,
           mat,
-          mesh: 'Skirt',
+          mesh: layer.flip ? 'SkirtLining' : 'Skirt', // the lining is left out of the far LODs
         });
       }
     }
@@ -297,7 +331,7 @@ export function addSkirt(geo, index, skeleton, opts) {
       tris[t + 2] = i1;
     }
   }
-  return Uint32Array.from(tris);
+  return { tris: Uint32Array.from(tris), chains: chainInfo };
 }
 
 /**

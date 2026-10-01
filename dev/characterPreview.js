@@ -1,6 +1,7 @@
 // Dev tool: every character in a row, playing a chosen clip (npm run dev, then open
 // http://localhost:5173/dev/characters.html). URL params: ids=a,b  clip=name  role=squad|enemy|civilian
-// cam=front|side|back|close|top|far  t=seconds (freeze at a time)  ik=0  lod=0|1|2
+// cam=front|side|back|close|top|far|face|faces|x,y,z,tx,ty,tz  t=seconds (freeze at a time)  ik=0  lod=0|1|2
+// yaw=rad  move=m/s (walk forward, the camera following)
 // outfit=worshipper|worshipperWoman|tourist|guide (civilians)  deaths=1 (a different death each)
 import {
   ACESFilmicToneMapping,
@@ -109,7 +110,8 @@ const cams = {
 };
 function setCam(name) {
   if (name === 'face' || name === 'faces') return faceCam(name === 'faces' ? -1 : 0);
-  const c = cams[name] ?? cams.front;
+  // Or a custom view: cam=x,y,z,targetX,targetY,targetZ
+  const c = name.includes(',') ? name.split(',').map(Number) : cams[name] ?? cams.front;
   camera.position.set(c[0], c[1], c[2]);
   controls.target.set(c[3], c[4], c[5]);
   controls.update();
@@ -130,10 +132,27 @@ setCam(params.get('cam') ?? 'front');
 const freeze = params.get('t');
 let last = performance.now();
 const ctx = { camera, frustum: null };
+// ?yaw=<rad>: the models face that way; ?move=<m/s>: they walk forward along it (looping over
+// 6 m, the camera following), like an NPC in the game (inertia for the cloth).
+const yaw = +(params.get('yaw') ?? 0);
+const move = +(params.get('move') ?? 0);
+let travel = 0;
+const home = models.map((m) => m.root.position.clone());
+const camHome = camera.position.clone();
+const targetHome = controls.target.clone();
+for (const m of models) m.root.rotation.y = yaw;
 function frame() {
   const now = performance.now();
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
+  if (move && freeze === null) {
+    travel = (travel + move * dt) % 6;
+    const dx = -Math.sin(yaw) * travel;
+    const dz = -Math.cos(yaw) * travel;
+    models.forEach((m, i) => m.root.position.set(home[i].x + dx, home[i].y, home[i].z + dz));
+    camera.position.set(camHome.x + dx, camHome.y, camHome.z + dz);
+    controls.target.set(targetHome.x + dx, targetHome.y, targetHome.z + dz);
+  }
   for (const m of models) {
     if (freeze !== null) {
       for (const s of m.slots.values()) s.action.time = +freeze;

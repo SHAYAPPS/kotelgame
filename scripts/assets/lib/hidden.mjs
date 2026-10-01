@@ -1,6 +1,8 @@
-// Removes body triangles hidden under clothing (Fuse characters model the whole body under
-// separate shirt / pants / shoe shells). Saves triangles and stops skin poking through the
-// clothes when joints bend or the mesh is simplified.
+// Clothing layers. Fuse characters model the whole body under separate shirt / pants / shoe
+// shells, and the shells overlap where one garment goes over another (a shirt hem over the
+// waistband). removeHidden() drops the skin under the clothes (fewer triangles, no skin poking
+// through when joints bend or the mesh is simplified); layerUnder() pushes an inner garment
+// a little under an outer one where they touch (the waistband no longer pokes through the hem).
 
 const CELL = 0.04;
 
@@ -8,22 +10,12 @@ function cellKey(x, y, z) {
   return `${Math.floor(x / CELL)},${Math.floor(y / CELL)},${Math.floor(z / CELL)}`;
 }
 
-/**
- * @param {object} geo merged geometry (rig.mjs)
- * @param {(i: number) => boolean} isBody vertex belongs to the skin mesh
- * @param {(i: number) => boolean} isCover vertex belongs to a covering mesh (clothes, shoes)
- * @param {number} reach how far outside the skin a covering surface may be (m)
- * @returns {Uint32Array} the index buffer without the hidden triangles
- */
-export function removeHidden(geo, isBody, isCover, reach = 0.06) {
+/** Ray caster against the triangles whose first vertex passes `select`. */
+function triangleGrid(geo, idx, select) {
   const P = geo.position;
-  const N = geo.normal;
-  const idx = geo.index;
-  // Grid of covering triangles.
   const grid = new Map();
   for (let t = 0; t < idx.length; t += 3) {
-    const a = idx[t];
-    if (!isCover(a)) continue;
+    if (!select(idx[t])) continue;
     let minX = Infinity, minY = Infinity, minZ = Infinity, maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
     for (let k = 0; k < 3; k++) {
       const v = idx[t + k] * 3;
@@ -40,12 +32,14 @@ export function removeHidden(geo, isBody, isCover, reach = 0.06) {
           list.push(t);
         }
   }
-  const hitsCover = (ox, oy, oz, dx, dy, dz) => {
-    // March the cells along the ray; Moller-Trumbore against their triangles.
+  /** Nearest hit distance in [0, reach] along the ray, or -1 (Moller-Trumbore per cell). */
+  return (ox, oy, oz, dx, dy, dz, reach) => {
     const steps = Math.ceil(reach / (CELL * 0.5));
     const seen = new Set();
+    let best = -1;
     for (let s = 0; s <= steps; s++) {
       const d = (s / steps) * reach;
+      if (best >= 0 && d > best + CELL) break;
       const k = cellKey(ox + dx * d, oy + dy * d, oz + dz * d);
       if (seen.has(k)) continue;
       seen.add(k);
@@ -66,11 +60,27 @@ export function removeHidden(geo, isBody, isCover, reach = 0.06) {
         const v = (dx * qx + dy * qy + dz * qz) * inv;
         if (v < 0 || u + v > 1) continue;
         const dist = (e2x * qx + e2y * qy + e2z * qz) * inv;
-        if (dist >= 0 && dist <= reach) return true;
+        if (dist >= 0 && dist <= reach && (best < 0 || dist < best)) best = dist;
       }
     }
-    return false;
+    return best;
   };
+}
+
+/**
+ * @param {object} geo merged geometry (rig.mjs)
+ * @param {(i: number) => boolean} isBody vertex belongs to the skin mesh
+ * @param {(i: number) => boolean} isCover vertex belongs to a covering mesh (clothes, shoes)
+ * @param {number} reach how far outside the skin a covering surface may be (m)
+ * @returns {{ index: Uint32Array, removed: number }} the index buffer without the hidden
+ *   triangles
+ */
+export function removeHidden(geo, isBody, isCover, reach = 0.06) {
+  const P = geo.position;
+  const N = geo.normal;
+  const idx = geo.index;
+  const cast = triangleGrid(geo, idx, isCover);
+  const hitsCover = (ox, oy, oz, dx, dy, dz) => cast(ox, oy, oz, dx, dy, dz, reach) >= 0;
   const covered = new Uint8Array(geo.count);
   for (let i = 0; i < geo.count; i++) {
     if (!isBody(i)) continue;
@@ -97,4 +107,42 @@ export function removeHidden(geo, isBody, isCover, reach = 0.06) {
     out.push(a, b, c);
   }
   return { index: Uint32Array.from(out), removed };
+}
+
+/**
+ * Pushes an inner garment's vertices under an outer one: wherever the outer surface is less
+ * than `gap` outside a vertex (along its normal), or the vertex pokes up to `depth` through it,
+ * the vertex moves inward until it is `gap` under. Only for garments known to be worn under
+ * the other (a waistband under a shirt hem: a tucked-in shirt is the other way around).
+ * @returns {number} vertices moved
+ */
+export function layerUnder(geo, index, isInner, isOuter, { gap = 0.01, depth = 0.012, reach = 0.03 } = {}) {
+  const P = geo.position;
+  const N = geo.normal;
+  const cast = triangleGrid(geo, index, isOuter);
+  const used = new Uint8Array(geo.count);
+  for (const i of index) used[i] = 1;
+  // Per position: UV-seam copies of a vertex move together (the first copy's normal).
+  const moved = new Map();
+  let count = 0;
+  for (let i = 0; i < geo.count; i++) {
+    if (!used[i] || !isInner(i)) continue;
+    const o = i * 3;
+    const key = `${P[o].toFixed(5)},${P[o + 1].toFixed(5)},${P[o + 2].toFixed(5)}`;
+    let shift = moved.get(key);
+    if (shift === undefined) {
+      const nx = N[o], ny = N[o + 1], nz = N[o + 2];
+      const t = cast(P[o] - nx * depth, P[o + 1] - ny * depth, P[o + 2] - nz * depth, nx, ny, nz, depth + reach);
+      const outside = t < 0 ? Infinity : t - depth; // where the outer surface is, along the normal
+      const push = outside < gap ? gap - outside : 0;
+      shift = push ? [-nx * push, -ny * push, -nz * push] : null;
+      moved.set(key, shift);
+    }
+    if (!shift) continue;
+    P[o] += shift[0];
+    P[o + 1] += shift[1];
+    P[o + 2] += shift[2];
+    count++;
+  }
+  return count;
 }

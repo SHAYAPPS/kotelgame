@@ -22,14 +22,14 @@ const OLIVE = [96, 101, 66]; // IDF-style olive drab (a little grey)
 const OLIVE_DARK = [66, 70, 46];
 const CHARCOAL = [34, 34, 36];
 
-const civilian = { role: 'civilian', size: 1024, hair: 512, normalScale: 0.5, lods: [10000, 3200, 1100], parts: partsFuse, drop: DROP, body: /_?Body1?$|^Body$/i, cover: COVER, skinParts: true };
+const civilian = { role: 'civilian', size: 1024, hair: 512, normalScale: 0.5, parts: partsFuse, drop: DROP, body: /_?Body1?$|^Body$/i, cover: COVER, skinParts: true };
 // Women at the Kotel: a long skirt over whatever the model wears below the waist.
-const woman = { ...civilian, sex: 'f', skirt: {}, lods: [10800, 3400, 1150] };
+const woman = { ...civilian, sex: 'f', skirt: {} };
 
 export const CHARACTERS = {
   // The squad: olive uniforms, vests and helmets.
   squad_swat: {
-    src: 'Swat', role: 'squad', sex: 'm', size: 1024, normalScale: 0.5, lods: [14000, 4500, 1500],
+    src: 'Swat', role: 'squad', sex: 'm', size: 1024, normalScale: 0.5,
     face: { lipY: 0.002 }, // measured (dev preview ?lip=): the automatic lip line misses on this head
     credit: 'recolored olive, "SWAT" lettering removed',
     // Blue-grey camo, black vest and helmet -> olive shades (texture detail kept).
@@ -37,12 +37,12 @@ export const CHARACTERS = {
     recolor: [{ material: /body/i, to: OLIVE, contrast: 0.7, skipSkin: true }],
   },
   squad_swatguy: {
-    src: 'SwatGuy', mixamo: 'Swat Guy', role: 'squad', sex: 'm', size: 1024, normalScale: 0.5, lods: [14000, 4500, 1500], noFace: true, // a full face mask
+    src: 'SwatGuy', mixamo: 'Swat Guy', role: 'squad', sex: 'm', size: 1024, normalScale: 0.5, noFace: true, // a full face mask
     credit: 'recolored olive',
     recolor: [{ material: /./, to: OLIVE, contrast: 0.65, skipSkin: true }],
   },
   squad_steve: {
-    src: 'Steve', role: 'squad', sex: 'm', size: 1024, normalScale: 0.5, lods: [14000, 4500, 1500], drop: DROP,
+    src: 'Steve', role: 'squad', sex: 'm', size: 1024, normalScale: 0.5, drop: DROP,
     face: { lipY: 0.039 }, // measured lip line (dev preview ?lip=)
     credit: 'toned to olive; a vest is added in game',
     recolor: [{ material: /./, to: OLIVE, contrast: 0.9, skipSkin: true, amount: 0.55 }],
@@ -50,18 +50,18 @@ export const CHARACTERS = {
   },
   // Enemies: dark clothes; faces covered (masks / wraps are added in the game).
   enemy_ninja: {
-    src: 'Ninja', role: 'enemy', sex: 'm', size: 1024, normalScale: 0.5, lods: [12000, 4000, 1300],
+    src: 'Ninja', role: 'enemy', sex: 'm', size: 1024, normalScale: 0.5,
     credit: 'darkened',
     recolor: [{ material: /./, to: CHARCOAL, contrast: 0.8, skipSkin: true, gain: 0.75 }],
   },
   enemy_david: {
-    ...civilian, src: 'David', role: 'enemy', sex: 'm', lods: [12000, 4000, 1300], drop: /Eyelash|Hair/i,
+    ...civilian, src: 'David', role: 'enemy', sex: 'm', drop: /Eyelash|Hair/i,
     credit: 'darkened; hair removed, balaclava painted on',
     recolor: [{ parts: [PART.top, PART.bottom, PART.shoes], to: CHARCOAL, contrast: 0.8, gain: 0.8 }],
     faceCover: { type: 'balaclava', color: [26, 26, 28], slit: 0.016, eyeHalfWidth: 0.062 },
   },
   enemy_alex: {
-    src: 'Alex', role: 'enemy', sex: 'm', size: 1024, normalScale: 0.5, lods: [12000, 4000, 1300],
+    src: 'Alex', role: 'enemy', sex: 'm', size: 1024, normalScale: 0.5,
     recolor: [{ material: /./, to: CHARCOAL, contrast: 0.85, skipSkin: true, gain: 0.9, amount: 0.6 }],
     faceCover: { type: 'lower', color: [38, 36, 34] },
     credit: 'darkened; face wrap painted on',

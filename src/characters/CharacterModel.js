@@ -13,6 +13,7 @@ import {
 } from 'three';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { CHARACTER, FAR_LAYER, PARTS } from './config.js';
+import { ClothSim } from './ClothSim.js';
 import { setWorldQuaternion, solveTwoBone } from './ik.js';
 import { createRifle } from './weapons.js';
 
@@ -141,6 +142,9 @@ export class CharacterModel {
     this._headCenter = new Vector3();
     const h = this.info.head;
     if (h) this._headCenter.set((h.min[0] + h.max[0]) / 2, h.min[1] + (h.max[1] - h.min[1]) * 0.62, (h.min[2] + h.max[2]) / 2);
+
+    // Loose clothes (converter cloth chains): skirts and hems swing and make way for the legs.
+    this.cloth = this.info.cloth?.chains?.length ? new ClothSim(this, this.info.cloth, CHARACTER.cloth) : null;
 
     this.rifle = null;
     this.gear = []; // attachments: { object, shadow, hideBeyond }
@@ -371,7 +375,9 @@ export class CharacterModel {
     const c = CHARACTER;
     const dl = this.distance / c.lodScale;
     const every = !this.onScreen ? c.offscreenEvery : dl < c.updateFull ? 1 : dl < c.updateHalf ? 2 : 4;
-    if (!force && every > 1 && this._frame % every !== 0) return;
+    // Throttled far away, but never drawn before its first pose (a T-pose flash).
+    if (!force && every > 1 && this._frame % every !== 0 && this._posed) return;
+    this._posed = true;
     const step = Math.min(this._accum, 0.25);
     this._accum = 0;
     this._blend(step);
@@ -391,8 +397,13 @@ export class CharacterModel {
       if (ik) this._ik();
       if (look) this._lookApply();
     } else {
-      // Only the bones the hit zones read (the renderer updates the rest).
+      // Only the bones the hit zones read (the renderer updates the rest); the feet bring
+      // the legs and the hips along (the cloth's colliders).
       for (const b of this._zoneBones) b.updateWorldMatrix(true, false);
+    }
+    if (this.cloth) {
+      const C = c.cloth;
+      this.cloth.update(step, dl < C.simDistance ? 2 : dl < C.kinematicDistance ? 1 : 0);
     }
     this._faceUpdate(step);
     this._hitZones();

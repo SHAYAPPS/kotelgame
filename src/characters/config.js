@@ -21,6 +21,21 @@ export const CHARACTER = {
   lookDistance: 25, // head turns toward a listener / speaker
   feetDistance: 30, // feet placed on the steps (stairs) this close to the camera
 
+  // Loose clothes (ClothSim.js): skirts and the hems of tops swing (springs with inertia) this
+  // close; farther, the legs only push them out of the way (no swing); beyond, they rest.
+  cloth: {
+    simDistance: 14,
+    kinematicDistance: 34,
+    maxStep: 1 / 60, // one step a frame at 60 FPS
+    // frequency rad/s, damping ratio, air drag 1/s, gravity 0..1 (a tilted pelvis still hangs
+    // straight; gravityLower: the lower bone hangs too, whatever the upper one does), clearance
+    // m off the legs, inward: share of the rest distance from the body's
+    // axis it may lose, maxAngle rad from rest, spread: how much of a pushed chain's
+    // displacement its neighbors take on (a tent, not a fold).
+    skirt: { frequency: 6, damping: 0.8, air: 2, gravity: 0.85, gravityLower: 0.6, clearance: 0.02, inward: 0.12, maxAngle: 1.8, maxAngleLower: 1.0, spread: 0.7 },
+    hem: { frequency: 10, damping: 0.6, air: 1, gravity: 0.45, clearance: 0.015, inward: 0.03, maxAngle: 0.7 },
+  },
+
   // Blending
   fade: 0.22, // default crossfade
   locoFade: 0.18, // idle <-> locomotion and between speeds

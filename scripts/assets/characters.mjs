@@ -12,10 +12,11 @@ import * as THREE from 'three';
 import { loadFBX } from './lib/fbx.mjs';
 import { extractSkeleton, mergeMeshes, inverseBinds, wrapUVs } from './lib/rig.mjs';
 import { GUTTER, buildAtlas, rasterize, dilate, isSkin } from './lib/atlas.mjs';
-import { removeHidden } from './lib/hidden.mjs';
+import { layerUnder, removeHidden } from './lib/hidden.mjs';
 import { addSkirt, fabricTile, skinParts } from './lib/clothes.mjs';
 import { appendMouthStrip, faceRig, mouthTile } from './lib/face.mjs';
-import { buildLods } from './lib/lod.mjs';
+import { buildLods, DEFAULT_LODS } from './lib/lod.mjs';
+import { hemChains, legColliders } from './lib/cloth.mjs';
 import { writeCharacter } from './lib/glb.mjs';
 import { encodeLibrary } from './lib/animbin.mjs';
 import { sampleClip, removeDrift, alignFootPhase, closeLoop, crossfadeLoop, handTargets, peakSpeedTime, worldPos, footContacts } from './lib/anim.mjs';
@@ -74,6 +75,63 @@ function recolor(color, W, H, rules, maskMat, maskPart, materials) {
       color[o + 2] = Math.min(255, b + (target[2] * k - b) * amount);
     }
   }
+}
+
+/**
+ * Clothes with cut-out (alpha) edges: frayed hems, ragged sleeves and shorts. The game draws
+ * clothes opaque (the skin under them is removed, a hole would show the inside), so the
+ * cut-out texels take the color of the nearest fabric of the same material instead of the
+ * RGB they hid (usually dark brown). Hair keeps its alpha.
+ * @returns {number} texels filled
+ */
+function fillCutouts(color, W, H, maskMat, maskPart) {
+  let holes = [];
+  const hole = new Uint8Array(W * H);
+  for (let i = 0; i < W * H; i++) {
+    if (maskMat[i] && maskPart[i] - 1 !== PART.hair && color[i * 4 + 3] < 128) {
+      hole[i] = 1;
+      holes.push(i);
+    }
+  }
+  const total = holes.length;
+  const filled = [];
+  for (let pass = 0; pass < 128 && holes.length; pass++) {
+    filled.length = 0;
+    const next = [];
+    for (const i of holes) {
+      const x = i % W;
+      const y = (i - x) / W;
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      let n = 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx;
+          const ny = y + dy;
+          if ((!dx && !dy) || nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+          const j = ny * W + nx;
+          if (hole[j] || maskMat[j] !== maskMat[i]) continue;
+          r += color[j * 4];
+          g += color[j * 4 + 1];
+          b += color[j * 4 + 2];
+          n++;
+        }
+      }
+      if (n) filled.push(i, r / n, g / n, b / n);
+      else next.push(i);
+    }
+    if (!filled.length) break;
+    for (let k = 0; k < filled.length; k += 4) {
+      const o = filled[k] * 4;
+      color[o] = filled[k + 1];
+      color[o + 1] = filled[k + 2];
+      color[o + 2] = filled[k + 3];
+      hole[filled[k]] = 0;
+    }
+    holes = next;
+  }
+  return total - holes.length;
 }
 
 /**
@@ -271,6 +329,18 @@ async function buildCharacter(id, cfg) {
     index = r.index;
     removed = r.removed;
   }
+  // Garments over garments: a shirt under the suit jacket and tucked into the trousers, the
+  // waistband under an untucked top. The inner one sinks 1 cm under where they touch.
+  let layered = 0;
+  for (const [inner, outer] of cfg.layers ?? [[PART.shirt, PART.top], [PART.shirt, PART.bottom], [PART.bottom, PART.top]]) {
+    layered += layerUnder(geo, index, (i) => geo.part[i] === inner, (i) => geo.part[i] === outer);
+  }
+  // The skin left just inside a sleeve or a trouser leg (the hidden-skin pass keeps what isn't
+  // fully covered) sinks under the cloth too: no arm poking through a sleeve's hem.
+  if (cfg.body) {
+    const skin = (i) => geo.part[i] === PART.fixed && cfg.body.test(geo.meshName[i]);
+    for (const outer of [PART.top, PART.shirt, PART.bottom]) layered += layerUnder(geo, index, skin, (i) => geo.part[i] === outer, { gap: 0.008 });
+  }
 
   // Bare arms / legs as parts of their own (the game can dress them).
   let skinInfo = '';
@@ -280,6 +350,7 @@ async function buildCharacter(id, cfg) {
     skinInfo = `  skin: arms ${r.arms} legs ${r.legs} tris`;
   }
   // Women: a long skirt with its own fabric cell in the atlas.
+  const clothChains = [];
   if (cfg.skirt) {
     const bonePos = (n) => new THREE.Vector3().setFromMatrixPosition(skeleton.bones.find((b) => b.name === n).world);
     const hips = bonePos('Hips');
@@ -294,7 +365,7 @@ async function buildCharacter(id, cfg) {
     const tile = await fabricTile();
     const mat = geo.materials.push({ name: 'Skirt' }) - 1;
     matTexture[mat] = textures.push({ key: 'skirt', color: tile.color, normal: tile.normal, size: 128 }) - 1;
-    const tris = addSkirt(geo, index, skeleton, {
+    const { tris, chains } = addSkirt(geo, index, skeleton, {
       part: PART.skirt,
       mat,
       top,
@@ -308,8 +379,25 @@ async function buildCharacter(id, cfg) {
     merged.set(index);
     merged.set(tris, index.length);
     index = merged;
+    // A top worn over the skirt hides its waistband (no ledge sticking out under the hem).
+    for (const outer of hasBottom ? [PART.top, PART.shirt] : []) {
+      layered += layerUnder(geo, index, (i) => geo.part[i] === PART.skirt, (i) => geo.part[i] === outer, { depth: 0.04, reach: 0.04 });
+    }
     skinInfo += `  skirt ${tris.length / 3} tris (waist ${top.toFixed(2)} hem ${(ankle + 0.045).toFixed(2)})`;
+    clothChains.push(...chains);
   }
+  // Loose tops (shirts and t-shirts worn out, suit jackets): their lower part swings on hem
+  // chains. Then the legs as colliders for the game's cloth (ClothSim.js).
+  if (cfg.role === 'civilian' && cfg.cloth !== false) {
+    const hem = hemChains(geo, skeleton, (i) => geo.part[i] === PART.top);
+    if (hem) {
+      clothChains.push(...hem.chains);
+      skinInfo += `  hem ${hem.chains.length} chains (${hem.weighted} verts)`;
+    }
+  }
+  const cloth = clothChains.length
+    ? { chains: clothChains, colliders: legColliders(geo, skeleton, (i) => ![PART.skirt, PART.top, PART.shirt, PART.hair, PART.extra].includes(geo.part[i])) }
+    : null;
 
   // Talking faces: a tile for the inside of the mouth (the strip is added after the LODs).
   const talks = !cfg.faceCover && !cfg.noFace && cfg.role !== 'enemy';
@@ -335,6 +423,9 @@ async function buildCharacter(id, cfg) {
   const head = headInfo(geo, index, skeleton);
   if (cfg.faceCover && head) paintFaceCover(atlas.color, W, H, geo, index, skeleton, head, cfg.faceCover);
   if (head) delete head._pts;
+  // Cut-out clothing edges become fabric (before the tint luminance below).
+  const cutouts = fillCutouts(atlas.color, W, H, maskMat, maskPart);
+  if (cutouts) skinInfo += `  cut-outs ${cutouts} px`;
   // Mean linear luminance per part (the game's tints recolor relative to it).
   const lin = (c) => ((c /= 255) <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
   const partLum = Array.from({ length: PART_COUNT }, (_, p) => {
@@ -355,9 +446,7 @@ async function buildCharacter(id, cfg) {
     } else atlas.color[i * 4 + 3] = 255;
   }
 
-  const lodTargets = cfg.lods ?? [10000, 3200, 1100];
-  // The face stays as modeled in LOD0 (lips and eyelids for the face rig; a busy hairdo could
-  // otherwise take the triangle budget and the face collapse).
+  // The face stays as modeled in LOD0 (lips and eyelids for the face rig's morphs).
   let lock = null;
   if (talks && head) {
     const hb = skeleton.bones.findIndex((b) => b.name === 'Head');
@@ -375,7 +464,8 @@ async function buildCharacter(id, cfg) {
       if (v.z > head.ring.cz && v.y < head.ring.y + 0.01) lock[i] = 1; // the face, not the scalp
     }
   }
-  const { geo: final, lods } = buildLods(geo, index, lodTargets, { lock });
+  const lining = cfg.skirt ? Uint8Array.from(geo.meshName, (n) => (n === 'SkirtLining' ? 1 : 0)) : null;
+  const { geo: final, lods, errors: lodErrors } = buildLods(geo, index, cfg.lods ?? DEFAULT_LODS, { lock, lining });
 
   // Face rig: jaw / blink morphs and the mouth strip (LOD0 only).
   let morphs = [];
@@ -419,6 +509,7 @@ async function buildCharacter(id, cfg) {
     alpha: hasAlpha,
     vest: !!cfg.addVest,
     face,
+    cloth,
   };
   const glb = await writeCharacter({
     name: id,
@@ -434,7 +525,7 @@ async function buildCharacter(id, cfg) {
   });
   await writeFile(new URL(`${id}.glb`, OUT), glb);
   console.log(
-    `${id.padEnd(15)} ${(glb.length / 1024).toFixed(0).padStart(5)} KB  tris ${geo.index.length / 3} -> ${info.tris.join('/')} (hidden ${removed})  atlas ${W}x${H} (${(colorKTX2.length / 1024).toFixed(0)} KB) normal ${atlas.nW}x${atlas.nH} (${(normalKTX2.length / 1024).toFixed(0)} KB)${hasAlpha ? ' +alpha' : ''}${wrappedTris ? ` wrapped ${wrappedTris} tris` : ''}${skinInfo}${face ? `  face: lip ${face.lipY} eyes ${face.eyes.length}` : ''}  verts ${final.count}  h ${info.height}${skeleton.aliases ? `  aliased ${skeleton.aliases} bones (drift ${skeleton.aliasDrift.toFixed(4)})` : ''}  bindDrift ${geo.bindDrift.toExponential(1)}${atlas.wrapped ? `  WRAPPED UVs ${atlas.wrapped}` : ''}  ${((Date.now() - t0) / 1000).toFixed(1)}s`,
+    `${id.padEnd(15)} ${(glb.length / 1024).toFixed(0).padStart(5)} KB  tris ${geo.index.length / 3} -> ${info.tris.join('/')} (err ${lodErrors.map((e) => (e * 100).toFixed(1)).join('/')}%, hidden ${removed}, layered ${layered})  atlas ${W}x${H} (${(colorKTX2.length / 1024).toFixed(0)} KB) normal ${atlas.nW}x${atlas.nH} (${(normalKTX2.length / 1024).toFixed(0)} KB)${hasAlpha ? ' +alpha' : ''}${wrappedTris ? ` wrapped ${wrappedTris} tris` : ''}${skinInfo}${face ? `  face: lip ${face.lipY} eyes ${face.eyes.length}` : ''}  verts ${final.count}  h ${info.height}${skeleton.aliases ? `  aliased ${skeleton.aliases} bones (drift ${skeleton.aliasDrift.toFixed(4)})` : ''}  bindDrift ${geo.bindDrift.toExponential(1)}${atlas.wrapped ? `  WRAPPED UVs ${atlas.wrapped}` : ''}  ${((Date.now() - t0) / 1000).toFixed(1)}s`,
   );
   return info;
 }
