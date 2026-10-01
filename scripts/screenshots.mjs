@@ -21,18 +21,19 @@ const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 page.on('pageerror', (e) => console.log(`[pageerror] ${e.message}`));
 page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') console.log(`[${m.type()}] ${m.text()}`); });
 await page.addInitScript((q) => localStorage.setItem('kotelgame.settings', JSON.stringify({ quality: q })), quality);
-await page.goto('http://localhost:5173/');
+await page.goto(process.env.GAME_URL ?? 'http://localhost:5173/');
 // The world is built (Game.init: the loading screen still shows; setActive(true) plays at once).
 await page.waitForFunction(() => window.__game?.input, null, { timeout: 120000, polling: 500 });
-await page.evaluate(() => {
+await page.evaluate((step) => {
   const g = window.__game;
   g.setActive(true);
   g.input.locked = true;
   const s = g.story;
-  s.jumpTo(s.mission.indexOf('patrol_wall'));
+  // The plaza filling up for the midnight Selichot (STEP=<mission step id> picks another moment).
+  s.jumpTo(Math.max(0, s.mission.indexOf(step)));
   for (const el of document.querySelectorAll('.hud, .story-hud, .debug')) el.style.display = 'none';
   g.viewmodel.scene.visible = false;
-});
+}, process.env.STEP ?? 'radio_call');
 // Wait for the textures and the HDRI.
 await page.waitForFunction(async () => {
   const g = window.__game;
@@ -50,8 +51,13 @@ for (const s of SPOTS) {
     g.view.pitch = s.pitch;
     g.view.snap();
   }, s);
+  // The crowd fades in around a new spot: settle it (headless frames are slow, game time crawls).
+  await page.evaluate(() => {
+    const g = window.__game;
+    for (let i = 0; i < 8; i++) g.story.crowd?.update(0.5, g.player.position, g.camera);
+  });
   await page.waitForTimeout(2500);
-  await page.screenshot({ path: `${out}/${s.name}.png` });
+  await page.screenshot({ path: `${out}/${s.name}.png`, timeout: 240000 });
   console.log('shot', s.name);
 }
 console.log('draw calls', await page.evaluate(() => window.__game.renderer.info.render.calls));

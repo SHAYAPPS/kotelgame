@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { Vector3 } from 'three';
 import { Mission } from '../src/story/Mission.js';
 import { Dialogue, lineDuration } from '../src/story/Dialogue.js';
-import { MISSION1 } from '../src/story/mission1.js';
+import { MISSION1, PATROL } from '../src/story/mission1.js';
 import { CARDS, HINTS, LINES, OBJECTIVES, SPEAKERS } from '../src/story/text.he.js';
 import { StoryDirector } from '../src/story/StoryDirector.js';
 import { createKotelLevel } from '../src/world/kotel/KotelLevel.js';
@@ -144,16 +144,23 @@ test('fail stops the mission until it restarts from the checkpoint', () => {
 test('dialogue plays lines in order with reading-time durations', () => {
   const started = [];
   const d = new Dialogue({ onLine: (l) => started.push(l.id) });
-  d.play(['brief_1', 'brief_2']);
-  assert.equal(d.current.id, 'brief_1');
+  d.play(['gather_1', 'gather_2']);
+  assert.equal(d.current.id, 'gather_1');
   assert.equal(d.current.name, SPEAKERS.cmd.name);
-  const dur = lineDuration(LINES.brief_1.text);
+  const dur = lineDuration(LINES.gather_1.text);
   for (let t = 0; t < dur + 0.05; t += DT) d.update(DT);
-  assert.equal(d.current.id, 'brief_2');
+  assert.equal(d.current.id, 'gather_2');
   d.play(['radio_1'], { interrupt: true });
   assert.equal(d.current.id, 'radio_1');
   assert.equal(d.current.radio, true);
-  assert.deepEqual(started, ['brief_1', 'brief_2', 'radio_1']);
+  assert.deepEqual(started, ['gather_1', 'gather_2', 'radio_1']);
+  // A passer-by's line: the item names who says it (a generic speaker), and is tracked.
+  const item = { id: 'greet_man_1', who: 'npc7' };
+  d.play([item], { interrupt: true });
+  assert.equal(d.current.who, 'npc7');
+  assert.ok(d.pending(item));
+  for (let t = 0; t < 5; t += DT) d.update(DT);
+  assert.ok(!d.pending(item));
   assert.throws(() => d.play(['no_such_line']));
 });
 
@@ -172,6 +179,10 @@ test('mission 1 data: every text id exists and NPCs are spawned before use', () 
       }
       if (a.type === 'populate') assert.ok(MISSION1.groups[a.group], `group ${a.group}`);
     }
+  }
+  // The checkpoint's people: their lines exist.
+  for (const p of MISSION1.screening.people) {
+    for (const list of Object.values(p.lines)) for (const l of list) assert.ok(LINES[typeof l === 'string' ? l : l.id], `checkpoint line ${JSON.stringify(l)}`);
   }
   for (const line of Object.values(LINES)) assert.ok(SPEAKERS[line.speaker], `speaker ${line.speaker}`);
 });
@@ -346,39 +357,93 @@ test('mission 1 plays through with a scripted player', () => {
   const where = () => `step ${story.mission.step.id}`;
 
   story.start();
-  assert.equal(rifle.mode, 'lowered', 'weapon lowered for the shift');
+  assert.equal(rifle.mode, 'slung', 'weapon slung for the checkpoint');
   assert.ok(story.npcs.list.length > 25, `crowd spawned (${story.npcs.list.length} NPCs)`);
-  run(5);
-  assert.ok(at('report'));
+  run(5.1);
+  assert.ok(at('checkpoint_brief'), where());
   const cmd = story.npcs.get('cmd');
-  walkTo(cmd.position.x, cmd.position.z + 1.5, () => false, 6);
-  const eye = player.position.clone().add(new Vector3(0, 1.66, 0));
-  const dir = new Vector3().subVectors(cmd.position.clone().add(new Vector3(0, 1.4, 0)), eye).normalize();
-  story.interact(eye, dir);
-  run(0.1);
-  assert.ok(at('briefing'), `talked to the commander (${where()})`);
-  run(40);
-  assert.ok(at('tut_sprint'));
-  run(1.2, () => ({ ...idle, forward: 1, sprint: true }));
-  assert.ok(at('tut_crouch'));
-  run(0.2, () => ({ ...idle, crouch: true }));
-  run(0.1);
-  assert.ok(at('tut_mag'));
-  rifle.onMagCheck();
-  run(0.1);
-  assert.ok(at('patrol_wall'));
-  player.wantCrouch = false;
 
-  // Follow the squad to the wall, then up to the terraces.
-  const followCmd = () => [cmd.position.x, cmd.position.z];
-  walkTo(followCmd, null, () => at('at_wall'), 120, 2.5);
-  assert.ok(at('at_wall'), `reached the wall with the squad (${where()}, cmd at ${cmd.position.x.toFixed(1)}, ${cmd.position.z.toFixed(1)}, player at ${player.position.x.toFixed(1)}, ${player.position.z.toFixed(1)})`);
-  run(30);
-  walkTo(followCmd, null, () => at('radio'), 150, 2.5);
-  assert.ok(at('radio'), `reached the terraces (${where()})`);
+  // Task 1: the checkpoint. Each person puts a bag on the belt, walks through the gate and
+  // waits to be checked: look at the bag / the person and act (E), confiscate (F).
+  const cp = story.checkpoint;
+  const eyeAt = () => player.position.clone().add(new Vector3(0, 1.66, 0));
+  const viewAt = (p) => [eyeAt(), new Vector3().subVectors(p, eyeAt()).normalize()];
+  const bagPoint = () => new Vector3(cp.bag.at[0], cp.bag.at[1] + 0.12, cp.bag.at[2]);
+  const personPoint = () => cp.cur.npc.position.clone().add(new Vector3(0, 1.35, 0));
+  const use = (p) => story.interact(...viewAt(p));
+  const deny = (p) => story.deny(...viewAt(p));
+  runUntil(() => at('screen_haredi'), 60);
+  assert.ok(at('screen_haredi'), `the line starts (${where()})`);
+  for (const def of MISSION1.screening.people) {
+    runUntil(() => cp.cur?.def.id === def.id && cp.cur.state === 'inspect' && cp.bag.onTable && story.dialogue.idle, 90);
+    assert.ok(cp.cur?.def.id === def.id && cp.cur.state === 'inspect', `${def.id} came up to be checked (${where()}, ${cp.cur?.def.id} ${cp.cur?.state})`);
+    assert.equal(cp.cur.beeped, true, `${def.id} went through the gate`);
+    assert.equal(cp.cur.alarm, !!def.metal, `the gate beeps for ${def.id} only with metal on him`);
+    if (def.blade) {
+      // Waved through unchecked: the teammate stops it; the knife has to be found and taken.
+      use(personPoint());
+      run(0.1);
+      assert.equal(cp.cur?.def.id, def.id, 'a blade on the screen: not let in unchecked');
+      use(bagPoint());
+      assert.ok(cp.bag.open, 'bag opened');
+      use(personPoint());
+      run(0.1);
+      assert.equal(cp.cur?.state, 'inspect', 'the knife is still in the bag: not in yet');
+      deny(bagPoint());
+      assert.ok(cp.cur.taken && !cp.bag.items.includes('knife'), 'knife confiscated');
+    }
+    if (def.metal) {
+      use(personPoint());
+      run(0.1);
+      assert.equal(cp.cur?.state, 'inspect', 'beeped: not let in before the hand detector');
+      use(personPoint());
+      assert.ok(cp.cur.wanded, 'hand detector');
+    }
+    if (def.odd) {
+      use(bagPoint());
+      assert.ok(cp.bag.open, 'odd bag opened');
+    }
+    if (!def.blade && !def.metal) {
+      deny(personPoint());
+      assert.equal(cp.cur?.state, 'inspect', 'nothing to stop an innocent person for');
+    }
+    use(personPoint());
+    assert.ok(cp.isDone(def.id), `${def.id} let in`);
+    run(0.2);
+  }
+  runUntil(() => at('guard_banter'), 30);
+  assert.ok(at('guard_banter'), `the guard took over (${where()})`);
+  runUntil(() => at('patrol'), 60);
+  assert.ok(at('patrol'), `sent to patrol (${where()})`);
+  assert.equal(story.mission.checkpointIndex, story.mission.indexOf('patrol'), 'checkpoint at the patrol');
+
+  // Task 2: the patrol near the wall; a chat with someone on the way, the specials.
+  for (const [k, [x, z]] of PATROL.points.entries()) {
+    teleport(x + 1.5, 0.1, z);
+    run(0.3);
+    if (k === 1) {
+      // The old man's blessing: a longer exchange, the special once.
+      const elder = story.npcs.get('sp_elder');
+      teleport(elder.position.x - 1.6, elder.position.y + 0.1, elder.position.z);
+      run(0.3);
+      use(elder.position.clone().add(new Vector3(0, 1.4, 0)));
+      assert.ok(elder.specialDone && elder.hold > 0, 'the special exchange started');
+      runUntil(() => story.dialogue.idle && !story._talk, 60);
+      assert.ok(!story._talk, 'the exchange ended');
+      teleport(x + 1.5, 0.1, z);
+      run(0.3);
+    }
+  }
+  assert.ok(at('patrol_more') || at('radio_call'), `patrol points done (${where()})`);
+  runUntil(() => at('radio_call'), PATROL.time + 5);
+  assert.ok(at('radio_call'), `the radio call (${where()})`);
+  teleport(-50, 0.1, 8);
+  runUntil(() => at('gather'), 60);
+  assert.ok(at('gather'), `the squad gathers (${where()})`);
+  assert.equal(story.calm, true, 'still calm before the sirens');
 
   // Part 2: sirens, weapons ready.
-  runUntil(() => at('weapons_ready'), 90);
+  runUntil(() => at('weapons_ready'), 120);
   assert.ok(at('weapons_ready'), `radio chatter cut off by the sirens (${where()})`);
   assert.equal(rifle.mode, 'ready', 'weapon raised');
   assert.equal(story.mission.checkpointIndex, story.mission.indexOf('weapons_ready'), 'checkpoint at weapons ready');
@@ -412,8 +477,9 @@ test('mission 1 plays through with a scripted player', () => {
   run(0.1);
   assert.ok(at('after_wave'), `wave cleared (${where()})`);
   assert.equal(enemies.friendlies.length, 0, 'squad back to story NPCs');
-  const stuck = story.npcs.list.filter((n) => n.isCivilian && !n.sheltered).map((n) => `${n.kind} at ${n.position.x.toFixed(1)},${n.position.y.toFixed(1)},${n.position.z.toFixed(1)}${n.fleeing ? ' fleeing' : ''}${n.frozen ? ' frozen' : ''} -> ${n.shelterSpot ? `${n.shelterSpot.x.toFixed(1)},${n.shelterSpot.z.toFixed(1)}` : '?'}`);
-  if (process.env.DEBUG_STUCK) for (const n of story.npcs.list.filter((c) => c.isCivilian && !c.sheltered)) console.log(n.id, n.kind, 'path', n._path?.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)},${p.z.toFixed(1)}`).join(' '), 'idx', n._pathIndex, 'still', n._still.toFixed(2), 'grounded', n.body.grounded, 'v', n.body.horizontalSpeed.toFixed(2), 'arrived', n.arrived, 'pause', n._pause, 'leg', n._leg, 'route', JSON.stringify(n.route?.points.map((p) => [+p.x.toFixed(1), +p.z.toFixed(1)])));
+  const stuck = story.npcs.list.filter((n) => n.evacuates && !n.sheltered).map((n) => `${n.kind} at ${n.position.x.toFixed(1)},${n.position.y.toFixed(1)},${n.position.z.toFixed(1)}${n.fleeing ? ' fleeing' : ''}${n.frozen ? ' frozen' : ''} -> ${n.shelterSpot ? `${n.shelterSpot.x.toFixed(1)},${n.shelterSpot.z.toFixed(1)}` : '?'}`);
+  if (process.env.DEBUG_STUCK) for (const n of story.npcs.list.filter((c) => c.evacuates && !c.sheltered)) console.log('near', story.npcs.list.filter((o) => o !== n && o.position.distanceTo(n.position) < 1.6).map((o) => `${o.id} ${o.kind} ${o.position.x.toFixed(1)},${o.position.z.toFixed(1)} sheltered ${o.sheltered} still ${o._still.toFixed(1)} hold ${o.hold}`).join('; '), 'hold', n.hold, 'act', JSON.stringify(n.act), 'beh', n.behavior);
+  if (process.env.DEBUG_STUCK) for (const n of story.npcs.list.filter((c) => c.evacuates && !c.sheltered)) console.log(n.id, n.kind, 'path', n._path?.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)},${p.z.toFixed(1)}`).join(' '), 'idx', n._pathIndex, 'still', n._still.toFixed(2), 'grounded', n.body.grounded, 'v', n.body.horizontalSpeed.toFixed(2), 'arrived', n.arrived, 'pause', n._pause, 'leg', n._leg, 'route', JSON.stringify(n.route?.points.map((p) => [+p.x.toFixed(1), +p.z.toFixed(1)])));
   assert.equal(story.npcs.civiliansOutside, 0, `every civilian sheltered (${outsideAtContact} were still outside at contact: ${stuck.join('; ')})`);
   teleport(-50, 0.1, 5);
   runUntil(() => at('defense_orders'), 90);
@@ -557,9 +623,15 @@ test('mission 1 plays through with a scripted player', () => {
   assert.ok(at('mission2_soon'), 'Mission 2 coming soon');
 
   // F2-style jumps and checkpoint restarts.
-  story.jumpTo(story.mission.indexOf('at_wall'));
-  assert.ok(Math.hypot(player.position.x + 14, player.position.z + 12.8) < 0.5, 'player at the wall checkpoint');
-  assert.ok(story.npcs.get('cmd').position.x > -13, 'commander placed at the wall');
+  story.jumpTo(story.mission.indexOf('screen_knife'));
+  assert.ok(story.checkpoint.active && story.checkpoint.cur?.def.id === 'cp_knife', 'jump to a person at the checkpoint: they come up');
+  assert.equal(story.checkpoint.screened, 4, 'jump: the ones before are through');
+  assert.ok(!story.npcs.get('cp_haredi') && story.npcs.get('cp_dad'), 'jump: the ones before are gone, the ones after wait in line');
+  assert.ok(story.calm, 'calm again');
+  story.jumpTo(story.mission.indexOf('patrol_3'));
+  assert.ok(Math.hypot(player.position.x + 63.5, player.position.z - 79) < 0.5, 'player at the patrol checkpoint');
+  assert.ok(!story.checkpoint.active && story.checkpoint.handedOver, 'jump past the handover: the guard has the checkpoint');
+  assert.ok(Math.hypot(story.npcs.get('guard').position.x + 62.55, story.npcs.get('guard').position.z - 83.65) < 0.6, 'the guard at the post');
   story.jumpTo(story.mission.indexOf('wave2'));
   assert.ok(story.crates.get('crate1') && !story.crates.get('crate2'), 'jump to wave 2: first crate only');
   assert.equal(enemies.friendlies.length, 3, 'jump to wave 2: squad in combat');

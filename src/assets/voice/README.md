@@ -1,10 +1,20 @@
 # Voice recordings
 
-Drop recorded dialogue here, one file per line, named after the line's id in
-`src/story/text.he.js` (for example `brief_1.ogg` for `LINES.brief_1`). Supported: `.ogg`,
-`.mp3`, `.wav`, `.m4a`.
+One file per line, named after the line's id in `src/story/text.he.js` (for example
+`cp_brief_1.webm` for `LINES.cp_brief_1`). Supported: `.webm`, `.ogg`, `.mp3`, `.wav`, `.m4a`.
 
-The build finds them automatically (`Game.js`, `import.meta.glob`). When a line with a
+The easiest way to make them is the recording booth: `npm run dev`, then
+http://localhost:5173/dev/booth.html. It lists every line by part, records a take from the
+microphone (space starts / stops the selected line), plays it back and saves it here as
+`<lineId>.webm`.
+
+Ambient slots (loops) are recorded the same way:
+
+- `crowd_prayer_1`, `crowd_prayer_2`, `crowd_prayer_3`: the Selichot crowd praying. Each is
+  looped and layered out of step (`src/story/AmbientAudio.js`, `setPrayer`); without them the
+  game synthesizes the murmur.
+
+The build finds the files automatically (`Game.js`, `import.meta.glob`). When a line with a
 recording plays, the game:
 
 - plays it from the speaker's position (radio lines through a radio filter),

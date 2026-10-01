@@ -44,7 +44,10 @@ export class Rifle {
     this.targets = null;
     /** Called for every shot fired: (origin) => void (enemies hear it). */
     this.onShot = null;
-    /** 'ready' or 'lowered' (safe carry: no firing or aiming; R checks the magazine). */
+    /**
+     * 'ready', 'lowered' (safe carry: no firing or aiming; R checks the magazine) or 'slung'
+     * (on the back, out of view: hands free at the checkpoint).
+     */
     this.mode = 'ready';
     this.checkTime = 0; // magazine check progress in seconds (0 = not checking)
     this.checkDuration = 1.3;
@@ -92,7 +95,7 @@ export class Rifle {
    * @param {import('../player/PlayerController.js').PlayerController} player
    */
   get lowered() {
-    return this.mode === 'lowered';
+    return this.mode === 'lowered' || this.mode === 'slung';
   }
 
   /** 0..1 progress of a magazine check. */
@@ -113,7 +116,7 @@ export class Rifle {
   fixedUpdate(dt, input, player) {
     const state = this.state;
     if (this.lowered) {
-      if (input.reload && this.checkTime === 0) {
+      if (input.reload && this.checkTime === 0 && this.mode !== 'slung') {
         this.checkTime = 1e-6;
         this.audio.magCheck?.();
       }

@@ -149,10 +149,22 @@ export const KOTEL = {
   },
 
   environment: {
-    // The title card: Friday 11:40. Real sun position for the Kotel on a spring Friday
-    // (11 April 2025, Israel summer time): high in the south-east, so the west-facing
-    // wall is in its own shade and the plaza is in sun.
-    sun: { lat: 31.7767, lon: 35.2345, date: '2025-04-11', time: '11:40', utcOffset: 3 },
+    // The night of the final Selichot before Yom Kippur (30 September 2025, Israel summer
+    // time): the mission starts at 21:00, long after sunset; the moon is the key light. (The
+    // main menu shows the plaza just after sunrise: `menu.time`.)
+    sun: { lat: 31.7767, lon: 35.2345, date: '2025-09-30', time: '21:00', utcOffset: 3 },
+    night: {
+      sky: 'assets/hdri/night_sky.jpg', // the visible sky (stars), Poly Haven CC0
+      hdri: 'assets/hdri/night_1k.hdr', // the image-based light
+      // The moon a day past first quarter, that night at 21:00: south-west, ~27 degrees up.
+      moon: { azimuth: 211, elevation: 27 },
+      skyYaw: 184, // turns the photographed sky so its moon's halo sits under ours
+      moonIntensity: 0.32,
+      envIntensity: 0.4,
+      hemiIntensity: 0.32,
+      fogDensity: 0.0024,
+      lights: 1, // the floodlights, lamps and screens (world/kotel/night.js)
+    },
     hdri: ['assets/hdri/sky_2k.hdr', 'assets/hdri/sky_512.exr'], // sky_2k: npm run assets:fetch
     sunIntensity: 3.0,
     envIntensity: 0.5,

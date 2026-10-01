@@ -17,7 +17,9 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { NPC } from './Npc.js';
+import { PEOPLE } from './people.js';
 import { characters } from '../characters/registry.js';
+import { handProp } from '../characters/handProps.js';
 import { dressPerson } from '../characters/wardrobe.js';
 import { LipSync } from '../characters/LipSync.js';
 import { StairTracker } from '../player/StairTracker.js';
@@ -214,8 +216,14 @@ class PlaceholderFigure {
 // Which character plays whom. Squad members by name; civilians by kind (wardrobe.js CAST),
 // each one dressed unlike the people already standing near them.
 const SQUAD = { cmd: 'squad_swat', yonatan: 'squad_steve', noam: 'squad_swatguy' };
+// Soldiers visiting in uniform and Border Police officers: the squad model without the vest.
+const UNIFORM = 'squad_steve';
 const NEIGHBORHOOD = 9; // m
 const dressed = new Set(); // civilian views with a model (their looks, for the next picks)
+const _flashAt = new Vector3();
+
+/** Hooks the game fills in: `flash(position)` lights a phone's photo flash. */
+export const viewFx = { flash: null };
 
 /**
  * A story NPC: the animated character (squad member or civilian) driven by its animator,
@@ -230,7 +238,11 @@ export class NpcView {
     this.model = null;
     this.animator = null;
     this.placeholder = null;
-    this.soldier = npc.kind === 'soldier' || npc.kind === 'commander';
+    // Armed (the soldier animator: rifle, postures, the combat AI's states): the squad, police.
+    this.soldier = npc.kind === 'soldier' || npc.kind === 'commander' || npc.kind === 'police';
+    this.propFlash = null;
+    this.cane = null;
+    this._flash = 0;
     this.state = {
       alive: true, facing: 0, velocity: null, crouched: false, posture: 'relaxed', mode: 'idle', cover: null,
       aimAt: null, eyeY: 1.62, shotsFired: 0, health: 100, throws: 0, deathDir: null, hitZone: null, position: null,
@@ -251,23 +263,37 @@ export class NpcView {
     const n = this.npc;
     let id = null;
     let outfit = null;
-    if (this.soldier) id = SQUAD[n.id] ?? lib.ids('squad')[Math.floor(this.rand() * 3) % lib.ids('squad').length];
+    const person = PEOPLE[n.kind];
+    if (n.preset && lib.has(n.preset.id)) {
+      // A crowd member stepping in (the player talks to them): the same person.
+      id = n.preset.id;
+      outfit = n.preset.outfit;
+    } else if (this.soldier) id = SQUAD[n.id] ?? (n.kind === 'police' && lib.has(UNIFORM) ? UNIFORM : lib.ids('squad')[Math.floor(this.rand() * 3) % lib.ids('squad').length]);
+    else if (person?.soldier) id = lib.has(UNIFORM) ? UNIFORM : lib.ids('squad')[0];
     else {
       const neighbors = [];
       for (const v of dressed) {
         const d = Math.hypot(v.npc.position.x - n.position.x, v.npc.position.z - n.position.z);
         if (d < NEIGHBORHOOD) neighbors.push({ sig: v.look, near: 1 - d / NEIGHBORHOOD });
       }
-      const pick = dressPerson(n.kind, neighbors, (x) => (lib.has(x) ? lib.types.get(x).info : null), this.rand);
+      const pick = dressPerson(n.kind, neighbors, (x) => (lib.has(x) ? lib.types.get(x).info : null), this.rand, n.wantSex);
       id = pick?.id ?? lib.ids('civilian')[0];
       outfit = pick?.outfit ?? null;
     }
     if (!id || !lib.has(id)) return false;
-    ({ model: this.model, animator: this.animator } = this.soldier ? lib.soldier(id, { rand: this.rand }) : lib.civilian(id, n.kind, { rand: this.rand, outfit }));
+    ({ model: this.model, animator: this.animator } = this.soldier ? lib.soldier(id, { rand: this.rand, kind: n.kind }) : lib.civilian(id, n.kind, { rand: this.rand, outfit }));
     if (!this.soldier && outfit) {
       this.look = outfit.sig;
       dressed.add(this);
     }
+    n.sex = this.model.info.sex;
+    // Children: smaller, the head a bit bigger for the body; their strides shorter.
+    const size = n.scale ?? 1;
+    if (size !== 1) {
+      this.model.setSize(size, size < 0.8 ? 1.16 : 1);
+      this.animator.hips *= size;
+    }
+    if (n.prop) this._addProp(n.prop);
     this.root.add(this.model.root);
     n.hitShape = this.model.hit;
     if (this.placeholder) {
@@ -275,6 +301,34 @@ export class NpcView {
       this.placeholder = null;
     }
     return true;
+  }
+
+  /** Something in the hand (people.js `prop`): each mesh on the hand bone. */
+  _addProp(name) {
+    const p = handProp(name);
+    if (!p) return;
+    this.propFlash = p.object.userData.flash ?? null;
+    this.cane = p.object.userData.vertical ?? null;
+    if (!p.bone) {
+      // On the floor under the hand (a cane): in the model's root, placed every frame.
+      this.model.root.add(p.object);
+      for (const o of p.object.children) this.model.gear.push({ object: o, shadow: false, hideBeyond: 30 });
+      this.caneRoot = p.object;
+      return;
+    }
+    for (const o of [...p.object.children]) this.model.attach(p.bone, o, { hideBeyond: 30 });
+  }
+
+  /** The cane stands under the right hand, its length the hand's height. */
+  _placeCane() {
+    const hand = this.model.bone('RightHand');
+    if (!hand || this.model.distance > 30) return;
+    const p = hand.getWorldPosition(_flashAt);
+    this.model.root.worldToLocal(p);
+    this.caneRoot.position.set(p.x, 0, p.z);
+    const h = Math.max(0.3, p.y - 0.03);
+    this.cane.shaft.scale.y = h;
+    this.cane.crook.position.y = h;
   }
 
   update(dt) {
@@ -324,8 +378,18 @@ export class NpcView {
       c.panicking = n.panicking;
       c.speaking = !!n.speaking || n.chatting;
       c.crouched = n.body.crouched;
+      c.act = n.act;
+      c.sit = n.sit;
+      c.backward = !!(n.route?.backward && !n.arrived);
       this.model.root.rotation.y = n.facing;
       this.animator.update(dt, c);
+      // A photo: the phone's flash (and a little light on the people in front of it).
+      if (this.propFlash) {
+        const f = n.flash;
+        this.propFlash.material.opacity = f;
+        if (f > this._flash && f > 0.9 && viewFx.flash && this.model.distance < 40) viewFx.flash(this.propFlash.getWorldPosition(_flashAt));
+        this._flash = f;
+      }
     }
     // Talking: the mouth follows the line (its recording, else its text); heads turn toward
     // whoever is being talked to / talking (StoryDirector sets npc.lookAt).
@@ -346,6 +410,7 @@ export class NpcView {
     this.model.face.mouth = this.lip.update(dt);
     this.model.lookTarget = n.lookAt;
     this.model.update(dt, characters);
+    if (this.cane) this._placeCane();
     if (n.brain) {
       // The combat AI on this body is what enemies shoot at: same zones, same muzzle.
       n.brain.hitShape = this.model.hit;

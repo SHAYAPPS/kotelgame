@@ -2,6 +2,7 @@ import { BoxGeometry, ExtrudeGeometry, InstancedMesh, Matrix4, MeshStandardMater
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { KOTEL } from './config.js';
 import { randRange } from './random.js';
+import { litWindowMaterial } from './night.js';
 
 // Windows, arched openings and shutters on the plaza-facing building fronts (visual only).
 // Each opening is a stone surround standing a few cm proud of the wall, dark glass just
@@ -123,11 +124,21 @@ export function buildFacades(root, m, groundY, rand) {
     mesh.computeBoundingSphere();
     meshes.push(mesh);
   };
-  // Unit-sized geometries scaled per window.
+  // Unit-sized geometries scaled per window. At night some are lit from inside (their glass
+  // glows: the material's glow follows the night's level).
+  const lit = litWindowMaterial();
+  const isLit = (it) => {
+    const h = Math.sin(it.x * 12.9898 + it.y * 78.233 + it.z * 37.719) * 43758.5453;
+    return h - Math.floor(h) < 0.45; // a steady pick per window
+  };
+  const rectLit = rect.filter(isLit);
+  const archLit = arch.filter(isLit);
   place(rectFrame(1, 1), stone, rect, (it) => _s.set(it.w, it.h, 1));
-  place(new PlaneGeometry(1, 1).translate(0, 0, 0.004), glass, rect);
+  place(new PlaneGeometry(1, 1).translate(0, 0, 0.004), glass, rect.filter((it) => !isLit(it)));
+  place(new PlaneGeometry(1, 1).translate(0, 0, 0.004), lit, rectLit);
   place(archFrame(1, 1.6), stone, arch, (it) => _s.set(it.w, it.h / 1.6, 1));
-  place(archGlass(1, 1.6), glass, arch, (it) => _s.set(it.w, it.h / 1.6, 1));
+  place(archGlass(1, 1.6), glass, arch.filter((it) => !isLit(it)), (it) => _s.set(it.w, it.h / 1.6, 1));
+  place(archGlass(1, 1.6), lit, archLit, (it) => _s.set(it.w, it.h / 1.6, 1));
   // Shutters folded open on both sides of the window.
   const leaf = mergeGeometries([
     new BoxGeometry(0.5, 1, 0.04).translate(-0.78, 0, 0.1).toNonIndexed(),
@@ -135,5 +146,5 @@ export function buildFacades(root, m, groundY, rand) {
   ]);
   place(leaf, wood, shutters, (it) => _s.set(it.w, it.h, 1));
   for (const mesh of meshes) root.add(mesh);
-  return { windows: rect.length + arch.length };
+  return { windows: rect.length + arch.length, glows: [lit] };
 }

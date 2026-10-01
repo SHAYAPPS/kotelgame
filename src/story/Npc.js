@@ -4,6 +4,7 @@ import { PlayerController } from '../player/PlayerController.js';
 import { raySphere, rayCapsule } from '../ai/hitZones.js';
 import { modelHitTest } from '../ai/Enemy.js';
 import { stairsAt } from '../world/stairs.js';
+import { BEHAVIORS, PEOPLE } from './people.js';
 
 const _a = new Vector3();
 const _b = new Vector3();
@@ -49,8 +50,10 @@ export class Npc {
     this.speaker = speaker;
     this.pray = pray;
     this.rand = rand;
+    // Children are smaller (story/people.js): the body too.
+    this.scale = PEOPLE[kind]?.scale ?? 1;
     // walkSpeed is the cap (running to shelter); routes scale it down to walking pace.
-    this.body = new PlayerController(world, { ...PLAYER, radius: NPC.radius, walkSpeed: 4.2 });
+    this.body = new PlayerController(world, { ...PLAYER, radius: NPC.radius * Math.min(1, this.scale + 0.15), standHeight: PLAYER.standHeight * this.scale, walkSpeed: 4.2 });
     this.body.setSpawn(position, yaw);
     this.facing = yaw;
     this.faceTarget = null; // 'player' | null
@@ -92,6 +95,33 @@ export class Npc {
     this._still = 0; // s standing still with nothing to do (the physics sleeps after a while)
     this._dodge = 0; // s left of a sidestep around an obstacle
     this._dodgeSide = rand() < 0.5 ? 1 : -1;
+    // The Selichot night (story/people.js): what this person does on their own (`behavior`,
+    // its state in `b`), a clip played standing (`act`: { clip, until }), sitting on a chair,
+    // what they carry, their sex (the view sets it from the model), a special role.
+    this.behavior = null;
+    this.b = {};
+    this.act = null;
+    this.sit = false;
+    this.prop = PEOPLE[kind]?.prop ?? null;
+    this.sex = null;
+    this.special = null;
+    this.parent = null; // a child's parent (npc id)
+    this.home = null; // { x, z, yaw }: where they stand (they step aside and come back)
+    this.glancing = false;
+    this.greeted = false;
+    this.flash = 0; // a photo's flash (the view lights it)
+    this.hold = 0; // s left standing still facing the player (talking with him)
+    this.preset = null; // { id, outfit }: the character and outfit to build (a crowd member stepping in)
+    this.wantSex = null; // 'm' | 'f': cast a model of that sex (a father, a mother)
+  }
+
+  /** Stops whatever they were doing on their own (an emergency). */
+  stopBehavior() {
+    this.behavior = null;
+    this.act = null;
+    this.sit = false;
+    this.hold = 0;
+    this.b = {};
   }
 
   /** Out of a chat group (sent somewhere, panicking...). */
@@ -116,8 +146,14 @@ export class Npc {
     return !this.isTeammate;
   }
 
+  /** Runs for the shelter at the sirens (not the people on duty: police, the guard). */
+  get evacuates() {
+    return this.isCivilian && !PEOPLE[this.kind]?.stays;
+  }
+
   /** Run to a shelter spot after `delay` seconds (panic reaction time). */
   flee(spot, delay = 0) {
+    this.stopBehavior();
     this.leaveChat();
     this.shelterSpot = spot;
     this.follow = null;
@@ -133,6 +169,7 @@ export class Npc {
 
   /** Freeze in place (cowering) until the player sends them off. */
   freeze() {
+    this.stopBehavior();
     this.leaveChat();
     this.follow = null;
     this.pray = false;
@@ -190,6 +227,7 @@ export class Npc {
       loop: !!route.loop,
       pause: route.pause ?? 0,
       face: route.face ?? null,
+      backward: !!route.backward, // walking backwards (facing away from where they go)
     };
     this._leg = 0;
     this._pause = 0;
@@ -234,8 +272,26 @@ export class Npc {
   }
 
   /** @param {number} dt @param {{ position: Vector3 }} player */
-  update(dt, player) {
+  update(dt, player, ctx = null) {
     this.time += dt;
+    // Their own doings (notes in the wall, a photo, running around a parent...).
+    if (this.act && this.time >= this.act.until) this.act = null;
+    if (this.act?.flash && this.rand() < dt * 0.6) this.flash = 1;
+    this.flash = Math.max(0, this.flash - dt * 6);
+    if (this.hold > 0) {
+      // Talking with the player: stand and face him (seated, only the head turns).
+      this.hold -= dt;
+      this.speed = 0;
+      if (!this.sit) this._turnTo(Math.atan2(-(player.position.x - this.position.x), -(player.position.z - this.position.z)), dt);
+      return;
+    }
+    if (this.behavior && ctx && !this.frozen && !this.fleeing && !this.sheltered && this._fleeDelay < 0) BEHAVIORS[this.behavior]?.(this, dt, ctx);
+    if (this.sit) {
+      // On a chair: no walking, no physics (the seat is a collision box).
+      this.speed = 0;
+      if (this.faceYaw !== null) this._turnTo(this.faceYaw, dt);
+      return;
+    }
     if (this.brain) {
       // The combat AI moves the body (EnemyManager steps it); just mirror it.
       this.facing = this.brain.facing;
@@ -253,6 +309,8 @@ export class Npc {
     if (this.fleeing && this.arrived) {
       this.fleeing = false;
       this.sheltered = true;
+      // Out through an exit (not the shelter): gone from the plaza.
+      if (this.exitOnArrival) this.exited = true;
     }
     if (this.escort > 0) this._updateEscort(dt, player);
     // Back in front of the wall: worshipers pray again.
@@ -315,15 +373,18 @@ export class Npc {
               // back onto the path. On the floor: a sidestep (the other way each time), then
               // find the way again.
               const node = this.nav.nodeAt(this.position.x, this.position.z);
-              if (node < 0 || Math.abs(this.nav.y[node] - this.position.y) > 0.3) {
+              this._stuckTimes = (this._stuckTimes ?? 0) + 1;
+              if (node < 0 || Math.abs(this.nav.y[node] - this.position.y) > 0.3 || this._stuckTimes > 3) {
+                // Off the floor, or wedged (between chairs) for good: onto the next waypoint.
                 this.body.spawnPoint.copy(wp);
                 this.body.respawn();
+                this._stuckTimes = 0;
               } else {
                 this._dodgeSide = -this._dodgeSide;
                 this._dodge = 0.7;
               }
               this._planLeg();
-            }
+            } else this._stuckTimes = 0;
             this._stuck = 0;
             this._lastPos.copy(this.position);
           }
@@ -335,7 +396,13 @@ export class Npc {
       stairsAt(this.world.stairZones, this.position.x, this.position.z, -Math.sin(moveYaw), -Math.cos(moveYaw), _stairs, 0.25);
       if (_stairs.on) speed = Math.min(speed, _stairs.dir > 0 ? NPC.stairUpSpeed : NPC.stairDownSpeed);
     }
-    if (moveYaw !== null) {
+    if (moveYaw !== null && this.route?.backward) {
+      // Backwards (away from the wall, still facing it).
+      this.body.yaw = moveYaw + Math.PI;
+      ctl.forward = -1;
+      ctl.moveScale = MathUtils.clamp(speed / this.body.cfg.walkSpeed, 0.1, 1);
+      this._turnTo(moveYaw + Math.PI, dt);
+    } else if (moveYaw !== null) {
       this.body.yaw = moveYaw;
       ctl.forward = 1;
       ctl.moveScale = MathUtils.clamp(speed / this.body.cfg.walkSpeed, 0.1, 1);
@@ -410,6 +477,14 @@ export class Npc {
  * Keeps the NPCs: spawning (named story characters and anonymous crowds), stepping them,
  * talk targets for the E key, friendly-fire hit tests and body separation.
  */
+// What a mission's person definition may set on the NPC (see NpcManager.spawn).
+const SPAWN_EXTRAS = ['prop', 'behavior', 'special', 'parent', 'sit', 'freezes', 'talkable', 'preset', 'sex'];
+const personExtras = (d) => {
+  const o = {};
+  for (const k of SPAWN_EXTRAS) if (d[k] !== undefined) o[k] = d[k];
+  return o;
+};
+
 export class NpcManager {
   constructor({ world, nav, rand = Math.random, onSpawn = null, onRemove = null }) {
     this.world = world;
@@ -422,10 +497,19 @@ export class NpcManager {
     this.byId = new Map();
     this._anon = 0;
     this.chats = []; // small-talk groups: { members, talker, listener, timer }
+    // What behaviors see (story/people.js): the dice, everyone, a way to speak up.
+    this.onBark = null;
+    this.chatty = false; // every calm civilian can be talked to (StoryDirector: the quiet part)
+    this._ctx = { rand, npcs: this, bark: (npc, what) => this.onBark?.(npc, what) };
   }
 
   get(id) {
     return this.byId.get(id) ?? null;
+  }
+
+  /** Everyone (for behaviors that look around). */
+  get people() {
+    return this.list;
   }
 
   clear() {
@@ -435,11 +519,22 @@ export class NpcManager {
     this.chats.length = 0;
   }
 
-  spawn({ id = null, kind, speaker = null, at, yaw = 0, pray = false }) {
+  /**
+   * @param {{ id?: string, kind: string, speaker?: string, at: number[], yaw?: number, pray?: boolean,
+   *   prop?: string, behavior?: string, special?: string, parent?: string, sit?: boolean,
+   *   freezes?: boolean, talkable?: boolean }} o the extras are set before the view is made
+   */
+  spawn({ id = null, kind, speaker = null, at, yaw = 0, pray = false, ...extra }) {
     if (id && this.byId.has(id)) this.remove(id);
     const npcId = id ?? `npc${++this._anon}`;
     const [x, y, z] = at;
     const npc = new Npc({ world: this.world, nav: this.nav, id: npcId, kind, speaker, position: new Vector3(x, y, z), yaw, pray, rand: this.rand });
+    for (const k of SPAWN_EXTRAS) if (extra[k] !== undefined && extra[k] !== null) npc[k] = extra[k];
+    if (extra.sex) npc.wantSex = extra.sex; // (the view casts a model of that sex)
+    if (npc.behavior || npc.sit) {
+      npc.home = { x, z, yaw };
+      npc.faceYaw = yaw;
+    }
     this.list.push(npc);
     this.byId.set(npcId, npc);
     if (this.onSpawn) this.onSpawn(npc);
@@ -486,7 +581,7 @@ export class NpcManager {
         if (d.route) {
           const [x, z] = d.route[0];
           const n = this.nav.nodeAt(x, z);
-          const npc = this.spawn({ kind: d.kind, at: [x, n >= 0 ? this.nav.y[n] : 0, z], yaw: 0 });
+          const npc = this.spawn({ ...personExtras(d), id: d.id, kind: d.kind, at: [x, n >= 0 ? this.nav.y[n] : 0, z], yaw: 0 });
           npc.setRoute({ points: d.route, speed: d.speed, loop: d.loop, pause: d.pause ?? 2 });
           // Stagger the loops so crossers don't move in lockstep.
           npc._pause = this.rand() * 6;
@@ -496,7 +591,7 @@ export class NpcManager {
             const n = this.nav.nodeAt(at[0], at[1]);
             at = [at[0], n >= 0 ? this.nav.y[n] : 0, at[1]];
           }
-          const npc = this.spawn({ kind: d.kind, at, yaw: d.yaw ?? 0, pray: !!d.pray });
+          const npc = this.spawn({ ...personExtras(d), id: d.id, kind: d.kind, at, yaw: d.yaw ?? 0, pray: !!d.pray });
           npc.freezes = !!d.freezes;
         }
       }
@@ -511,7 +606,7 @@ export class NpcManager {
       for (let i = 0; i < def.members; i++) {
         const row = Math.floor(i / 3);
         const col = (i % 3) - 1;
-        const m = this.spawn({ kind: 'tourist', at: [x + col * 1.1, guide.position.y, z + 1.6 + row * 1.2], yaw: 0 });
+        const m = this.spawn({ kind: def.memberKind ?? 'tourist', at: [x + col * 1.1, guide.position.y, z + 1.6 + row * 1.2], yaw: 0 });
         m.follow = { leader: guide, dx: col * 1.1 + (this.rand() - 0.5) * 0.4, dz: 1.8 + row * 1.2 + this.rand() * 0.4 };
       }
     }
@@ -520,7 +615,7 @@ export class NpcManager {
   /** Civilians still outside the shelter. */
   get civiliansOutside() {
     let n = 0;
-    for (const c of this.list) if (c.isCivilian && !c.sheltered) n++;
+    for (const c of this.list) if (c.evacuates && !c.sheltered) n++;
     return n;
   }
 
@@ -540,15 +635,44 @@ export class NpcManager {
   }
 
   /**
-   * Sirens: every civilian runs for the shelter spots (staggered reactions, which also
-   * spreads the path searches over a few seconds), bystanders freeze instead.
-   * @param {Vector3[]} spots
+   * Sirens: every civilian runs for the shelter spots, or out through the nearest exit when
+   * that is closer (staggered reactions, which also spreads the path searches over a few
+   * seconds); bystanders freeze instead; people on duty stay and wave the others on.
+   * @param {Vector3[]} spots @param {{ maxDelay?: number, exits?: number[][] }} o exits: [x, z]
    */
-  panic(spots, { maxDelay = 2.5 } = {}) {
+  panic(spots, { maxDelay = 2.5, exits = [] } = {}) {
     let k = 0;
+    let cx = 0;
+    let cz = 0;
+    for (const s of spots) {
+      cx += s.x / spots.length;
+      cz += s.z / spots.length;
+    }
     for (const c of this.list) {
       if (!c.isCivilian || c.sheltered || c.fleeing) continue;
-      const spot = spots[k++ % spots.length];
+      if (!c.evacuates) {
+        // On duty: stay and wave people on toward the shelter.
+        c.stopBehavior();
+        c.leaveChat();
+        c.act = { clip: 'wave', until: Infinity };
+        continue;
+      }
+      // The shelter, unless an exit is a good deal nearer.
+      let exit = null;
+      let best = Math.hypot(c.position.x - cx, c.position.z - cz) * 0.7;
+      for (const e of exits) {
+        const d = Math.hypot(c.position.x - e[0], c.position.z - e[1]);
+        if (d < best) {
+          best = d;
+          exit = e;
+        }
+      }
+      let spot = spots[k++ % spots.length];
+      if (exit && !c.freezes) {
+        const n = this.nav.nodeAt(exit[0], exit[1]);
+        spot = new Vector3(exit[0] + (this.rand() - 0.5) * 2, n >= 0 ? this.nav.y[n] : 0, exit[1] + (this.rand() - 0.5) * 2);
+        c.exitOnArrival = true;
+      }
       if (c.freezes) {
         c.shelterSpot = spot;
         c.freeze();
@@ -560,7 +684,7 @@ export class NpcManager {
   runAll(spots, { maxDelay = 1 } = {}) {
     let k = 0;
     for (const c of this.list) {
-      if (!c.isCivilian || c.sheltered) continue;
+      if (!c.evacuates || c.sheltered) continue;
       const spot = c.shelterSpot ?? spots[k % spots.length];
       k++;
       if (!c.fleeing && c._fleeDelay < 0) c.flee(spot, this.rand() * maxDelay);
@@ -574,7 +698,7 @@ export class NpcManager {
   emerge(spots, fast = false) {
     let k = 0;
     for (const c of this.list) {
-      if (!c.isCivilian) continue;
+      if (!c.evacuates) continue;
       const [x, z] = spots[k++ % spots.length];
       c.sheltered = false;
       c.fleeing = false;
@@ -596,11 +720,13 @@ export class NpcManager {
   /** Fast-forward: every civilian is already in the shelter. */
   shelterAll(spots) {
     let k = 0;
-    for (const c of this.list) if (c.isCivilian) c.shelterNow(spots[k++ % spots.length]);
+    for (const c of this.list) if (c.evacuates) c.shelterNow(spots[k++ % spots.length]);
   }
 
   update(dt, player, playerBody) {
-    for (const n of this.list) n.update(dt, player);
+    for (const n of this.list) n.update(dt, player, this._ctx);
+    // Out through an exit: gone.
+    for (let i = this.list.length - 1; i >= 0; i--) if (this.list[i].exited) this.remove(this.list[i].id);
     this.updateChats(dt);
     // Nobody walks through anybody (the player included). Two sleeping bodies can't have
     // moved into each other; a push wakes a sleeper (its physics settles it again).
@@ -667,7 +793,8 @@ export class NpcManager {
       } else g.timer *= 0.4;
       g.talker = next;
       g.listener = next ? M[(M.indexOf(next) + 1 + Math.floor(this.rand() * (M.length - 1))) % M.length] : null;
-      for (const m of M) m.chatting = m === next;
+      // (Someone talking with the player doesn't chat with the group meanwhile.)
+      for (const m of M) m.chatting = m === next && !(m.hold > 0);
     }
   }
 
@@ -676,8 +803,9 @@ export class NpcManager {
     let best = null;
     let bestAngle = NPC.talkAngle;
     for (const n of this.list) {
-      if (!n.talkable) continue;
-      _t.set(n.position.x, n.position.y + 1.4, n.position.z).sub(eye);
+      // Talkable: the story's (a mission flag), or anyone calm while `chatty` (the quiet part).
+      if (!n.talkable && !(this.chatty && n.evacuates && !n.fleeing && !n.sheltered && n._fleeDelay < 0 && !n.screening)) continue;
+      _t.set(n.position.x, n.position.y + n.scale * 1.4, n.position.z).sub(eye);
       const d = _t.length();
       if (d > NPC.talkRange) continue;
       const angle = Math.acos(Math.min(1, _t.dot(dir) / d));

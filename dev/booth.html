@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Recording booth</title>
+    <style>
+      :root { color-scheme: dark; }
+      body { margin: 0; background: #14171b; color: #e9e4d8; font: 15px system-ui, sans-serif; }
+      header { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; padding: 12px 16px; background: #1d2228; border-bottom: 1px solid #2c333b; }
+      header h1 { margin: 0; font-size: 18px; }
+      header input, header select { font: inherit; padding: 4px 8px; background: #11151a; color: inherit; border: 1px solid #39424c; border-radius: 4px; }
+      #meter { width: 120px; height: 8px; background: #2a3038; border-radius: 4px; overflow: hidden; }
+      #meter > div { height: 100%; width: 0; background: #6fcf7a; }
+      main { padding: 8px 16px 40px; }
+      h2 { margin: 22px 0 6px; font-size: 15px; color: #c9b78a; }
+      .row { display: grid; grid-template-columns: 150px 120px 1fr auto; gap: 10px; align-items: center; padding: 6px 8px; border-bottom: 1px solid #222830; }
+      .row.recorded .id::before { content: '● '; color: #6fcf7a; }
+      .row.recording { background: #3a1b1b; }
+      .id { direction: ltr; text-align: left; font: 12px ui-monospace, monospace; color: #9aa6b0; }
+      .speaker { font-weight: 700; }
+      .text { line-height: 1.5; }
+      .text[dir='ltr'] { text-align: left; }
+      button { font: inherit; padding: 4px 10px; background: #2b323a; color: inherit; border: 1px solid #3d4650; border-radius: 4px; cursor: pointer; }
+      button:hover { background: #36404a; }
+      button.rec { color: #ff8a80; }
+      .help { color: #9aa6b0; font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>אולפן הקלטות</h1>
+      <input id="filter" placeholder="סינון (מזהה, דובר, טקסט)" />
+      <select id="only">
+        <option value="all">הכול</option>
+        <option value="missing">רק מה שלא הוקלט</option>
+        <option value="done">רק מה שהוקלט</option>
+      </select>
+      <div id="meter"><div></div></div>
+      <span id="count" class="help"></span>
+      <span class="help">רווח: הקלטה / עצירה של השורה המסומנת · חצים: מעבר שורה · ההקלטות נשמרות ב־src/assets/voice/</span>
+    </header>
+    <main id="list">טוען…</main>
+    <script type="module" src="./booth.js"></script>
+  </body>
+</html>

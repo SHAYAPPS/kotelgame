@@ -2,7 +2,8 @@
 // http://localhost:5173/dev/characters.html). URL params: ids=a,b  clip=name  role=squad|enemy|civilian
 // cam=front|side|back|close|top|far|face|faces|x,y,z,tx,ty,tz  t=seconds (freeze at a time)  ik=0  lod=0|1|2
 // yaw=rad  move=m/s (walk forward, the camera following)
-// outfit=worshipper|worshipperWoman|tourist|guide (civilians)  deaths=1 (a different death each)
+// outfit=worshipper|worshipperWoman|tourist|guide|police|soldierVisitor...  deaths=1 (a different death each)
+// prop=cane|book|phone|can|box|snack (in the hand)  size=0.62 (a child)
 import {
   ACESFilmicToneMapping,
   BoxGeometry,
@@ -26,6 +27,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { CharacterLibrary } from '../src/characters/CharacterLibrary.js';
 import { dressCharacter } from '../src/characters/outfits.js';
+import { handProp } from '../src/characters/handProps.js';
 
 const params = new URLSearchParams(location.search);
 function seeded(seed) {
@@ -75,6 +77,14 @@ const models = ids.map((id, i) => {
   const m = lib.create(id, {});
   // outfit=none: the model as converted (no tints, hats or gear).
   if (params.get('outfit') !== 'none') dressCharacter(m, { variant: i, kind: params.get('outfit') ?? (m.info.role === 'civilian' ? 'tourist' : null), rand: seeded(i + 1) });
+  // prop=cane|book|phone|can|box|snack: in the hand. size=0.62: a child.
+  const prop = params.get('prop') ? handProp(params.get('prop')) : null;
+  if (prop?.bone) for (const o of [...prop.object.children]) m.attach(prop.bone, o);
+  else if (prop) {
+    m.root.add(prop.object);
+    m.cane = prop.object; // (stood under the hand each frame below)
+  }
+  if (params.get('size')) m.setSize(+params.get('size'), +params.get('size') < 0.8 ? 1.16 : 1);
   m.root.position.x = (i - (ids.length - 1) / 2) * spacing;
   scene.add(m.root);
   return m;
@@ -158,6 +168,14 @@ function frame() {
       for (const s of m.slots.values()) s.action.time = +freeze;
       m.update(0, null, true);
     } else m.update(dt, ctx, true);
+    if (m.cane) {
+      // (as story/NpcView.js does: the cane under the right hand, as tall as the hand is high)
+      const p = m.bone('RightHand').getWorldPosition(new Vector3());
+      m.root.worldToLocal(p);
+      m.cane.position.set(p.x, 0, p.z);
+      m.cane.userData.vertical.shaft.scale.y = Math.max(0.3, p.y - 0.03);
+      m.cane.userData.vertical.crook.position.y = Math.max(0.3, p.y - 0.03);
+    }
   }
   renderer.render(scene, camera);
   requestAnimationFrame(frame);

@@ -14,6 +14,7 @@
 // both CC0. The network has to allow those hosts. A set that can't be fetched keeps its
 // generated textures.
 import { mkdir, readFile, writeFile, access } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 import { unzipSync } from 'three/examples/jsm/libs/fflate.module.js';
 import { encodeKTX2 } from './ktx2.mjs';
@@ -254,11 +255,48 @@ async function fetchHDRI() {
   console.log(`hdri: ${info.name} (${id})`);
 }
 
+// The night sky (Mission 1 happens at night): a CC0 Poly Haven sky with the moon. Its 1k HDR
+// lights the scene (image-based light); its tonemapped JPG, cut to the upper half and resized,
+// is the visible sky (stars, the moon) the sky dome draws.
+const NIGHT_SKY = 'kloppenheim_02_puresky';
+
+async function fetchNight() {
+  const list = await polyHavenList('hdris');
+  const info = list[NIGHT_SKY];
+  if (!info) throw new Error(`night sky ${NIGHT_SKY} not on Poly Haven`);
+  const files = await getJSON(`https://api.polyhaven.com/files/${NIGHT_SKY}`);
+  const hdr = files.hdri?.['1k']?.hdr?.url;
+  const jpg = files.tonemapped?.url;
+  if (!hdr || !jpg) throw new Error(`night sky ${NIGHT_SKY}: files missing`);
+  await mkdir(HDRI, { recursive: true });
+  await writeFile(new URL('night_1k.hdr', HDRI), await getBuffer(hdr));
+  const full = await getBuffer(jpg);
+  const meta = await sharp(full).metadata();
+  await sharp(full, { limitInputPixels: false })
+    .extract({ left: 0, top: 0, width: meta.width, height: Math.floor(meta.height / 2) })
+    .resize(4096, 1024)
+    .jpeg({ quality: 88, mozjpeg: true })
+    .toFile(fileURLToPath(new URL('night_sky.jpg', HDRI)));
+  const manifestUrl = new URL('manifest.json', HDRI);
+  const manifest = JSON.parse(await readFile(manifestUrl, 'utf8').catch(() => '{}'));
+  manifest.night = {
+    file: 'night_1k.hdr`, `night_sky.jpg',
+    source: 'Poly Haven (the visible sky: its tonemapped JPG, upper half, 4096 x 1024)',
+    asset: NIGHT_SKY,
+    name: info.name,
+    authors: Object.keys(info.authors ?? {}),
+    url: `https://polyhaven.com/a/${NIGHT_SKY}`,
+    license: 'CC0',
+  };
+  await writeFile(manifestUrl, JSON.stringify(manifest, null, 2) + '\n');
+  console.log(`night sky: ${info.name} (${NIGHT_SKY})`);
+}
+
 // ---------------------------------------------------------------------------
 
 async function main() {
   const args = process.argv.slice(2);
-  const requests = (args.length ? args : [...Object.keys(TARGETS), 'hdri']).map((a) => {
+  const requests = (args.length ? args : [...Object.keys(TARGETS), 'hdri', 'night']).map((a) => {
     const [id, pick] = a.split('=');
     const [provider, asset] = pick ? pick.split(':') : [];
     return { id, provider, asset };
@@ -270,6 +308,10 @@ async function main() {
     try {
       if (id === 'hdri') {
         await fetchHDRI();
+        continue;
+      }
+      if (id === 'night') {
+        await fetchNight();
         continue;
       }
       const target = TARGETS[id];

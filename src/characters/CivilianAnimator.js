@@ -21,13 +21,18 @@ export class CivilianAnimator {
     this.meta = model.type.meta;
     this.hips = model.type.hipsRatio;
     const female = model.info.sex === 'f';
-    this.walk = female ? 'walk_female' : 'walk_male';
+    const old = kind === 'elder' || kind === 'grandma';
+    this.walk = old ? 'old_walk' : female ? 'walk_female' : 'walk_male';
+    this.walkBack = female ? 'walk_back_female' : 'walk_back_male';
     this.run = 'run_standard';
     this.idle =
-      kind === 'tourist' ? pick(['idle_lookaround', 'texting', 'idle_breathing', 'idle_lookaround'], rand)
-      : kind === 'civilian' ? pick([female ? 'talk_phone_female' : 'talk_phone_male', 'texting', 'idle_weightshift', 'idle_standing'], rand)
-      : kind === 'guide' ? 'idle_standing'
+      old ? 'old_idle'
+      : kind === 'kid' ? pick(['happy_idle', 'idle_lookaround', 'happy_idle'], rand)
+      : kind === 'tourist' || kind === 'secular' ? pick(['idle_lookaround', 'texting', 'idle_breathing', 'idle_lookaround'], rand)
+      : kind === 'civilian' || kind === 'teen' ? pick([female ? 'talk_phone_female' : 'talk_phone_male', 'texting', 'idle_weightshift', 'idle_standing'], rand)
+      : kind === 'guide' || kind === 'usher' || kind === 'guard' ? 'idle_standing'
       : pick(['idle_standing', 'idle_breathing', 'idle_weightshift'], rand);
+    this._act = null;
     // Davening: the standing sway (each worshiper at his own rate and phase, see below).
     this.pray = 'praying_swaying';
     this.shelterIdle = rand() < 0.6 ? 'idle_nervous' : 'terrified';
@@ -59,9 +64,17 @@ export class CivilianAnimator {
     const speed = this.speed;
     const move = MathUtils.smoothstep(speed, c.moveThreshold, 0.5);
 
-    // What to do standing still.
+    // What to do standing still: an act (a note into the wall, a salute...) first.
     let stand;
-    if (s.frozen) stand = 'cower_hiding';
+    const act = s.act ?? null;
+    if (act !== this._act) {
+      this._act = act;
+      // A one-shot plays from its start each time.
+      if (act && this.meta[act.clip] && !this.meta[act.clip].loop && m.slots.has(act.clip)) m.fade(act.clip, m.slots.get(act.clip).weight, 0, { restart: true });
+    }
+    if (act && !s.frozen && !s.fleeing) stand = act.clip;
+    else if (s.sit) stand = 'sit_reading';
+    else if (s.frozen) stand = 'cower_hiding';
     else if (s.panicking) stand = 'terrified';
     else if (s.sheltered) stand = this.shelterIdle;
     else if (s.pray) stand = this.pray;
@@ -85,8 +98,9 @@ export class CivilianAnimator {
       const weight = ((1 - move) * w) / sum;
       if (m.slots.has(k)) m.setWeight(k, weight);
       else {
-        // First time: desynchronized start (a crowd praying in unison looks wrong).
-        const once = k === 'cower_hiding';
+        // First time: desynchronized start (a crowd praying in unison looks wrong); one-shots
+        // (cowering, acts) from their start.
+        const once = k === 'cower_hiding' || this.meta[k]?.loop === false;
         m.fade(k, weight, 0, { loop: !once, timeScale: once ? 1 : this.rate, startAt: once ? 0 : this.offset % (this.meta[k]?.duration ?? 1) });
       }
     }
@@ -96,7 +110,7 @@ export class CivilianAnimator {
       const kRun = MathUtils.clamp((speed - 1.5) / 1.4, 0, this.maxRun);
       let stride = 0;
       for (let k = 0; k < 2; k++) {
-        const clip = k ? this.run : this.walk;
+        const clip = k ? this.run : s.backward ? this.walkBack : this.walk;
         const w = k ? kRun : 1 - kRun;
         if (w <= 0.001) continue;
         const meta = this.meta[clip];

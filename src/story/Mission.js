@@ -15,6 +15,7 @@
  *   { civiliansSheltered: true }       no civilian left outside the shelter
  *   { truckDestroyed: true } / { hasLauncher: true }   state of the final push
  *   { clear: [x, z], radius }          no hostile alive within radius of the point
+ *   { since: ['stepId', seconds] }     that long since the step was entered (a multi-step patrol)
  *   { all: [trigger, ...] } / { any: [trigger, ...] }
  *   (no until: the step ends immediately after its actions)
  *
@@ -28,7 +29,8 @@
  *   combat { squad: [ids], on, threat }, wave { wave: name in difficulty.js, callouts },
  *   sound { id, at }, crate { id, at: [x, z], yaw, launcher } (an ammo crate; `remove: true` takes it away),
  *   truck { delay }, arm { launcher }, slowmo { scale, time }, retreat { to: [spawn lists] },
- *   bounding { squad, to | off }, stats { hide }
+ *   bounding { squad, to | off }, stats { hide },
+ *   crowd { time | evacuate | visible }, screening { person | handover } (the security checkpoint)
  *
  * `jumpTo(i)` fast-forwards: it replays the state-setting actions of every earlier step
  * instantly (NPCs are placed where their routes end, timed/presentational actions are
@@ -45,6 +47,8 @@ export class Mission {
     this.ctx = ctx;
     this.index = -1;
     this.stepTime = 0;
+    this.time = 0; // mission clock (s)
+    this.entered = new Map(); // step id -> mission time it was entered (`since` triggers)
     this.events = new Set();
     this.checkpointIndex = 0;
     this.finished = false;
@@ -88,7 +92,9 @@ export class Mission {
     this.failed = null;
     this.finished = false;
     if (this.ctx.reset) this.ctx.reset();
+    this.entered.clear();
     for (let k = 0; k < i; k++) {
+      this.entered.set(this.steps[k].id, this.time);
       for (const a of this.steps[k].do ?? []) this.apply(a, true);
     }
     this._enter(i);
@@ -99,12 +105,14 @@ export class Mission {
     this.stepTime = 0;
     this.events.clear();
     const step = this.steps[i];
+    this.entered.set(step.id, this.time);
     for (const a of step.do ?? []) this.apply(a, false);
   }
 
   update(dt) {
     if (this.finished || this.failed || this.index < 0) return;
     this.stepTime += dt;
+    this.time += dt;
     // Advance through as many steps as are already satisfied (actions-only steps chain).
     for (let guard = 0; guard < 16; guard++) {
       const step = this.step;
@@ -135,6 +143,7 @@ export class Mission {
     if (t.truckDestroyed) return c.truckDestroyed();
     if (t.hasLauncher) return c.hasLauncher();
     if (t.clear) return c.hostilesNear(t.clear[0], t.clear[1], t.radius ?? 20) === 0;
+    if (t.since) return this.time - (this.entered.get(t.since[0]) ?? this.time) >= t.since[1];
     throw new Error(`Unknown trigger ${JSON.stringify(t)}`);
   }
 
@@ -179,6 +188,10 @@ export class Mission {
         return fast ? undefined : c.wave(a);
       case 'ambience':
         return c.ambience(a);
+      case 'crowd':
+        return c.crowd?.(a, fast);
+      case 'screening':
+        return c.screening?.(a, fast);
       case 'music':
         // A state (the mood carries over a fast-forward / checkpoint restart).
         return c.music?.(a.state ?? null);

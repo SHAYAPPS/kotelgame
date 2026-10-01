@@ -147,6 +147,7 @@ export class CharacterModel {
     this.cloth = this.info.cloth?.chains?.length ? new ClothSim(this, this.info.cloth, CHARACTER.cloth) : null;
 
     this.rifle = null;
+    this.size = 1; // setSize()
     this.gear = []; // attachments: { object, shadow, hideBeyond }
     this._zoneBones = ['Head', 'LeftFoot', 'RightFoot'].map((n) => this.bone(n)).filter(Boolean);
     this._layer = 0;
@@ -154,6 +155,13 @@ export class CharacterModel {
 
   bone(name) {
     return this.bones.get(name) ?? null;
+  }
+
+  /** The person's size: a child is smaller, the head a little bigger for the body. */
+  setSize(scale, headScale = 1) {
+    this.size = scale;
+    this.body.scale.setScalar(scale);
+    this.bone('Head')?.scale.setScalar(headScale);
   }
 
   setLod(i) {
@@ -431,7 +439,7 @@ export class CharacterModel {
     const lf = this.bone('LeftFoot');
     const rf = this.bone('RightFoot');
     if (!hips || !lf || !rf) return;
-    const ankle = this.type.ankle;
+    const ankle = this.type.ankle * this.size;
     const ground = _w.setFromMatrixPosition(this.body.matrixWorld).y; // the animation's floor
     const F = this._feetState;
     const k = 1 - Math.exp(-16 * dt);

@@ -1,4 +1,4 @@
-import { blackHat, hatFit, headband, headbandFit, headscarf, kippah, kippahFit, KIPPAH, scarfFit, vest, vestFit } from './attachments.js';
+import { beret, blackHat, hatFit, headband, headbandFit, headscarf, kippah, kippahFit, KIPPAH, scarfFit, vest, vestFit } from './attachments.js';
 import { PART } from './config.js';
 import { KNITS, makeOutfit } from './wardrobe.js';
 
@@ -21,6 +21,14 @@ export function dressCharacter(model, { kind = null, variant = 0, rand = Math.ra
   const id = model.type.id;
   const head = info.head;
   if (info.role === 'squad') {
+    // A soldier visiting the Kotel in uniform: no vest, no rifle.
+    if (kind === 'soldierVisitor') return;
+    // Border Police: a beret, the rifle slung (no tint: this model is one part, face included).
+    if (kind === 'police') {
+      model.addRifle('m4');
+      if (head) model.attach('Head', beret(head, 0x1d3324, { fit: model.type.fitted('hat', (pts) => hatFit(head, pts)) }), { hideBeyond: 60 });
+      return;
+    }
     model.addRifle('m4');
     if (info.vest) model.attach('Spine2', vest(model.type.fitted('vest', (pts, t) => vestFit(t.torsoSurface()))), { shadow: true });
     return;
@@ -44,6 +52,7 @@ export function applyOutfit(model, o) {
   for (const [part, c] of Object.entries(o.tints)) model.tints[+part].set(c[0], c[1], c[2], c[3] ?? 1);
   for (const [part, f] of Object.entries(o.flat)) model.flat[+part] = f;
   for (const [part, m] of Object.entries(o.inflate ?? {})) model.setInflate(+part, m);
+  for (const [part, h] of Object.entries(o.hide ?? {})) model.hide[+part] = h;
   const head = model.info.head;
   if (!head || !o.head) return;
   // Head wear sits on the hair: fitted to each model's real head surface (headFit.js).
@@ -73,6 +82,7 @@ export function prepareFits(type) {
   const head = info.head;
   if (info.role === 'squad') {
     if (info.vest) type.fitted('vest', (pts, t) => vestFit(t.torsoSurface()));
+    if (head && info.vest) type.fitted('hat', (pts) => hatFit(head, pts)); // the police beret
     return;
   }
   if (!head) return;

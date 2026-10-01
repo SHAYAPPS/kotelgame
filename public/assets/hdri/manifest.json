@@ -1,0 +1,14 @@
+{
+  "night": {
+    "file": "night_1k.hdr`, `night_sky.jpg",
+    "source": "Poly Haven (the visible sky: its tonemapped JPG, upper half, 4096 x 1024)",
+    "asset": "kloppenheim_02_puresky",
+    "name": "Kloppenheim 02 (Pure Sky)",
+    "authors": [
+      "Greg Zaal",
+      "Jarod Guest"
+    ],
+    "url": "https://polyhaven.com/a/kloppenheim_02_puresky",
+    "license": "CC0"
+  }
+}

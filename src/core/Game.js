@@ -43,6 +43,7 @@ import { Hud, num } from '../ui/Hud.js';
 import { Screenshot } from '../ui/Screenshot.js';
 import { StoryHud } from '../ui/StoryHud.js';
 import { StoryDirector } from '../story/StoryDirector.js';
+import { viewFx } from '../story/NpcView.js';
 import { MISSION1 } from '../story/mission1.js';
 import { VoicePlayer, voiceFiles } from '../story/Voice.js';
 import { chapterOf, clearSave, readSave, writeSave } from '../story/SaveGame.js';
@@ -53,7 +54,7 @@ import { Shell } from '../ui/menu/Shell.js';
 const FIXED_DT = 1 / 120;
 const MAX_FRAME_DT = 0.1; // after a hitch, slow down instead of spiraling
 // Recorded dialogue, if any: src/assets/voice/<lineId>.ogg|mp3|wav|m4a (see story/Voice.js).
-const VOICE_FILES = voiceFiles(import.meta.glob('../assets/voice/*.{ogg,mp3,wav,m4a}', { eager: true, query: '?url', import: 'default' }));
+const VOICE_FILES = voiceFiles(import.meta.glob('../assets/voice/*.{ogg,mp3,wav,m4a,webm}', { eager: true, query: '?url', import: 'default' }));
 const DEATH_RESTART = 3.2; // seconds from death to restart
 const _up = new Vector3(0, 1, 0);
 const _o = new Vector3();
@@ -65,7 +66,7 @@ const _pv = new Matrix4();
 const _eq = new Quaternion();
 const MENU_FOV = 50; // the main menu's cinematic camera
 // Loading: each part's share of the progress bar.
-const LOAD_WEIGHTS = { level: 0.1, nav: 0.08, textures: 0.17, characters: 0.3, fits: 0.06, weapons: 0.09, sounds: 0.2 };
+const LOAD_WEIGHTS = { level: 0.08, nav: 0.07, textures: 0.14, characters: 0.25, fits: 0.05, crowd: 0.12, weapons: 0.08, sounds: 0.21 };
 const nextFrame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
 export class Game {
@@ -145,6 +146,9 @@ export class Game {
     this.level = level;
     this.scene.add(level.root);
     this.environment = new Environment(this.scene, renderer, this.camera, level.environment ?? {}, this.quality);
+    // The night's floodlights, lamps and screens, and their glowing fixtures.
+    for (const l of level.night?.lights ?? []) this.environment.lights.add(l);
+    for (const g of level.night?.glows ?? []) this.environment.lights.addGlow(g);
     // Stone textures stream in after the level shows (KTX2).
     this.textures = new TextureLibrary(renderer);
     this.textures.anisotropy = this.quality.anisotropy;
@@ -163,11 +167,21 @@ export class Game {
           characters.library = this.characters;
           return this.characters.load((done, total) => this._loaded('characters', done / total));
         })
-        .then(() => this.characters.prepareFits((done, total) => this._loaded('fits', done / total))),
+        .then(() => this.characters.prepareFits((done, total) => this._loaded('fits', done / total)))
+        // The crowd: its animations baked, its people placed (needs the story: after the world).
+        .then(async () => {
+          await this._storyReady;
+          await this.story?.buildCrowd(this.characters, this.scene, (done, total) => this._loaded('crowd', done / total));
+          this._loaded('crowd', 1);
+        }),
     );
+    let storyReady;
+    this._storyReady = new Promise((r) => (storyReady = r));
     this._loaded('level', 1);
     await nextFrame();
     this.flashes = new FlashLights(this.scene, this.quality.flashLights);
+    // A phone's photo flash in the crowd (a brief cold light on the people in front of it).
+    viewFx.flash = (p) => this.flashes.flash(p, { color: 0xdfe8ff, intensity: 16, distance: 5, duration: 0.07 });
     this._blastHit = { point: new Vector3(), normal: new Vector3(), distance: 0 };
     this.collision = new CollisionWorld().build(level.collisionRoots);
     this.collision.stairZones = level.stairZones ?? []; // flights (src/world/stairs.js)
@@ -315,6 +329,7 @@ export class Game {
           grenades: this.thrower,
           launcher: this.launcher,
           voices: new VoicePlayer(this.audio, VOICE_FILES),
+          seats: level.seats ?? [],
           stats: () => ({
             shots: this.stats.shots,
             hits: this.stats.hits,
@@ -322,6 +337,7 @@ export class Game {
             headshots: this.enemies.headshots - this.stats.headshots0,
           }),
         });
+    storyReady();
     this.storyHud.setVisible(false);
     this.storyHud.subtitles = this.settings.subtitles;
     if (this.story) {
@@ -602,6 +618,10 @@ export class Game {
     if (inMission) this.view.render(this.active ? this.accumulator / FIXED_DT : 1);
     else this._menuCamera(dt);
     this.environment.update(this.camera, dt);
+    // Flashes and explosions hit harder in the dark.
+    const night = this.environment.night;
+    this.flashes.boost = 1 + 1.4 * night;
+    this.post.setNight?.(night);
     this.flashes.update(dt);
     const L = this.weapon === 'launcher';
     // In the sun or in shade: the weapon's light follows (it has no shadow map of its own).
@@ -619,7 +639,8 @@ export class Game {
       loaded: this.launcher.state.ammo > 0,
       sprinting: this.player.sprinting,
       lowered: this.rifle.lowered || this.thrower.aiming || this.thrower.busy > 0,
-      stow: this._switchTime > 0 ? 1 - Math.abs((2 * this._switchTime) / sw - 1) : 0,
+      // Slung on the back (the checkpoint): out of view.
+      stow: this.rifle.mode === 'slung' ? 1 : this._switchTime > 0 ? 1 - Math.abs((2 * this._switchTime) / sw - 1) : 0,
       check: this.rifle.checkProgress,
       charge: this.rifle.chargeProgress,
       lookX: m.x,
@@ -683,9 +704,19 @@ export class Game {
     const dead = this.health.dead;
     const info = this._playerInfo;
     info.firing = false;
+    // A respawn / checkpoint / jump since the last step: look the way its spawn faces (the
+    // player's update clears the flag, so the camera hears about it here).
+    const teleported = this.player.teleported;
+    if (teleported) {
+      this.view.yaw = this.player.yaw;
+      this.view.pitch = 0;
+    }
     this.player.yaw = this.view.yaw;
     this.player.update(dt, dead ? this._noControls() : this._readControls());
+    // Nobody walks through the crowd.
+    this.story?.crowd?.field.pushOut(this.player.position, this.player.cfg.radius);
     this.view.fixedUpdate(dt);
+    if (teleported) this.view.snap();
     this._footsteps();
     this._updateWeapons(dt, dead);
     this.thrower.enabled = !this.rifle.lowered && !this.rifle.state.reloading && !this.launcher.state.reloading && this._switchTime === 0;
@@ -695,6 +726,7 @@ export class Game {
     if (this.story && !dead && this.input.consumeAny(this.bindings.codes('interact'))) {
       this.story.interact(this.view.eye, this.view.getAimDirection(this._forward));
     }
+    if (this.story && !dead && this.input.consumeAny(this.bindings.codes('deny'))) this.story.deny(this.view.eye, this.view.getAimDirection(this._forward));
 
     const p = this.player;
     info.speed = p.horizontalSpeed;

@@ -146,6 +146,29 @@ export class PostFX {
     this.suppression.enabled = false;
     composer.addPass(this.suppression);
     this.setSize(size.x, size.y);
+    // The new passes take the current night look.
+    const n = this._night;
+    this._night = undefined;
+    if (n !== undefined) this.setNight(n);
+  }
+
+  /**
+   * Night (0..1): a stronger glow around lights and flashes, the grade a little cooler in the
+   * shadows and warmer in the light (sodium lamps against the night).
+   */
+  setNight(n) {
+    if (n === this._night) return;
+    this._night = n;
+    if (this.bloom) {
+      this.bloom.strength = 0.35 + 0.25 * n;
+      this.bloom.threshold = 3.2 - 1.6 * n;
+    }
+    const u = this.grade?.uniforms;
+    if (u) {
+      u.warm.value = 0.035 + 0.025 * n;
+      u.saturation.value = 0.93 - 0.05 * n;
+      u.vignette.value = 0.22 + 0.1 * n;
+    }
   }
 
   /** 0..1: how blurred the edges are (suppression, from the audio's state). */

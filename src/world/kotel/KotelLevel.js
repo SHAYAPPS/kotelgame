@@ -7,6 +7,7 @@ import { mulberry32, randRange } from './random.js';
 import { buildStoneWall } from './wallStones.js';
 import { buildSurroundings } from './kotelSurroundings.js';
 import { buildFacades } from './facades.js';
+import { buildNight } from './night.js';
 
 const HALF_PI = Math.PI / 2;
 // Prop yaws: a seated/standing prop faces local -Z, its back is +Z.
@@ -299,13 +300,22 @@ export function createKotelLevel() {
   buildPrayerArea(b, props, rand);
   buildWilsonsArch(b, props);
   const extraProps = buildSurroundings({ root, b, m, props, rand, groundY });
-  buildFacades(root, m, groundY, mulberry32(KOTEL.wall.seed + 9));
+  const facades = buildFacades(root, m, groundY, mulberry32(KOTEL.wall.seed + 9));
+  // The night: floodlights, lamps, screens (lights for world/NightLights.js, glowing fixtures).
+  const night = buildNight(root, m, groundY);
+  extraProps.push(...night.props);
 
   // A wide collision floor under everything (the batches are the visible floors).
   collisionOnly.add(new Mesh(new PlaneGeometry(400, 400).rotateX(-HALF_PI).translate(-60, -0.6, 20)));
 
   b.build(root);
   for (const p of [...Object.values(props), ...extraProps]) p.build(root, collisionOnly);
+
+  // Where people can sit (the plastic chairs): position and the way the seat faces.
+  const seats = props.chair.placements.map((mx) => {
+    const e = mx.elements;
+    return { x: e[12], y: e[13], z: e[14], yaw: Math.atan2(e[8], e[10]) };
+  });
 
   const s = KOTEL.spawn;
   const spawnY = groundY(s.x, s.z);
@@ -316,6 +326,8 @@ export function createKotelLevel() {
     spawn: { position: new Vector3(s.x, spawnY, s.z), yaw },
     environment: KOTEL.environment,
     menu: KOTEL.menu, // the main menu's background (time of day, camera shots)
+    seats,
+    night: { lights: night.lights, glows: [...night.glows, ...(facades.glows ?? [])] },
     navBounds: KOTEL.ai.navBounds,
     stairZones: stairZones(),
     // Big flat surfaces that throw a gunshot back (WeaponAudio's slap-back echoes): the

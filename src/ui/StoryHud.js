@@ -68,7 +68,19 @@ export class StoryHud {
     this.lowAmmo = el('div', 'low-ammo', STORY_UI.lowAmmo);
     this.lowAmmo.hidden = true;
 
-    this.root.append(this.objective, this.marker, this.subtitle, this.hint, this.prompt, this.checkpointToast, this.lowAmmo);
+    // The security checkpoint up close: the X-ray screen, a bag's contents, the hand detector.
+    this.screen = el('div', 'screen-panel');
+    this.screenTitle = el('div', 'screen-title');
+    this.screenCanvas = el('canvas', 'screen-canvas');
+    this.screenCanvas.width = 320;
+    this.screenCanvas.height = 208;
+    this.screenList = el('ul', 'screen-list');
+    this.screenNote = el('div', 'screen-note');
+    this.screen.append(this.screenTitle, this.screenCanvas, this.screenList, this.screenNote);
+    this.screen.hidden = true;
+    this._screenKey = null;
+
+    this.root.append(this.objective, this.marker, this.subtitle, this.hint, this.prompt, this.checkpointToast, this.lowAmmo, this.screen);
     this.statsPanel = el('div', 'mission-stats');
     this.statsPanel.dir = 'rtl';
     this.statsPanel.hidden = true;
@@ -120,15 +132,37 @@ export class StoryHud {
     this.hint.append(keys, el('span', null, h.text));
   }
 
-  /** "[E] <label>" near the crosshair, or hidden with null. */
+  /**
+   * "[E] <label>" near the crosshair, or hidden with null. Several actions: [[key, label], ...]
+   * (the checkpoint: E and F).
+   */
   setPrompt(label) {
-    if (label === this._promptLabel) return;
-    this._promptLabel = label;
+    const key = Array.isArray(label) ? label.map((a) => a.join(':')).join('|') : label;
+    if (key === this._promptLabel) return;
+    this._promptLabel = key;
     this.prompt.hidden = !label;
     if (!label) return;
     this.prompt.replaceChildren();
-    const k = el('kbd', null, 'E');
-    this.prompt.append(k, el('span', null, label));
+    for (const [k, text] of Array.isArray(label) ? label : [['E', label]]) this.prompt.append(el('kbd', null, k), el('span', null, text));
+  }
+
+  /**
+   * The checkpoint's close-up (null hides it).
+   * @param {{ title: string, image?: HTMLCanvasElement, items?: { text: string, alert?: boolean }[], note?: string } | null} s
+   */
+  setScreen(s) {
+    const key = s ? `${s.title}|${s.image ? 'img' : ''}|${(s.items ?? []).map((i) => i.text + (i.alert ? '!' : '')).join(',')}|${s.note ?? ''}|${s.version ?? 0}` : null;
+    if (key === this._screenKey) return;
+    this._screenKey = key;
+    this.screen.hidden = !s;
+    if (!s) return;
+    this.screenTitle.textContent = s.title;
+    this.screenCanvas.hidden = !s.image;
+    if (s.image) this.screenCanvas.getContext('2d').drawImage(s.image, 0, 0, this.screenCanvas.width, this.screenCanvas.height);
+    this.screenList.replaceChildren(...(s.items ?? []).map((i) => el('li', i.alert ? 'alert' : null, i.text)));
+    this.screenList.hidden = !s.items?.length;
+    this.screenNote.textContent = s.note ?? '';
+    this.screenNote.hidden = !s.note;
   }
 
   /** @param {{ id, name, color, radio, text } | null} line (none at all with subtitles off) */

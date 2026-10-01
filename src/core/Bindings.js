@@ -16,6 +16,7 @@ export const ACTIONS = [
   { id: 'reload', key: 'KeyR' },
   { id: 'grenade', key: 'KeyG' },
   { id: 'interact', key: 'KeyE' },
+  { id: 'deny', key: 'KeyF' }, // stop / confiscate (the security checkpoint)
   { id: 'weapon1', key: 'Digit1' },
   { id: 'weapon2', key: 'Digit2' },
 ];

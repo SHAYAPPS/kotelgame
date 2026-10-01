@@ -2,11 +2,16 @@ import { Vector3 } from 'three';
 import { AmbientAudio } from './AmbientAudio.js';
 import { Dialogue } from './Dialogue.js';
 import { Mission } from './Mission.js';
-import { NpcManager } from './Npc.js';
+import { NPC, NpcManager } from './Npc.js';
 import { NpcView } from './NpcView.js';
-import { COUNTERS, SPEAKERS, STORY_UI } from './text.he.js';
+import { COUNTERS, LINES, SCREEN_ITEMS, SPEAKERS, STORY_UI } from './text.he.js';
+import { Checkpoint } from './Checkpoint.js';
+import { CheckpointView } from './CheckpointView.js';
+import { exchangeFor, greetingFor, react, speakerOf } from './people.js';
+import { ACT } from './crowd/CrowdField.js';
 import { AmmoCrate } from './AmmoCrate.js';
 import { DIFFICULTY, attackerConfig, expandWave, truckConfig } from './difficulty.js';
+import { CrowdDirector } from './crowd/CrowdDirector.js';
 
 const _t = new Vector3();
 const KILL_LINES = { yonatan: 'down_1', noam: 'down_2', cmd: 'down_3' };
@@ -26,7 +31,7 @@ export class StoryDirector {
    *   hud: StoryHud; player: PlayerController; enemies: EnemyManager;
    *   sky: SkyFx (interceptions, optional); view: PlayerCamera (camera shake, optional)
    */
-  constructor({ script, scene, world, nav, player, rifle, enemies, audio, hud, sky = null, view = null, grenades = null, launcher = null, stats = null, difficulty = DIFFICULTY, voices = null }) {
+  constructor({ script, scene, world, nav, player, rifle, enemies, audio, hud, sky = null, view = null, grenades = null, launcher = null, stats = null, difficulty = DIFFICULTY, voices = null, seats = [] }) {
     this.script = script;
     this.scene = scene;
     this.nav = nav;
@@ -53,7 +58,7 @@ export class StoryDirector {
     /** @type {Map<string, AmmoCrate>} */
     this.crates = new Map();
     this._lastGrenadeShout = -Infinity;
-    this.ambient = new AmbientAudio(audio);
+    this.ambient = new AmbientAudio(audio, voices);
     this.shelterSpots = (script.shelter?.spots ?? []).map(([x, z]) => {
       const n = nav.nodeAt(x, z);
       return new Vector3(x, n >= 0 ? nav.y[n] : 0, z);
@@ -91,19 +96,46 @@ export class StoryDirector {
         this.views.delete(npc);
       },
     });
+    // The quiet part (before the sirens): people greet the player, glance at him, make way,
+    // and anyone calm can be talked to (E).
+    this.calm = true;
+    this._greetWait = 0;
+    this._talk = null; // a conversation with a passer-by: { npcs, last }
+    this._reactCtx = { rand: Math.random };
+    this.npcs.onBark = (npc, what) => {
+      if (what !== 'collector' || !this.calm || !this.dialogue.idle || this._talk) return;
+      if (npc.position.distanceTo(this.player.position) > 10) return;
+      this.dialogue.bark(Math.random() < 0.5 ? 'collector_ask_1' : 'collector_ask_2', { who: npc.id });
+    };
     this.dialogue = new Dialogue({
       onLine: (line) => {
         // A recording if the line has one (the subtitle stays up as long as it plays), else
         // the generated radio voice for radio lines. The speaker's mouth follows either.
-        const npc = line.radio ? null : this.npcs.list.find((n) => n.speaker === line.speaker) ?? null;
+        const npc = line.radio ? null : (line.who ? this.npcs.get(line.who) : null) ?? this.npcs.list.find((n) => n.speaker === line.speaker) ?? null;
         const rec = this.voices?.play(line.id, npc ? npc.position : null, { radio: line.radio }) ?? null;
         if (rec) line.duration = Math.max(line.duration, rec.duration + 0.3);
         else if (line.radio) this.ambient.radioLine(line.duration);
         // Dialogue gets priority: the rest of the mix dips while the line plays.
         this.audio.speaking?.(line.duration);
         if (npc) npc.speech = { text: line.text, duration: line.duration, level: rec ? rec.level : null, to: line.to };
+        // A conversation's extras: the speaker's gesture (a salute, a blessing), a photo's flash.
+        const fx = line.item;
+        if (npc && fx?.act) npc.act = { clip: fx.act, until: npc.time + line.duration + 0.3 };
+        if (npc && fx?.flash) this._after(line.duration * 0.85, () => (npc.flash = 1));
       },
     });
+
+    // The security checkpoint (task 1): the queue, the X-ray, the gate (Checkpoint.js).
+    this.checkpoint = null;
+    this.checkpointView = null;
+    if (script.screening) {
+      const cp = new Checkpoint({ npcs: this.npcs, people: script.screening.people, extras: script.screening.extras });
+      cp.onLines = (items) => this.dialogue.play(items);
+      cp.onSound = (id) => this.ambient.play({ beep: 'gateBeep', clear: 'gateClear', wand: 'wand', belt: 'belt', open: 'zip' }[id] ?? id);
+      cp.onDone = () => this.mission.notify('action:screened');
+      this.checkpoint = cp;
+      this.checkpointView = new CheckpointView(scene);
+    }
 
     this.objectiveText = null;
     this.objectiveTarget = null; // [x, y, z] | { npc }
@@ -117,6 +149,9 @@ export class StoryDirector {
     this._lastPos = new Vector3();
     this._targetPos = new Vector3();
 
+    // The crowd around the story's own people (built with the characters: buildCrowd()).
+    this.crowd = script.crowd ? new CrowdDirector({ nav, config: script.crowd, seats, avoid: this._crowdAvoid() }) : null;
+
     this.mission = new Mission(script, this._context());
     rifle.onMagCheck = () => this.mission.notify('action:magCheck');
   }
@@ -124,6 +159,12 @@ export class StoryDirector {
   _context() {
     return {
       reset: () => {
+        this.calm = true;
+        this._talk = null;
+        this.checkpoint?.reset();
+        // The crowd back to 21:00 (a step's `crowd` action fast-forwards its clock).
+        this.crowd?.setTime(0);
+        this.crowd?.setVisible(true);
         for (const n of this.npcs.list) if (n.brain) this.enemies.removeFriendly?.(n.brain);
         this.enemies.clearHostiles?.();
         this.truck = null;
@@ -203,6 +244,24 @@ export class StoryDirector {
       crate: (a) => this._crate(a),
       ambience: (a) => this.ambient.set(a),
       music: (state) => this.audio.setMusic?.(state),
+      // The crowd: { time } its clock (s since 21:00: arrivals), { evacuate } the run for the
+      // shelters and exits (fast-forwarded: gone), { visible }.
+      crowd: (a, fast) => {
+        const c = this.crowd;
+        if (!c) return;
+        // The clock only jumps when fast-forwarding to a later step (in play it just runs).
+        if (a.time !== undefined && (fast || this._jumping || a.force)) c.setTime(a.time);
+        if (a.evacuate) c.evacuate(fast);
+        if (a.visible !== undefined) c.setVisible(a.visible);
+      },
+      // The checkpoint: { begin } the queue, { person } one person's turn, { handover } the guard.
+      screening: (a, fast) => {
+        const cp = this.checkpoint;
+        if (!cp) return;
+        if (a.begin) cp.begin(fast);
+        if (a.person) cp.screen(a.person, fast);
+        if (a.handover) cp.handover();
+      },
       fade: (to, time) => {
         this.fadeTarget = to;
         this.fadeSpeed = 1 / Math.max(0.05, time);
@@ -267,7 +326,8 @@ export class StoryDirector {
 
   _civilians(what, fast) {
     const spots = this.shelterSpots;
-    if (what === 'panic') this.npcs.panic(spots);
+    if (what === 'panic' || what === 'runAll') this.calm = false;
+    if (what === 'panic') this.npcs.panic(spots, { exits: this.script.shelter?.exits ?? [] });
     else if (what === 'emerge') this.npcs.emerge(this.script.shelter.emerge, fast);
     else if (what === 'runAll') {
       if (fast) this.npcs.shelterAll(spots);
@@ -543,13 +603,35 @@ export class StoryDirector {
     this.player.respawn();
   }
 
+  /** Where the story's own people stand (the crowd keeps clear): [x, z, radius]. */
+  _crowdAvoid() {
+    const out = [];
+    for (const g of Object.values(this.script.groups ?? {})) {
+      if (Array.isArray(g)) {
+        for (const d of g) if (d.at) out.push([d.at[0], d.at.length === 3 ? d.at[2] : d.at[1], 0.95]);
+      } else if (g.chats) {
+        for (const c of g.chats) out.push([c.at[0], c.at[1], 2]);
+      }
+    }
+    return out;
+  }
+
+  /** Sets up the crowd once the characters are loaded (the loading screen). */
+  async buildCrowd(library, scene, onProgress) {
+    if (!this.crowd || this.crowd.renderer) return;
+    const { CrowdRenderer } = await import('../characters/CrowdRenderer.js');
+    await this.crowd.build(new CrowdRenderer(scene, library), onProgress);
+  }
+
   /** Dev tool / checkpoint restart: jump to a step with the world set up for it. */
   jumpTo(index) {
     this.started = true;
     // Clear the screen first: the step being entered may start its own fade.
     this.fade = 0;
     this.fadeTarget = 0;
+    this._jumping = true; // (the step jumped to sets the world's state too: the crowd's clock)
     this.mission.jumpTo(index);
+    this._jumping = false;
     this.player.respawn();
   }
 
@@ -582,6 +664,7 @@ export class StoryDirector {
     this.fadeTarget = 0;
     this.timeScale = 1;
     this.hud.hideStats?.();
+    this.crowd?.setVisible(false); // the empty plaza at dawn: a few at the wall
     for (const g of groups) if (this.script.groups?.[g]) this.npcs.populate(this.script.groups[g]);
     this.ambient.set({ crowd: 0.12, birds: 1, siren: 0, panic: false, city: 0.55 });
   }
@@ -599,12 +682,28 @@ export class StoryDirector {
     this.hud.showFailed(this.failed);
   }
 
+  /** F pressed: at the checkpoint, stop someone / confiscate. */
+  deny(eye = null, dir = null) {
+    if (!this.checkpoint?.active) return;
+    if (eye && dir) this.checkpoint.look(eye, dir);
+    this.checkpoint.deny();
+  }
+
   /** E pressed. */
   interact(eye, dir) {
+    if (this.checkpoint?.active) {
+      this.checkpoint.look(eye, dir);
+      if (this.checkpoint.use()) return;
+    }
     const crate = this.crateInReach(eye, dir);
     if (crate) return this.resupply(crate);
     const npc = this.npcs.talkTarget(eye, dir);
-    if (!npc) return;
+    if (!npc) {
+      // Someone in the crowd: they step in as a full character for the talk.
+      const m = this._crowdTarget(eye, dir);
+      if (m) this._chat(this._promote(m));
+      return;
+    }
     if (npc.frozen) {
       // Snap a frozen civilian out of it: off to the shelter.
       npc.flee(npc.shelterSpot ?? this.shelterSpots[0], 0.25);
@@ -613,8 +712,68 @@ export class StoryDirector {
       this.mission.notify('action:sendCivilian');
       return;
     }
+    if (!npc.talkable && this.calm && npc.evacuates) return this._chat(npc);
     npc.faceTarget = 'player';
     this.mission.notify(`talk:${npc.id}`);
+  }
+
+  /** E on someone calm: a short exchange that fits who they are, or their special one. */
+  _chat(npc) {
+    if (this._talk || !npc) return;
+    const items = exchangeFor(npc).map((l) => ({ ...l, who: LINES[l.id].speaker === 'me' ? null : l.by === 'parent' ? npc.parent : npc.id }));
+    const people = [npc];
+    for (const it of items) {
+      const o = it.who && it.who !== npc.id ? this.npcs.get(it.who) : null;
+      if (o && !people.includes(o)) people.push(o);
+    }
+    for (const n of people) {
+      n.hold = Infinity;
+      n._prayAfter = n.pray;
+      n.pray = false;
+    }
+    this.dialogue.play(items);
+    this._talk = { npcs: people, last: items[items.length - 1] };
+    this.mission.notify(`talk:${npc.id}`);
+    this.mission.notify('action:chat');
+  }
+
+  /** The crowd member the player looks at, within talking reach, or null. */
+  _crowdTarget(eye, dir) {
+    const c = this.crowd;
+    if (!c?.renderer || !c.visible || !this.calm) return null;
+    const len = Math.hypot(dir.x, dir.z) || 1;
+    const m = c.field.nearest(eye.x + (dir.x / len) * 1.6, eye.z + (dir.z / len) * 1.6, 1.3, (mm) => mm.fade > 0.9);
+    if (!m) return null;
+    _t.set(m.x - eye.x, m.y + 1.4 - eye.y, m.z - eye.z);
+    const d = _t.length();
+    if (d > NPC.talkRange || Math.acos(Math.min(1, _t.dot(dir) / d)) > NPC.talkAngle) return null;
+    return m;
+  }
+
+  /** A crowd member becomes a full character (the same look) where they stand. */
+  _promote(m) {
+    const c = this.crowd;
+    const T = c.renderer.types[m.type];
+    const o = T.outfits[m.outfit];
+    m.state = 'gone';
+    m.fade = 0;
+    c.field.version++;
+    const kind = o.kind ?? (m.sex === 'f' ? 'worshipperWoman' : 'worshipper');
+    const sit = m.act === ACT.sit;
+    return this.npcs.spawn({ kind, at: [m.x, m.y, m.z], yaw: m.yaw, pray: m.act === ACT.pray, sit, prop: sit ? 'book' : null, preset: { id: T.id, outfit: o.source } });
+  }
+
+  /** The quiet part: people glance at the player, make way for him, greet him. */
+  _reactions(dt) {
+    const p = this.player;
+    this._greetWait -= dt;
+    for (const n of this.npcs.list) {
+      if (!n.evacuates || n.sheltered || n.fleeing || n.frozen || n.hold > 0) continue;
+      if (react(n, dt, p, null, this._reactCtx) && this._greetWait <= 0 && this.dialogue.idle && !this._talk) {
+        const id = greetingFor(n);
+        if (id && this.dialogue.bark(id, { who: n.id })) this._greetWait = 6 + Math.random() * 7;
+      }
+    }
   }
 
   /** Fixed step. */
@@ -639,12 +798,36 @@ export class StoryDirector {
       fn();
     }
     this._updateBounding(dt);
+    this.npcs.chatty = this.calm;
     this.npcs.update(dt, playerInfo, p);
+    if (this.checkpoint) {
+      this.checkpoint.update(dt);
+      // The inspection table isn't in the static collision world: keep the player out of it.
+      const [x0, x1, z0, z1] = this.checkpointView.tableBox;
+      const r = p.cfg.radius;
+      const pp = p.position;
+      if (pp.x > x0 - r && pp.x < x1 + r && pp.z > z0 - r && pp.z < z1 + r && pp.y < 2.4) {
+        const push = [x0 - r - pp.x, x1 + r - pp.x, z0 - r - pp.z, z1 + r - pp.z];
+        let k = 0;
+        for (let i = 1; i < 4; i++) if (Math.abs(push[i]) < Math.abs(push[k])) k = i;
+        if (k < 2) pp.x += push[k];
+        else pp.z += push[k];
+      }
+    }
+    if (this.calm) this._reactions(dt);
+    if (this._talk && !this.dialogue.pending(this._talk.last)) {
+      // The conversation is over: back to what they were doing in a moment.
+      for (const n of this._talk.npcs) {
+        n.hold = 1.2;
+        if (n._prayAfter) n.pray = true;
+      }
+      this._talk = null;
+    }
     for (const c of this.crates.values()) c.pushOut(p.position, p.cfg.radius);
     this.dialogue.update(dt);
     const line = this.dialogue.current;
     for (const n of this.npcs.list) {
-      n.speaking = !!(line && n.speaker && line.speaker === n.speaker && !line.radio);
+      n.speaking = !!(line && !line.radio && (line.who ? line.who === n.id : n.speaker && line.speaker === n.speaker));
       if (!n.speaking) n.speech = null;
     }
     this.mission.update(dt);
@@ -665,6 +848,11 @@ export class StoryDirector {
     const line = this.dialogue.current;
     for (const n of list) {
       n.lookAt = null;
+      // Talking with the player, or a glance at him going by.
+      if ((n.hold > 0 || n.glancing) && eye && n !== speaker && !n.brain && !n.frozen && !n.fleeing) {
+        n.lookAt = eye;
+        continue;
+      }
       if (n.brain || n.pray || n.frozen || n.fleeing || n.panicking) continue;
       if (n === speaker) {
         const to = line?.to ? this.npcs.get(line.to) : null;
@@ -711,6 +899,7 @@ export class StoryDirector {
   /** Per rendered frame. */
   frameUpdate(dt, camera, eye, dir) {
     this._updateLooks(eye);
+    if (this.crowd) this.crowd.update(dt, this.player.position, camera);
     for (const v of this.views.values()) v.update(dt);
     this.ambient.update(dt);
     // Slow motion: hold the slow scale, then ease back to normal over the last 0.5 s (real time).
@@ -732,21 +921,67 @@ export class StoryDirector {
     this.hud.setSubtitle(this.dialogue.current);
     const w = this.rifle.state;
     this.hud.setLowAmmo?.(this.crates.size > 0 && !!w && w.ammo + w.reserve <= 45);
-    const crate = this.crateInReach(eye, dir);
-    const talk = crate ? null : this.npcs.talkTarget(eye, dir);
+    // The crowd's prayer swells as the plaza fills (and stops with the sirens).
+    if (this.crowd?.renderer) {
+      const f = this.crowd.field;
+      const fill = f.members.length ? f.present / f.members.length : 0;
+      this.ambient.setPrayer(this.started && this.calm && this.crowd.visible ? 0.2 + 0.8 * fill : 0);
+    }
+    const screening = this._screening(eye, dir);
+    const crate = screening ? null : this.crateInReach(eye, dir);
+    const talk = crate || screening ? null : this.npcs.talkTarget(eye, dir);
+    const member = crate || talk || screening ? null : this._crowdTarget(eye, dir);
     this.hud.setPrompt(
-      crate ? (crate.launcher && !this.launcher?.owned ? STORY_UI.crateLauncherPrompt : STORY_UI.cratePrompt) : talk ? (talk.frozen ? STORY_UI.shelterPrompt : `${STORY_UI.talkPrompt} ${this._speakerName(talk)}`) : null,
+      screening
+        ? screening
+        : crate
+        ? crate.launcher && !this.launcher?.owned ? STORY_UI.crateLauncherPrompt : STORY_UI.cratePrompt
+        : talk
+          ? talk.frozen ? STORY_UI.shelterPrompt : this._talk ? null : `${STORY_UI.talkPrompt} ${this._speakerName(talk)}`
+          : member && !this._talk
+            ? `${STORY_UI.talkPrompt} ${this._speakerName({ kind: this.crowd.renderer.types[member.type].outfits[member.outfit].kind, sex: member.sex })}`
+            : null,
     );
     const counter = this.objectiveCounter;
     this.hud.setObjectiveCount(
       counter && this.objectiveText ? COUNTERS[counter] : null,
-      counter === 'civilians' ? this.npcs.civiliansOutside : counter === 'enemies' ? this.enemiesLeft : 0,
+      counter === 'civilians' ? this.npcs.civiliansOutside : counter === 'enemies' ? this.enemiesLeft : counter === 'screened' ? this.checkpoint?.screened ?? 0 : 0,
     );
     this.hud.update(dt, this.objectivePosition(), camera, this.player.position);
   }
 
+  /**
+   * The checkpoint, per frame: what the player looks at, the close-up panel (the X-ray screen,
+   * the bag's contents, the hand detector's find) and the E / F actions. Returns the prompt's
+   * actions ([[key, label], ...]) or null.
+   */
+  _screening(eye, dir) {
+    const cp = this.checkpoint;
+    if (!cp) return null;
+    this.checkpointView.update(cp);
+    if (!cp.active || !eye) {
+      this.hud.setScreen?.(null);
+      return null;
+    }
+    const focus = cp.look(eye, dir);
+    const U = STORY_UI.screen;
+    const c = cp.cur;
+    let panel = null;
+    if (cp.panel === 'xray') panel = { title: U.monitor, image: this.checkpointView.canvas, note: U.xrayNote, version: this.checkpointView._drawn };
+    else if (cp.panel === 'bag') panel = { title: U.contents, items: cp.bag.items.map((i) => ({ text: SCREEN_ITEMS[i] ?? i, alert: i === 'knife' })), note: c?.taken ? U.taken : null };
+    else if (focus === 'person' && c?.state === 'inspect') {
+      panel = c.wanded ? { title: U.wandFound, items: [{ text: SCREEN_ITEMS[c.def.metal] ?? c.def.metal }] } : { title: c.def.metal ? U.beep : U.clear };
+    }
+    this.hud.setScreen?.(panel);
+    const acts = cp.actions;
+    const list = [];
+    if (acts.use) list.push(['E', U[acts.use]]);
+    if (acts.deny) list.push(['F', U[acts.deny]]);
+    return list.length ? list : null;
+  }
+
   _speakerName(npc) {
-    const sp = npc.speaker && SPEAKERS[npc.speaker];
+    const sp = SPEAKERS[npc.speaker ?? speakerOf(npc)];
     return sp ? sp.name : npc.speaker ?? '';
   }
 

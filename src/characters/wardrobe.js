@@ -54,9 +54,9 @@ export const KNITS = [
 const CAN = {
   civ_joe: ['haredi', 'suit'],
   civ_josh: ['haredi', 'suit'],
-  civ_brian: ['whiteShirt', 'casual'],
-  civ_bryce: ['whiteShirt', 'casual', 'guide'],
-  civ_remy: ['whiteShirt', 'casual'],
+  civ_brian: ['whiteShirt', 'casual', 'usher', 'guard'],
+  civ_bryce: ['whiteShirt', 'casual', 'guide', 'guard'],
+  civ_remy: ['whiteShirt', 'casual', 'usher'],
   civ_lewis: ['own'],
 };
 const LOOKS = {
@@ -64,6 +64,27 @@ const LOOKS = {
   civilian: { haredi: 0.2, suit: 0.15, whiteShirt: 0.45, casual: 0.2, own: 0.3 },
   tourist: { suit: 0.05, whiteShirt: 0.3, casual: 0.65, own: 0.4 },
   guide: { guide: 1 },
+  // The Selichot night's people (story/people.js).
+  yeshiva: { haredi: 0.85, suit: 0.15 },
+  family: { whiteShirt: 0.45, casual: 0.25, suit: 0.15, haredi: 0.15, own: 0.3 },
+  elder: { suit: 0.4, haredi: 0.35, whiteShirt: 0.25, own: 0.2 },
+  kid: { casual: 0.7, whiteShirt: 0.3, own: 0.3 },
+  teen: { casual: 0.8, whiteShirt: 0.2, own: 0.3 },
+  secular: { casual: 0.7, whiteShirt: 0.25, own: 0.4 },
+  usher: { usher: 1 },
+  collector: { haredi: 0.7, suit: 0.3 },
+  guard: { guard: 1 },
+};
+// Women by kind: the chance of a headscarf, and of trousers instead of the long skirt.
+const WOMEN = {
+  worshipperWoman: { scarf: 0.75 },
+  civilian: { scarf: 0.35 },
+  family: { scarf: 0.5 },
+  elder: { scarf: 0.8 },
+  grandma: { scarf: 0.85 },
+  kid: { scarf: 0 },
+  secular: { scarf: 0, trousers: 0.6 },
+  tourist: { scarf: 0 },
 };
 // Who plays whom (model -> relative share), per NPC kind.
 export const CAST = {
@@ -72,6 +93,16 @@ export const CAST = {
   tourist: { civ_remy: 1, civ_bryce: 1, civ_lewis: 0.7, civ_brian: 0.6, civ_sophie: 1, civ_megan: 1, civ_elizabeth: 0.8, civ_kate: 0.8 },
   guide: { civ_kate: 1 }, // the tour guide (text.he.js: a woman)
   civilian: { civ_lewis: 1, civ_josh: 1, civ_joe: 0.7, civ_brian: 1, civ_remy: 0.7, civ_bryce: 0.6, civ_kate: 1, civ_martha: 1, civ_megan: 1, civ_sophie: 1, civ_elizabeth: 1 },
+  yeshiva: { civ_joe: 1, civ_josh: 1 },
+  family: { civ_brian: 1, civ_remy: 0.8, civ_lewis: 0.7, civ_joe: 0.5, civ_kate: 1, civ_martha: 1, civ_megan: 1, civ_sophie: 1, civ_elizabeth: 0.8 },
+  elder: { civ_joe: 0.7, civ_josh: 0.7, civ_lewis: 1, civ_brian: 0.5, civ_martha: 1, civ_elizabeth: 0.8 },
+  kid: { civ_bryce: 1, civ_remy: 1, civ_sophie: 1, civ_megan: 1 },
+  teen: { civ_bryce: 1, civ_remy: 1, civ_sophie: 0.6 },
+  secular: { civ_remy: 1, civ_bryce: 1, civ_lewis: 0.8, civ_brian: 0.7, civ_sophie: 1, civ_megan: 1, civ_kate: 0.8 },
+  usher: { civ_brian: 1, civ_remy: 1 },
+  collector: { civ_joe: 1, civ_josh: 1 },
+  guard: { civ_brian: 1, civ_bryce: 1 },
+  grandma: { civ_martha: 1, civ_elizabeth: 0.7 },
 };
 
 const pick = (list, rand) => list[Math.floor(rand() * list.length) % list.length];
@@ -131,17 +162,27 @@ export function makeOutfit(id, info, kind, rand = Math.random) {
   let look;
   let head = null;
   if (chance(0.3, rand)) set(4, pick(HAIR, rand), 0.75);
+  const hide = {};
   if (info?.sex === 'f') {
     look = kind === 'guide' ? 'guide' : 'modest';
+    const w = WOMEN[kind] ?? { scarf: 0 };
     const top = kind === 'guide' ? GUIDE_SHIRT : pick(W_TOPS, rand); // the guide: bright yellow, easy to follow
     set(1, top, 0.92);
     set(6, pick(WHITE_SHIRTS, rand), 0.9); // blouse under a jacket
     set(8, top, 1, 0.75, 0.005); // bare arms -> long sleeves in the top's color
-    set(7, pick(SKIRTS, rand), 1);
-    set(2, pick(DARK_TROUSERS, rand), 0.9); // under the skirt: dark
-    set(9, pick(TIGHTS, rand), 1, 0.6, 0.002); // bare legs -> tights
-    const scarf = kind === 'worshipperWoman' ? 0.75 : kind === 'civilian' ? 0.35 : 0;
-    if (chance(scarf, rand)) head = { type: 'scarf', color: pick(SCARVES, rand) };
+    if (chance(w.trousers ?? 0, rand) && parts.has(7)) {
+      // Trousers (a secular visitor): no skirt, the legs dressed as jeans.
+      look = 'trousers';
+      const jeans = pick(JEANS, rand);
+      hide[7] = 1;
+      set(2, jeans, 1);
+      set(9, jeans, 1, 0.75, 0.012);
+    } else {
+      set(7, pick(SKIRTS, rand), 1);
+      set(2, pick(DARK_TROUSERS, rand), 0.9); // under the skirt: dark
+      set(9, pick(TIGHTS, rand), 1, 0.6, 0.002); // bare legs -> tights
+    }
+    if (chance(w.scarf, rand)) head = { type: 'scarf', color: pick(SCARVES, rand) };
   } else {
     const can = CAN[id] ?? ['own'];
     const odds = LOOKS[kind] ?? LOOKS.civilian;
@@ -158,6 +199,18 @@ export function makeOutfit(id, info, kind, rand = Math.random) {
       set(6, pick(WHITE_SHIRTS, rand), 1);
       set(2, chance(0.7, rand) ? suit : pick(DARK_TROUSERS, rand), 1);
       set(5, pick(TIES, rand), 0.9);
+    } else if (look === 'usher') {
+      // An usher at the entrance: a reflective orange vest over a white shirt.
+      set(1, [0.95, 0.38, 0.05], 1, 0.4);
+      set(6, pick(WHITE_SHIRTS, rand), 1);
+      set(2, pick(DARK_TROUSERS, rand), 1);
+      set(9, pick(DARK_TROUSERS, rand), 1, 0.75, 0.012);
+    } else if (look === 'guard') {
+      // The security company's navy uniform.
+      set(1, [0.025, 0.04, 0.09], 1);
+      set(6, [0.025, 0.04, 0.09], 1);
+      set(2, [0.02, 0.02, 0.025], 1);
+      set(9, [0.02, 0.02, 0.025], 1, 0.75, 0.012);
     } else if (look === 'whiteShirt' || look === 'casual' || look === 'guide') {
       const top = look === 'guide' ? GUIDE_SHIRT : look === 'whiteShirt' ? pick(WHITE_SHIRTS, rand) : pick(TSHIRTS, rand);
       set(1, top, look === 'casual' ? 0.9 : 1);
@@ -166,9 +219,11 @@ export function makeOutfit(id, info, kind, rand = Math.random) {
       // Shorts become long trousers: always for white shirts and the guide, mostly for tourists.
       if (look !== 'casual' || chance(0.6, rand)) set(9, trousers, 1, 0.75, 0.012);
     }
-    head = manHead(look, rand);
+    // Every man at the wall covers his head: a secular visitor takes a white paper kippah at
+    // the entrance. (The security guard on duty wears none.)
+    head = look === 'guard' ? null : kind === 'secular' ? { type: 'kippah', style: 'white', rim: null } : manHead(look, rand);
   }
-  return { look, tints, flat, inflate, head, sig: { id, look, top: tints[1] ?? null, bottom: tints[7] ?? tints[2] ?? null, head: headKey(head) } };
+  return { look, tints, flat, inflate, hide, head, sig: { id, look, top: tints[1] ?? null, bottom: tints[7] ?? tints[2] ?? null, head: headKey(head) } };
 }
 
 // Colors compared in (roughly) perceptual space.
@@ -196,12 +251,12 @@ export function likeness(a, b) {
  * @param {(id: string) => object|null} infoOf manifest info of a loaded model (null if not)
  * @returns {{ id: string, outfit: object } | null}
  */
-export function dressPerson(kind, neighbors, infoOf, rand = Math.random) {
+export function dressPerson(kind, neighbors, infoOf, rand = Math.random, sex = null) {
   const cast = CAST[kind] ?? CAST.civilian;
   let best = null;
   let bestScore = Infinity;
   for (const [id, share] of Object.entries(cast)) {
-    if (!infoOf(id)) continue;
+    if (!infoOf(id) || (sex && infoOf(id).sex !== sex)) continue;
     let score = -Math.log(share) * 0.6 + rand() * 0.5;
     for (const n of neighbors) if (n.sig.id === id) score += 2 * n.near;
     if (score < bestScore) {

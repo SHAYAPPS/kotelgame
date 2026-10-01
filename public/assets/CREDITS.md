@@ -21,6 +21,7 @@ Each set is `<id>_color.ktx2`, `<id>_normal.ktx2` and `<id>_orm.ktx2` (Basis Uni
 
 | File | Source | License |
 | --- | --- | --- |
+| `night_1k.hdr`, `night_sky.jpg` | [Kloppenheim 02 (Pure Sky)](https://polyhaven.com/a/kloppenheim_02_puresky) by Greg Zaal, Jarod Guest, Poly Haven (the visible sky: its tonemapped JPG, upper half, 4096 x 1024) | CC0 |
 | `sky_512.exr` | A Poly Haven sky HDRI, resized to 512 x 256, as shipped in the npm package [`@pmndrs/assets`](https://github.com/pmndrs/assets) 1.7.0 (`hdri/sky.exr`); the package is MIT, its Poly Haven HDRIs are CC0. Fallback when `sky_2k.hdr` is missing. | CC0 |
 
 ## Characters and animations (`public/assets/characters/`)
@@ -123,6 +124,21 @@ free/CC0-only rule, made for the characters.
 | `run_scared_lookback` | Run Look Back (Running Looking Back) |
 | `run_standard` | Standard Run (Standard Running) |
 | `cower_hiding` | Hiding (Crouched Hiding To Ducking) |
+| `sit_chair` | Sitting Idle (Sitting In Chair Hands Resting On Thighs) |
+| `sit_reading` | Seated Idle (Seated Idle With Hands On A Table) |
+| `old_idle` | Old Man Idle (Old Man Standing Idle) |
+| `old_walk` | Old Man Walk (Slow Old Man Shuffle Walk) |
+| `walk_back_male` | Walking Backwards |
+| `walk_back_female` | Walking Backwards (Female Walk Backwards) |
+| `wall_reach` | Unarmed Grab Torch From Wall (Picking Up Torch From Wall) |
+| `wall_touch` | Petting (Petting A Large Animal) |
+| `bow_quick` | Quick Informal Bow |
+| `reach_out` | Reaching Out (Reaching Out Gesture) |
+| `salute` | Salute (Formal Military Salute) |
+| `wave` | Waving |
+| `thumbs_up` | Standing Thumbs Up (Giving Thumbs Up While Standing) |
+| `clap` | Clapping (Clap While Standing) |
+| `happy_idle` | Happy Idle (Happy Idle Variation 1) |
 | `stairs_walk_up` | Ascending Stairs (Walking Up A Set Of Stairs) |
 | `stairs_walk_down` | Descending Stairs (Walking Down A Set Of Stairs) |
 | `stairs_run_up` | Running Up Stairs |

@@ -5534,6 +5534,285 @@
      1
     ]
    },
+   "sit_chair": {
+    "loop": true,
+    "source": "Sitting Idle (Sitting In Chair Hands Resting On Thighs)",
+    "headY": 1.194,
+    "ik": false,
+    "duration": 6.4,
+    "fps": 15,
+    "frames": 97,
+    "rot": [
+     652496,
+     9048
+    ],
+    "vec": [
+     661544,
+     368,
+     1
+    ]
+   },
+   "sit_reading": {
+    "loop": true,
+    "source": "Seated Idle (Seated Idle With Hands On A Table)",
+    "headY": 1.204,
+    "ik": false,
+    "duration": 4.1333,
+    "fps": 15,
+    "frames": 63,
+    "rot": [
+     661912,
+     5857
+    ],
+    "vec": [
+     667772,
+     226,
+     1
+    ]
+   },
+   "old_idle": {
+    "loop": true,
+    "source": "Old Man Idle (Old Man Standing Idle)",
+    "headY": 1.445,
+    "ik": false,
+    "duration": 8,
+    "fps": 15,
+    "frames": 121,
+    "rot": [
+     668000,
+     10361
+    ],
+    "vec": [
+     678364,
+     524,
+     1
+    ]
+   },
+   "old_walk": {
+    "loop": true,
+    "source": "Old Man Walk (Slow Old Man Shuffle Walk)",
+    "speed": 0.3879,
+    "dir": 0,
+    "phaseShift": 13,
+    "headY": 1.415,
+    "ik": false,
+    "duration": 1.2667,
+    "fps": 30,
+    "frames": 39,
+    "rot": [
+     678888,
+     4157
+    ],
+    "vec": [
+     683048,
+     251,
+     1
+    ]
+   },
+   "walk_back_male": {
+    "loop": true,
+    "source": "Walking Backwards",
+    "speed": 1.0863,
+    "dir": 3.1416,
+    "phaseShift": 26,
+    "headY": 1.494,
+    "ik": false,
+    "duration": 1.2,
+    "fps": 30,
+    "frames": 37,
+    "rot": [
+     683300,
+     7768
+    ],
+    "vec": [
+     691068,
+     256,
+     1
+    ]
+   },
+   "walk_back_female": {
+    "loop": true,
+    "source": "Walking Backwards (Female Walk Backwards)",
+    "speed": 1.3363,
+    "dir": 3.1416,
+    "phaseShift": 11,
+    "headY": 1.543,
+    "ik": false,
+    "duration": 0.9667,
+    "fps": 30,
+    "frames": 30,
+    "rot": [
+     691324,
+     3942
+    ],
+    "vec": [
+     695268,
+     205,
+     1
+    ]
+   },
+   "wall_reach": {
+    "loop": false,
+    "source": "Unarmed Grab Torch From Wall (Picking Up Torch From Wall)",
+    "headY": 1.577,
+    "ik": false,
+    "duration": 4.6,
+    "fps": 30,
+    "frames": 139,
+    "rot": [
+     695476,
+     25670
+    ],
+    "vec": [
+     721148,
+     718,
+     1
+    ]
+   },
+   "wall_touch": {
+    "loop": true,
+    "source": "Petting (Petting A Large Animal)",
+    "headY": 1.596,
+    "ik": false,
+    "duration": 5.6,
+    "fps": 30,
+    "frames": 169,
+    "rot": [
+     721868,
+     17335
+    ],
+    "vec": [
+     739204,
+     725,
+     1
+    ]
+   },
+   "bow_quick": {
+    "loop": false,
+    "source": "Quick Informal Bow",
+    "headY": 1.586,
+    "ik": false,
+    "duration": 2.7333,
+    "fps": 30,
+    "frames": 83,
+    "rot": [
+     739932,
+     13017
+    ],
+    "vec": [
+     752952,
+     386,
+     1
+    ]
+   },
+   "reach_out": {
+    "loop": false,
+    "source": "Reaching Out (Reaching Out Gesture)",
+    "headY": 1.586,
+    "ik": false,
+    "duration": 4,
+    "fps": 30,
+    "frames": 121,
+    "rot": [
+     753340,
+     17946
+    ],
+    "vec": [
+     771288,
+     471,
+     1
+    ]
+   },
+   "salute": {
+    "loop": false,
+    "source": "Salute (Formal Military Salute)",
+    "headY": 1.595,
+    "ik": false,
+    "duration": 2.8333,
+    "fps": 30,
+    "frames": 86,
+    "rot": [
+     771760,
+     12926
+    ],
+    "vec": [
+     784688,
+     366,
+     1
+    ]
+   },
+   "wave": {
+    "loop": true,
+    "source": "Waving",
+    "headY": 1.592,
+    "ik": false,
+    "duration": 0.5333,
+    "fps": 30,
+    "frames": 17,
+    "rot": [
+     785056,
+     2408
+    ],
+    "vec": [
+     787464,
+     149,
+     1
+    ]
+   },
+   "thumbs_up": {
+    "loop": false,
+    "source": "Standing Thumbs Up (Giving Thumbs Up While Standing)",
+    "headY": 1.584,
+    "ik": false,
+    "duration": 4.1667,
+    "fps": 30,
+    "frames": 126,
+    "rot": [
+     787616,
+     23144
+    ],
+    "vec": [
+     810760,
+     671,
+     1
+    ]
+   },
+   "clap": {
+    "loop": true,
+    "source": "Clapping (Clap While Standing)",
+    "headY": 1.576,
+    "ik": false,
+    "duration": 1.1667,
+    "fps": 30,
+    "frames": 36,
+    "rot": [
+     811432,
+     3581
+    ],
+    "vec": [
+     815016,
+     191,
+     1
+    ]
+   },
+   "happy_idle": {
+    "loop": true,
+    "source": "Happy Idle (Happy Idle Variation 1)",
+    "headY": 1.599,
+    "ik": false,
+    "duration": 2,
+    "fps": 15,
+    "frames": 31,
+    "rot": [
+     815208,
+     5624
+    ],
+    "vec": [
+     820832,
+     190,
+     1
+    ]
+   },
    "stairs_walk_up": {
     "loop": true,
     "source": "Ascending Stairs (Walking Up A Set Of Stairs)",
@@ -5556,11 +5835,11 @@
     "fps": 30,
     "frames": 42,
     "rot": [
-     652496,
+     821024,
      7980
     ],
     "vec": [
-     660476,
+     829004,
      252,
      1
     ]
@@ -5587,11 +5866,11 @@
     "fps": 30,
     "frames": 29,
     "rot": [
-     660728,
+     829256,
      5813
     ],
     "vec": [
-     666544,
+     835072,
      209,
      1
     ]
@@ -5618,11 +5897,11 @@
     "fps": 30,
     "frames": 19,
     "rot": [
-     666756,
+     835284,
      3995
     ],
     "vec": [
-     670752,
+     839280,
      189,
      1
     ]
@@ -5649,11 +5928,11 @@
     "fps": 30,
     "frames": 13,
     "rot": [
-     670944,
+     839472,
      3104
     ],
     "vec": [
-     674048,
+     842576,
      125,
      1
     ]

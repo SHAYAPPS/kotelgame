@@ -7,14 +7,35 @@ A browser-based 3D first-person story shooter.
 
 - A linear, cinematic story campaign in the style of Call of Duty.
 - The player is a soldier in an elite IDF unit.
-- **Mission 1** opens on a calm, normal shift at the Kotel (Western Wall) plaza.
-  Then sirens start, Hamas terrorists attack to seize the Kotel, and the team must secure it.
+- **Mission 1** happens at night: it starts around 21:00 on the night of the final Selichot
+  before Yom Kippur, the most crowded night of the year at the Kotel (Western Wall) plaza;
+  crowds keep arriving through the evening for the main Selichot service at midnight. The
+  player's squad reinforces security for the night: a shift at the security checkpoint, then
+  a patrol along the wall among the worshipers, then a radio call to the plaza's center.
+  Then sirens start, Hamas terrorists attack to seize the Kotel, the packed plaza has to be
+  evacuated, and the team must secure it. (The earlier daytime version, a quiet Friday at
+  11:40, is tagged `mission1-day` in git.)
+- The night: a night sky with the moon and the city's glow, warm floodlights washing the wall
+  from below, lamp posts across the plaza, lit windows around it, giant screens and
+  loudspeakers set up for the midnight service. Muzzle flashes and explosions light up the
+  dark. Few shadow-casting lights (60 FPS on medium).
+- The crowd: thousands (full characters near the player, an instanced animated crowd farther
+  away), filling up as the night goes on. Families with kids, the elderly with canes, yeshiva
+  students, tour groups behind a guide, secular Israelis on night Selichot tours, soldiers
+  visiting in uniform, Border Police, ushers handing out paper kippot at the entrances,
+  charity collectors. Men and women in their own prayer sections. They pray rocking at the
+  wall, tuck notes into its cracks, touch and kiss it, walk backwards away from it, sit on
+  chairs with prayer books, chat, take photos, and kids run around their parents; groups walk
+  together, people make way for each other and the player, glance at him and greet him
+  ("גמר חתימה טובה"); E starts a short exchange with anyone.
 - Tone: grounded and intense, with realistic weapon feel and squad AI.
 - Hebrew UI and dialogue (RTL).
 - Visuals: start with greybox shapes, then move to realistic textures and lighting later.
   **Free/CC0 assets only.** One exception, chosen by the project owner: the characters and
   animations come from Mixamo (free to use in the game, not redistributable on their own;
   they ship only converted, inside the game; raw files stay out of git, see `DOWNLOADS.md`).
+  For the game to be sold (Steam): only CC0 or CC-BY assets (never NC / ND), each one in
+  `public/assets/CREDITS.md` with its author and license; generic weapon names, no brands.
 
 ## Working rules
 
@@ -68,6 +89,20 @@ A browser-based 3D first-person story shooter.
    sensitivity, invert Y, key rebinding, quality, field of view, FPS counter, volumes,
    difficulty easy / normal / hard, subtitles), the last checkpoint saved for Continue,
    scrolling credits built from CREDITS.md
+8. [x] The Selichot night (tagged before it: `mission1-day`)
+   - [x] Night lighting: a CC0 night sky (moon, stars, the city's glow), the moon as the key
+     light, floodlights washing the wall from below, lamp posts, lit windows, giant screens
+     and loudspeakers; flashes and explosions brighter in the dark
+   - [x] The crowd: about 1,800 instanced animated people (baked animation textures, flow
+     fields to their spots and, at the sirens, to the shelters and exits) around ~130 full
+     characters; families, elders with canes, yeshiva students, tours, soldiers visiting,
+     Border Police, ushers, collectors; notes into the wall, kisses, walking away backwards,
+     sitting with prayer books, photos, kids running around; glances, making way, greetings,
+     E exchanges with anyone, five special people; the crowd's prayer swelling as it fills
+   - [x] New opening: the security checkpoint (X-ray screen, bags, the gate, the hand
+     detector, six people, the guard's handover), a ~3 minute patrol by the wall with radio
+     check-ins, the radio call and the squad gathering; the rest adjusted to the night
+   - [x] Recording booth (`dev/booth.html`) for every line and the crowd-prayer slots
 
 ## Commands
 
@@ -84,7 +119,11 @@ A browser-based 3D first-person story shooter.
   to api.polyhaven.com, dl.polyhaven.org, ambientcg.com). `LOCAL=<dir>` imports files you
   downloaded yourself (`<id>_color/_normal/_rough[/_ao].jpg`). A set that fails keeps what's there.
 - `npm run screenshots -- [outDir] [low|medium|high]`: Playwright screenshots from 5 fixed
-  spots around the plaza (dev server must be running; `playwright` is a dev dependency)
+  spots around the plaza (dev server must be running; `playwright` is a dev dependency;
+  `GAME_URL=http://localhost:4180/` points it at a preview build instead)
+- Recording booth: `npm run dev`, then http://localhost:5173/dev/booth.html: every line of
+  the mission (and the crowd-prayer loops), record from the microphone (space), play back,
+  delete; saved as `src/assets/voice/<lineId>.webm` (vite.config.js `/__voice`)
 - `npm run assets:characters [id ... | anims]`: rebuild the characters (`public/assets/characters/`)
   from the Mixamo FBX files in `assets-src/mixamo/` (git-ignored; see `DOWNLOADS.md` for how to
   get them). ~15 s per character; rewrites the manifest and `public/assets/CREDITS.md`
@@ -127,7 +166,8 @@ A browser-based 3D first-person story shooter.
   the browser supports it). Key presses are edges consumed by the first physics step. Game
   reads actions through the player's bindings: `anyDown(codes)` / `consumeAny(codes)`.
 - `src/core/Bindings.js` (pure): the rebindable actions (move, jump, sprint, crouch, fire, aim,
-  reload, grenade, interact, weapon 1 / 2), each one key the player can change plus fixed
+  reload, grenade, interact, `deny` (F: stop / confiscate at the checkpoint), weapon 1 / 2),
+  each one key the player can change plus fixed
   alternates (arrows, right Shift) that step aside when taken; rebinding a used key swaps;
   Esc, `, P, F1, F2 are reserved; `keyLabel(code)`.
 - `src/core/Settings.js` (pure, storage passed in): every player setting in one localStorage
@@ -179,13 +219,27 @@ A browser-based 3D first-person story shooter.
   haze, HDRI image-based light (PMREM, the HDRI's sun clamped; list of files tried in order),
   a warm hemisphere bounce fill, and the sun as three's `CSM` (cascaded shadow maps, updated
   every frame). `src/world/sun.js`: solar position from the level's date/time/place (Mission 1:
-  11:40 on the title card -> sun high in the south-east, the west-facing wall in shade).
+  21:00 on the night of the final Selichot: the sun far below the horizon).
+  Night (`config.environment.night`): below the horizon (`_keyLight`) the moon becomes the CSM
+  key light (dim, cool), the night HDRI lights the scene, the sky dome samples the night sky
+  (`night_sky.jpg`: darkened, stars by a high-pass, the city's glow, a moon disc), and the
+  level's `NightLights` turn on. `npm run assets:fetch hdri` also fetches the night sky.
+- `src/world/NightLights.js`: up to 64 lights without shadows (lamp posts, floodlights on the
+  wall, the screens' glow, windows) in a float texture of view-space lights read in every lit
+  fragment shader (patched in after `lights_fragment_end` by `Environment._setupMaterial`):
+  point / spot (cone, softness), each with a range. Glow materials follow the night level;
+  `sample(point)` lights the viewmodel. `src/world/kotel/night.js` builds the level's lights:
+  flood poles on the plaza edge washing the wall, uplights along its foot, lamp posts, the two
+  giant screens (a canvas: the Selichot broadcast) and loudspeaker poles; `facades.js` lights
+  a share of the windows.
 - `src/world/Textures.js`: `TextureLibrary` loads KTX2 texture sets (`<id>_color/_normal/_orm`,
   see `public/assets/textures/manifest.json`) and streams them into existing materials
   (`apply(material, id, { scale, normalScale })`; UVs are in meters). Asset scripts live in
   `scripts/assets/` (`generate.mjs`, `fetch.mjs`, `credits.mjs`, `ktx2.mjs`).
 - `src/world/FlashLights.js`: a small pool of point lights (count per quality) for muzzle
-  flashes, explosions and the rocket launch; the dimmest one is reused.
+  flashes, explosions, the rocket launch and phone photo flashes; the dimmest one is reused.
+  At night `boost` makes them reach farther and peak brighter (and PostFX `setNight` lowers
+  the bloom threshold).
 - `src/world/greybox.js`: procedural 1 m grid texture, color palette, box/ramp geometry with UVs in meters
   (the test range still uses the grid).
 - `src/world/kotel/`: the greybox Western Wall plaza (Mission 1), 1 unit = 1 m.
@@ -320,17 +374,44 @@ A browser-based 3D first-person story shooter.
     civilians (panic/runAll/emerge), combat (squad on/off the combat AI), wave (timed attacker
     spawns with radio callouts per group), crate (`launcher: true` hands out the launcher), truck,
     arm, slowmo, retreat (survivors fall back to posts), bounding (squad advance), stats.
-    Triggers also: `truckDestroyed`, `hasLauncher`, `clear` (no hostile near a point). A fast-forwarded `wave` spawns nothing (that fight was won);
+    Triggers also: `truckDestroyed`, `hasLauncher`, `clear` (no hostile near a point), `since`
+    ([stepId, s]: time since a step was entered, e.g. the patrol's minimum length). Actions
+    also: `crowd` (`time`: the crowd's clock, fast-forward only; `evacuate`; `visible`),
+    `screening` (`begin` / `person` / `handover`: the checkpoint), weapon `slung` (out of view,
+    no firing, no mag check). A fast-forwarded `wave` spawns nothing (that fight was won);
     a fast `runAll` puts every civilian straight into the shelter.
     `jumpTo(i)` replays the earlier steps' state actions in fast mode (no dialogue, NPCs placed at
     their route ends) and enters step i; checkpoints restart this way. `fail()` freezes it.
-  - `mission1.js`: Mission 1's steps, squad routes, checkpoints, crowd groups (worshipers in
-    two rows at the wall and in the women's section, visitors walking up to the wall and back,
-    crossers (over the terrace steps and up the western stairs too), chatting groups
-    (`chats`), people standing around, the tour group, bystanders who freeze at the sirens:
-    about 90 people), the shelter spots (the hall under Wilson's Arch, 132 of them), the
-    defense positions (the low wall at x = -30, then near the wall) and the `chapters` shown on
-    the start screen. Every spot and route is on the navmesh (checked when changing them).
+  - `mission1.js`: Mission 1's steps (the opening: title card, the checkpoint brief, one step
+    per screened person, the guard's arrival and handover, the patrol (`PATROL`: points and
+    the minimum time, 180 s), the radio call, the squad gathering in the middle of the plaza
+    (`GATHER`), then the sirens), squad routes, checkpoints, the people (`groups`: worshipers at
+    the wall and in the women's section, notes / kisses / photos at the wall (`atWall`),
+    families, elders, staff (ushers, police, collectors), the special people, visitors,
+    crossers, chatting groups (yeshiva students, soldiers visiting), the night tour, bystanders
+    who freeze at the sirens near the gathering point), `screening` (the six people at the
+    checkpoint: bag, items, metal on them, lines, where they go once in), the `crowd` (zones,
+    entrances, the evacuation targets), the shelter spots (the hall under Wilson's Arch) and
+    `exits` (full characters run for the nearest of the arch, the tunnels, the south gate, the
+    western stairs; out of an exit they're gone), the defense positions and the `chapters`.
+    Every spot and route is on the navmesh (checked when changing them).
+  - `people.js` (pure): the night's people. `PEOPLE` per kind: the generic speaker of their
+    lines (by sex), what they carry (`prop`: cane, box of kippot, charity can...), their size
+    (children 0.62), `stays` (on duty at the sirens: they wave people on). `BEHAVIORS` run on
+    their own (`npc.behavior`, state in `npc.b`): `notes` (a note into the wall, back away
+    facing it, pray), `kiss` (a hand on the stones, a kiss, backwards), `kidRun` (circles
+    around a parent, claps), `usher`, `collector` (from person to person; barks), `photo`
+    (flashes), `elder` (slow walks). `react()`: glances, making way, may greet. `GREETINGS`,
+    `EXCHANGES` (E, by speaker), `SPECIALS` (the blessing, the salute, the snack, the notes
+    tourist, the photo: longer, once; lines may carry an `act` clip or a `flash`).
+  - `Checkpoint.js` (pure) + `CheckpointView.js`: the security checkpoint's east lane (`LANE`:
+    queue, belt, gate, inspection spot, table, screen, the player's post). Each person puts the
+    bag on the belt (it rides through the X-ray: the screen shows it), walks through the
+    detector (it beeps with metal on them) and waits; the player looks at the screen / the bag /
+    the person: E opens the bag (contents), runs the hand detector, lets in; F stops /
+    confiscates (the `deny` binding). The teammate insists on what must be checked (a blade on
+    the screen, a beep, the knife stays). `handover()`: the guard lets the rest in.
+    `drawXray` paints a bag's contents in a scanner's false colors (the 3D screen and the HUD).
   - `difficulty.js`: **all difficulty tuning**: global accuracy/damage/reaction multipliers,
     per-role overrides, grenades (fuse, radius, damage, enemy throw frequency), ammo, prep times,
     spawn points, flank routes and every wave's groups (`expandWave`, `attackerConfig`).
@@ -349,12 +430,21 @@ A browser-based 3D first-person story shooter.
     crowd is cheap. `NpcManager` spawns, separates bodies (never off the navmesh; two sleepers
     skip), finds the E talk target, ray-tests friendly fire, and runs small talk
     (`populate({ chats })`: people facing in, taking turns to talk, `npc.chatting`).
-    Emergency: `panic()` (civilians flee to shelter spots with staggered reactions, bystanders
-    freeze until E), `escort` (squad keeps near the player), `brain` (the combat AI drives the
-    body; the NPC only mirrors it).
+    Emergency: `panic()` (civilians flee to the shelter or the nearest exit with staggered
+    reactions, bystanders freeze until E, people on duty stay), `escort` (squad keeps near the
+    player), `brain` (the combat AI drives the body; the NPC only mirrors it). The night:
+    `behavior` / `act` (a clip played standing until a time) / `sit` / `hold` (talking with the
+    player: stands, faces him) / backward routes (walking away from the wall facing it);
+    `spawn()` takes the person's extras (prop, behavior, special, parent, sit, sex, preset);
+    `chatty`: every calm civilian is a talk target. Wedged for good (chairs): onto the next
+    waypoint.
   - `NpcView.js`: the NPC's animated character: squad members by name (SoldierAnimator,
     relaxed off duty, full combat behavior once their AI takes over), civilians by kind
-    (CivilianAnimator); placeholder figures until the characters load (and in tests).
+    (CivilianAnimator); police on the uniform model (beret, rifle, SoldierAnimator relaxed),
+    soldiers visiting on it unarmed; children scaled (`CharacterModel.setSize`, a bigger head);
+    props in the hands (`characters/handProps.js`; a cane stands on the floor under the hand,
+    a phone flashes for photos: `viewFx.flash`); a crowd member stepping in keeps their look
+    (`npc.preset`); placeholder figures until the characters load (and in tests).
     StoryDirector sets `npc.speaking` while the NPC has the current line; a chatting NPC plays
     the talk clip with made-up words on its lips (`LipSync.babble`), the others listen and
     look at it.
@@ -362,11 +452,27 @@ A browser-based 3D first-person story shooter.
     birds, wind; panic + random screams), the real Israeli civil-defense siren from three
     far-off emitters once the attack starts (`ambience` levels), distant booms (the real
     interception booms), radio lines (squelch, static, real Hebrew words through a radio's
-    band and distortion: `radioLine`), the story's one-shots (`play`).
+    band and distortion: `radioLine`), the story's one-shots (`play`; the checkpoint's beeps
+    and zips are synthesized). `setPrayer(level)`: the crowd's prayer, swelling with the
+    crowd's fill: the booth's `crowd_prayer_1..3` loops layered when recorded, else
+    synthesized (voices through vowel formants, syllables, phrases, into the plaza echo).
   - `StoryDirector.js`: the mission context; tutorial events (move/sprint/crouch/mag check),
     E to talk / send a frozen civilian off, friendly fire -> fail -> restart at the last
     checkpoint, F2 jumps, the objective counters, kill callouts, booms + camera shake timed by
-    the speed of sound.
+    the speed of sound. The quiet part (`calm`, until the sirens): reactions (glances, making
+    way, greetings with a cooldown), E exchanges (`_chat`; a crowd member is promoted to a full
+    character first: `_promote`), the checkpoint (`_screening`: focus, prompt, the HUD's
+    close-up panel), the crowd's prayer level.
+  - `crowd/CrowdField.js` (pure) + `crowd/CrowdDirector.js` + `characters/CrowdRenderer.js`:
+    the instanced crowd. Members are plain records (spot, act, arrival time, state off / walk
+    / stay / flee / gone) filling the script's zones (`zoneSpots`), the prayer area's chairs
+    (`level.seats`), arriving through the evening (walking in along flow fields from the
+    entrances when in view), glancing at the player, shuffling aside, pushing him out; at the
+    sirens they run down flow fields (`ai/FlowField.js`, Dijkstra over the nav grid) to the
+    nearest shelter / exit, crowding at the bottlenecks. The renderer bakes each character
+    type's animation (skinning matrices at 12 fps into a half-float texture), draws LOD1 / LOD2
+    instances with head wear merged in and per-instance outfit (palette texture), clip, phase
+    and head turn; on `FAR_LAYER`.
 - `src/world/SkyFx.js`: rocket barrage over the city (pooled interceptor trails, flashes, smoke
   puffs, horizon impacts); `onFlash(distance, strength)`.
 - `WeaponAudio.echoBus`: the plaza reverb's send (`Mixer.reverb`); gunshots, explosions, the
@@ -523,6 +629,8 @@ A browser-based 3D first-person story shooter.
   shows a model as converted, `cam=face` / `faces` close-ups, `lip=<y>|auto` draws a lip
   line on the face (check / measure `face.lipY`), `ruler=1` height marks.
   `window.__preview.models[i].face.mouth = 0.7` opens a mouth.
+  `prop=cane|book|phone|can|box|snack` puts a prop in the hands, `size=0.62` makes a child,
+  `outfit=police` dresses the uniform model as Border Police.
 - New Game: chapter buttons (`MISSION1.chapters`) start the mission at a part (`story.startAt`).
 - Weapons: 1 = rifle, 2 = launcher (once owned), or the mouse wheel (`Game._updateWeapons`: lower,
   swap the viewmodel, raise). `src/weapons/Launcher.js` (pure: one loaded, auto reload, ADS) +

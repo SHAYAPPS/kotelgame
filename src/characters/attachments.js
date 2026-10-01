@@ -308,6 +308,31 @@ export function blackHat(head, { fit }) {
   return mesh([colored(crown, felt), colored(top, felt), colored(brimTop, felt), colored(brimBottom, 0x0a0a0c), colored(edge, felt), colored(band, ribbon)]);
 }
 
+/**
+ * A beret (the Border Police's): the band on the hair (hatFit), the crown puffed out over it
+ * and pulled down to the right side, a little badge over the left eye.
+ */
+export function beret(head, color = 0x1f3a24, { fit }) {
+  const n = fit.radii.length;
+  const L = 6;
+  const top = Math.max(fit.top - fit.y + 0.012, 0.05);
+  const geo = gridGeometry(L + 1, n, (r, c, p) => {
+    const t = r / L;
+    const a = (c / n) * Math.PI * 2;
+    const side = Math.sin(a); // +1 the left ear (+X), -1 the right
+    // Out from the band, widest at a third of the way up, then over the top to the middle.
+    const bulge = 0.022 * Math.sin(Math.min(1, t * 1.6) * Math.PI * 0.5) * (1 + 0.5 * Math.max(0, -side));
+    const rad = (fit.radii[c] + 0.006 + bulge) * (t < 0.55 ? 1 : Math.cos(((t - 0.55) / 0.45) * Math.PI * 0.5));
+    const h = top * Math.sin(Math.min(1, t / 0.75) * Math.PI * 0.5) - 0.025 * Math.max(0, -side) * Math.sin(t * Math.PI);
+    p[0] = side * rad - 0.012 * Math.sin(t * Math.PI * 0.5); // the crown leans over the right ear
+    p[1] = fit.y + h;
+    p[2] = fit.cz + Math.cos(a) * rad;
+  }, { out: (x, y, z) => [x, y - fit.y, z - fit.cz] });
+  geo.computeVertexNormals();
+  const band = colored(new BoxGeometry(0.018, 0.022, 0.004).translate(0.035, fit.y + 0.018, fit.cz + fit.radii[0] + 0.012), 0xc9a640);
+  return mesh([paint(geo, () => color), band]);
+}
+
 // A headscarf's fit: a polar grid from the skull's center (rings from the crown down past the
 // ears, segments around).
 const SCARF_FIT = { rings: 18, segs: 40, maxAngle: Math.PI * 0.8, cone: 0.11 };

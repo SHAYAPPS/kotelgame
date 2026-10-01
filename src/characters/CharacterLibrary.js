@@ -278,11 +278,12 @@ export class CharacterLibrary {
   /**
    * A dressed soldier (squad or enemy) and its animator. The views go through these so the
    * character code loads with the library (its own chunk).
-   * @param {{ variant?: number, band?: number, world?: object, rand?: () => number }} opts
+   * @param {{ variant?: number, band?: number, world?: object, rand?: () => number, kind?: string }} opts
+   *   kind: 'police' (a beret, no vest)
    */
-  soldier(id, { variant = 0, band, world = null, rand = Math.random } = {}) {
+  soldier(id, { variant = 0, band, world = null, rand = Math.random, kind = null } = {}) {
     const model = this.create(id);
-    dressCharacter(model, { variant, band, rand });
+    dressCharacter(model, { variant, band, rand, kind });
     return { model, animator: new SoldierAnimator(model, { world, rand }) };
   }
 

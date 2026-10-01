@@ -131,3 +131,26 @@ first clips showed no run near the civilians' speed.
 (Chrome saved one download as `a.fbx`; same size, re-exported under the right name).
 `run_medium_second_copy.fbx`, `run_standard_second_copy.fbx` and `jogging_second_copy.fbx`
 are copies from a retried download (the first attempt's files arrived late).
+
+### The Selichot crowd (2026-10-01)
+
+A fourth round for the night of the Selichot (the crowd's new behaviors), same settings as
+above (on Y Bot, without skin, 30 fps, root motion kept, no keyframe reduction):
+
+| File | Mixamo animation (name, description) | Used for |
+|---|---|---|
+| `sit_chair.fbx` | Sitting Idle (Sitting In Chair Hands Resting On Thighs) | Sitting on the prayer area's chairs |
+| `sit_reading.fbx` | Seated Idle (Seated Idle With Hands On A Table) | Sitting with a prayer book |
+| `old_idle.fbx` | Old Man Idle (Old Man Standing Idle) | The elderly (with a cane) |
+| `old_walk.fbx` | Old Man Walk (Slow Old Man Shuffle Walk) | The elderly walking |
+| `walk_back_male.fbx` | Walking Backwards | Stepping back from the wall, facing it |
+| `walk_back_female.fbx` | Walking Backwards (Female Walk Backwards) | The same, women |
+| `wall_reach.fbx` | Unarmed Grab Torch From Wall (Picking Up Torch From Wall) | Tucking a note into the wall |
+| `wall_touch.fbx` | Petting (Petting A Large Animal) | A hand on the wall's stones |
+| `bow_quick.fbx` | Quick Informal Bow | Kissing the wall |
+| `reach_out.fbx` | Reaching Out (Reaching Out Gesture) | Handing out kippot, a snack, a blessing |
+| `salute.fbx` | Salute (Formal Military Salute) | The kid who salutes the soldier |
+| `wave.fbx` | Waving | Greeting the soldier |
+| `thumbs_up.fbx` | Standing Thumbs Up (Giving Thumbs Up While Standing) | Greeting the soldier |
+| `clap.fbx` | Clapping (Clap While Standing) | Kids |
+| `happy_idle.fbx` | Happy Idle (Happy Idle Variation 1) | Kids |

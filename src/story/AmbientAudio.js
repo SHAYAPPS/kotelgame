@@ -34,9 +34,12 @@ const RADIO_CURVE = (() => {
 
 export class AmbientAudio {
   /** @param {import('../weapons/WeaponAudio.js').WeaponAudio} audio the game's sound (mixer, bank) */
-  constructor(audio) {
+  constructor(audio, voices = null) {
     this.audio = audio;
+    this.voices = voices; // recorded slots (story/Voice.js): crowd_prayer_1..3 replace the synthesized prayer
     this.levels = { crowd: 0, birds: 0, siren: 0, panic: false, city: 1 };
+    this.prayer = null; // the crowd's prayer (built on first use)
+    this._prayerLevel = 0;
     this.beds = null;
     this.sirens = null;
     this._screamTimer = 2;
@@ -197,6 +200,153 @@ export class AmbientAudio {
     }
   }
 
+  /**
+   * The crowd praying: a murmur of many voices that swells as the plaza fills (0..1). Recorded
+   * slots `crowd_prayer_1..3` (src/assets/voice/, the recording booth) are looped and layered
+   * when present; otherwise it is synthesized: voices with drifting pitch through vowel
+   * formants, syllables and phrases, into the plaza's echo.
+   */
+  setPrayer(level) {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    if (Math.abs(level - this._prayerLevel) < 0.01 && this.prayer) return;
+    this._prayerLevel = level;
+    if (!this.prayer) {
+      if (level <= 0.001) return;
+      this.prayer = this._buildPrayer();
+    }
+    this.prayer.out.gain.setTargetAtTime(level * 0.11, ctx.currentTime, 1.5);
+  }
+
+  _buildPrayer() {
+    const ctx = this.ctx;
+    const a = this.audio;
+    const out = ctx.createGain();
+    out.gain.value = 0;
+    out.connect(a.ambienceBus ?? a.mixer.sfx);
+    const send = ctx.createGain();
+    send.gain.value = 0.6;
+    out.connect(send).connect(a.echoBus ?? a.mixer.sfx);
+    const rec = ['crowd_prayer_1', 'crowd_prayer_2', 'crowd_prayer_3'].filter((id) => this.voices?.has(id));
+    if (rec.length) {
+      // The booth's recordings: each looped a few times over, out of step, slightly detuned.
+      const start = async () => {
+        for (const id of rec) {
+          const buf = await this.voices._load(id);
+          if (!buf) continue;
+          for (let k = 0; k < 3; k++) {
+            const src = ctx.createBufferSource();
+            src.buffer = buf;
+            src.loop = true;
+            src.playbackRate.value = 0.96 + Math.random() * 0.08;
+            const g = ctx.createGain();
+            g.gain.value = 1.6 / (rec.length * 3);
+            src.connect(g).connect(out);
+            src.start(ctx.currentTime + 0.05, Math.random() * buf.duration);
+          }
+        }
+      };
+      start();
+      return { out };
+    }
+    const lowpass = ctx.createBiquadFilter();
+    lowpass.type = 'lowpass';
+    lowpass.frequency.value = 2400;
+    lowpass.connect(out);
+    for (let i = 0; i < 16; i++) {
+      const female = i % 4 === 3;
+      const f0 = (female ? 190 : 98) + Math.random() * (female ? 50 : 55);
+      const osc = ctx.createOscillator();
+      osc.type = 'sawtooth';
+      osc.frequency.value = f0;
+      // The tune: a slow wander around the reciting tone.
+      const glide = ctx.createOscillator();
+      glide.frequency.value = 0.07 + Math.random() * 0.12;
+      const glideAmt = ctx.createGain();
+      glideAmt.gain.value = f0 * 0.06;
+      glide.connect(glideAmt).connect(osc.frequency);
+      // Vowels: two formants, their centers drifting.
+      const f1 = ctx.createBiquadFilter();
+      f1.type = 'bandpass';
+      f1.frequency.value = 520 + Math.random() * 220;
+      f1.Q.value = 4;
+      const f2 = ctx.createBiquadFilter();
+      f2.type = 'bandpass';
+      f2.frequency.value = 1050 + Math.random() * 500;
+      f2.Q.value = 5;
+      const vowel = ctx.createOscillator();
+      vowel.frequency.value = 2.2 + Math.random() * 2.4;
+      const vAmt = ctx.createGain();
+      vAmt.gain.value = 160;
+      vowel.connect(vAmt).connect(f1.frequency);
+      const mix = ctx.createGain();
+      mix.gain.value = 0;
+      osc.connect(f1).connect(mix);
+      osc.connect(f2).connect(mix);
+      // Syllables (a fast pulse), gated by phrases (breathing between verses).
+      const syl = ctx.createOscillator();
+      syl.frequency.value = 3 + Math.random() * 2.5;
+      const sylAmt = ctx.createGain();
+      sylAmt.gain.value = 0.35;
+      const phrase = ctx.createOscillator();
+      phrase.frequency.value = 0.08 + Math.random() * 0.1;
+      const phraseAmt = ctx.createGain();
+      phraseAmt.gain.value = 0.45;
+      const base = ctx.createConstantSource();
+      base.offset.value = 0.5;
+      syl.connect(sylAmt).connect(mix.gain);
+      phrase.connect(phraseAmt).connect(mix.gain);
+      base.connect(mix.gain);
+      const pan = ctx.createStereoPanner();
+      pan.pan.value = Math.random() * 1.6 - 0.8;
+      mix.connect(pan).connect(lowpass);
+      const t = ctx.currentTime + Math.random() * 0.5;
+      for (const n of [osc, glide, vowel, syl, phrase, base]) n.start(t);
+    }
+    return { out };
+  }
+
+  /** Electronic beeps (the checkpoint's gate, the hand detector): [freq, start, length] each. */
+  _tones(list, { gain = 0.12, type = 'square' } = {}) {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const bus = this.audio.mixer?.sfx ?? ctx.destination;
+    for (const [f, t0, dur] of list) {
+      const o = ctx.createOscillator();
+      o.type = type;
+      o.frequency.value = f;
+      const g = ctx.createGain();
+      const t = ctx.currentTime + t0;
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(gain, t + 0.008);
+      g.gain.setValueAtTime(gain, t + Math.max(0.01, dur - 0.02));
+      g.gain.linearRampToValueAtTime(0, t + dur);
+      o.connect(g).connect(bus);
+      o.start(t);
+      o.stop(t + dur + 0.03);
+    }
+  }
+
+  /** A short burst of noise (a zip, the belt's rollers). */
+  _noise(dur, { gain = 0.2, freq = 3000, q = 1 } = {}) {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const n = Math.floor(ctx.sampleRate * dur);
+    const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (0.6 + 0.4 * Math.sin(i / 90));
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = freq;
+    f.Q.value = q;
+    const g = ctx.createGain();
+    g.gain.value = gain;
+    src.connect(f).connect(g).connect(this.audio.mixer?.sfx ?? ctx.destination);
+    src.start();
+  }
+
   /** One-shot story sounds by id, optionally `delay` seconds from now. */
   play(id, delay = 0) {
     const a = this.audio;
@@ -212,5 +362,11 @@ export class AmbientAudio {
     else if (id === 'resupply') a.play('resupply', { gain: 0.8, delay });
     else if (id === 'chime') a.play('chime', { gain: 0.45, delay, ...ui });
     else if (id === 'magCheck') a.magCheck();
+    // The security checkpoint (synthesized).
+    else if (id === 'gateBeep') this._tones([0, 1, 2, 3, 4, 5].map((k) => [k % 2 ? 660 : 880, k * 0.21, 0.19]), { gain: 0.07 });
+    else if (id === 'gateClear') this._tones([[1320, 0, 0.09]], { gain: 0.035, type: 'sine' });
+    else if (id === 'wand') this._tones([[1900, 0, 0.07], [1900, 0.12, 0.07], [2300, 0.26, 0.4]], { gain: 0.05 });
+    else if (id === 'belt') this._noise(1.4, { gain: 0.05, freq: 180, q: 0.7 });
+    else if (id === 'zip') this._noise(0.45, { gain: 0.16, freq: 3800, q: 1.4 });
   }
 }

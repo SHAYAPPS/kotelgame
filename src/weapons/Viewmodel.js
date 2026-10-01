@@ -1,5 +1,6 @@
 import {
   AdditiveBlending,
+  Color,
   DirectionalLight,
   DoubleSide,
   Group,
@@ -151,6 +152,7 @@ const _n = new Vector3();
 const _pole = new Vector3();
 const _pole2 = new Vector3();
 const _ups = new Vector3(0, 1, 0);
+const _lampAt = new Vector3();
 
 /**
  * The weapon held in view. Rendered in its own scene and camera on top of the world, so it
@@ -170,7 +172,11 @@ export class Viewmodel {
     // Soft fill from just above the eye: keeps a black rifle readable in the shade.
     this.fill = new DirectionalLight(0xffffff, 0.5);
     this.fill.position.set(-0.2, 0.6, 1);
-    this.scene.add(this.hemi, this.sun, this.sun.target, this.fill, this.fill.target);
+    // At night: the floodlights and lamps near you (world/NightLights.js, sampled on the CPU).
+    this.lamp = new DirectionalLight(0xffc890, 0);
+    this.scene.add(this.hemi, this.sun, this.sun.target, this.fill, this.fill.target, this.lamp, this.lamp.target);
+    this._lampColor = new Color();
+    this._lampDir = new Vector3();
     this.shade = 1; // 1 = in the sun, 0 = in shade (Game raycasts toward the sun)
 
     const { rifle, mag } = buildRifle();
@@ -387,14 +393,25 @@ export class Viewmodel {
     this.shade = damp(this.shade, shade, 7, dt);
     camera.getWorldQuaternion(_q);
     _q2.copy(_q).invert();
+    const night = env.night ?? 0;
     this.sun.position.copy(env.sunDir).applyQuaternion(_q2);
     this.sun.color.copy(env.sunColor);
     this.sun.intensity = env.sunIntensity * (0.04 + 0.96 * this.shade);
     this.hemi.position.copy(_ups).applyQuaternion(_q2);
-    this.hemi.intensity = env.envMap ? 0.45 : 1.6;
-    if (env.envMap && this.scene.environment !== env.envMap) this.scene.environment = env.envMap;
-    this.scene.environmentIntensity = (env.o?.envIntensity ?? 0.55) * 1.15;
+    this.hemi.intensity = (env.envMap ? 0.45 : 1.6) * (1 - night) + (env.hemi?.intensity ?? 0.3) * 1.3 * night;
+    this.fill.intensity = 0.5 * (1 - night) + 0.06 * night;
+    const map = env.scene?.environment ?? env.envMap;
+    if (map && this.scene.environment !== map) this.scene.environment = map;
+    this.scene.environmentIntensity = (env.scene?.environmentIntensity ?? env.o?.envIntensity ?? 0.55) * 1.15;
     this.scene.environmentRotation.setFromQuaternion(_q2);
+    // The night's lamps and floodlights around you.
+    if (env.lights && env.lights.level > 0) {
+      env.lights.sample(camera.getWorldPosition(_lampAt), this._lampColor, this._lampDir);
+      const k = Math.max(this._lampColor.r, this._lampColor.g, this._lampColor.b);
+      this.lamp.intensity = damp(this.lamp.intensity, Math.min(4, k * 1.4), 6, dt);
+      if (k > 0) this.lamp.color.copy(this._lampColor).multiplyScalar(1 / k);
+      this.lamp.position.copy(this._lampDir).applyQuaternion(_q2);
+    } else this.lamp.intensity = 0;
   }
 
   /**

@@ -35,7 +35,7 @@ test('the clip library decodes: every clip, unit quaternions, closed locomotion 
         // Stairs: a slower climb, the rise taken out too, feet contacts marked.
         assert.ok(meta.speed > 0.25 && Math.abs(meta.rise) > 0.2, `${name} climbs`);
         assert.ok(meta.contacts?.l && meta.contacts?.r, `${name} foot contacts`);
-      } else assert.ok(meta.speed > 0.5, `${name} moves`);
+      } else assert.ok(meta.speed > (name.startsWith('old_') ? 0.3 : 0.5), `${name} moves`); // (an old man's shuffle is slow)
       // In place: the hips end where they started (root motion removed), so the cycle loops.
       const hips = clip.tracks.find((t) => t.name === 'Hips.position').values;
       const n = hips.length - 3;

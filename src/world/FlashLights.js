@@ -10,6 +10,9 @@ export class FlashLights {
   constructor(scene, count) {
     this.scene = scene;
     this.lights = [];
+    // At night a flash lights up much more of the dark around it (Game sets this from the
+    // environment: 1 by day).
+    this.boost = 1;
     this.setCount(count);
   }
 
@@ -43,8 +46,8 @@ export class FlashLights {
     if (bestLeft > intensity) return;
     best.light.position.copy(position);
     best.light.color.set(color);
-    best.light.distance = distance;
-    best.peak = intensity;
+    best.light.distance = distance * (1 + (this.boost - 1) * 0.6);
+    best.peak = intensity * this.boost;
     best.dur = duration;
     best.t = duration;
   }
