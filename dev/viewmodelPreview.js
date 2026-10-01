@@ -14,13 +14,12 @@ import {
   HemisphereLight,
   Mesh,
   MeshStandardMaterial,
-  PMREMGenerator,
   PerspectiveCamera,
   PlaneGeometry,
   Scene,
   Vector3,
-  WebGLRenderer,
 } from 'three';
+import { PMREMGenerator, WebGPURenderer } from 'three/webgpu';
 import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
 import { Viewmodel } from '../src/weapons/Viewmodel.js';
@@ -30,7 +29,8 @@ import { RIFLE, LAUNCHER } from '../src/weapons/config.js';
 const params = new URLSearchParams(location.search);
 const ui = document.getElementById('ui');
 if (params.get('hud') === '0') ui.style.display = 'none';
-const renderer = new WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+const renderer = new WebGPURenderer({ antialias: true });
+await renderer.init(); // (WebGPU, else WebGL 2: the game's renderer)
 renderer.setPixelRatio(Math.min(2, devicePixelRatio));
 renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = ACESFilmicToneMapping;

@@ -11,6 +11,7 @@ export const DEFAULT_SETTINGS = {
   bindings: {}, // action -> key code, only the ones changed from the defaults (Bindings.js)
   // Graphics
   quality: 'medium', // src/core/Graphics.js QUALITY
+  effects: {}, // effect -> on / off (motion blur: 'off' | 'low' | 'high'): the player's own switches over the preset
   fov: 70, // vertical field of view, degrees
   showFps: false,
   // Audio, 0..1
@@ -21,7 +22,9 @@ export const DEFAULT_SETTINGS = {
 };
 
 export const LIMITS = { sensitivity: [0.2, 3], aimSensitivity: [0.3, 2], fov: [55, 90] };
-export const QUALITIES = ['low', 'medium', 'high'];
+export const QUALITIES = ['low', 'medium', 'high', 'ultra'];
+// The effects one can switch (core/Graphics.js EFFECTS; motion blur has three levels).
+const EFFECT_KEYS = ['aa', 'motionBlur', 'ao', 'contactShadows', 'ssgi', 'ssr', 'dof', 'eyeAdaptation', 'bloom', 'lensFlare', 'grain', 'vignette', 'haze', 'heat', 'parallax', 'detail', 'dynamicRes'];
 export const DIFFICULTIES = ['easy', 'normal', 'hard'];
 
 // What the game saved before there was one settings object (taken over once).
@@ -80,6 +83,7 @@ export function sanitize(s) {
     invertY: s.invertY === true,
     bindings: {},
     quality: QUALITIES.includes(s.quality) ? s.quality : d.quality,
+    effects: {},
     fov: Math.round(num(s.fov, LIMITS.fov, d.fov)),
     showFps: s.showFps === true,
     volumes: {},
@@ -87,6 +91,12 @@ export function sanitize(s) {
     subtitles: s.subtitles !== false,
   };
   for (const k of Object.keys(d.volumes)) out.volumes[k] = num(s.volumes?.[k], [0, 1], d.volumes[k]);
+  if (s.effects && typeof s.effects === 'object') {
+    for (const k of EFFECT_KEYS) {
+      const v = s.effects[k];
+      if (k === 'motionBlur' ? ['off', 'low', 'high'].includes(v) : typeof v === 'boolean') out.effects[k] = v;
+    }
+  }
   if (s.bindings && typeof s.bindings === 'object') {
     for (const [action, code] of Object.entries(s.bindings)) if (typeof code === 'string' && code.length < 32) out.bindings[action] = code;
   }

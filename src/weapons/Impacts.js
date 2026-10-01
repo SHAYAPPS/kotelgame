@@ -1,20 +1,15 @@
 import {
-  AdditiveBlending,
-  BufferAttribute,
-  BufferGeometry,
   CanvasTexture,
   InstancedMesh,
   MathUtils,
   Matrix4,
   MeshBasicMaterial,
   PlaneGeometry,
-  Points,
-  PointsMaterial,
   Quaternion,
   SRGBColorSpace,
-  ShaderMaterial,
   Vector3,
-} from 'three';
+} from 'three/webgpu';
+import { Particles } from '../world/Particles.js';
 
 const MAX_DECALS = 160;
 const MAX_SPARKS = 400;
@@ -116,81 +111,27 @@ export class Impacts {
     this._nextDecal = 0;
     scene.add(this.decals);
 
-    const geo = new BufferGeometry();
-    this.sparkPos = new Float32Array(MAX_SPARKS * 3);
-    this.sparkCol = new Float32Array(MAX_SPARKS * 3);
-    geo.setAttribute('position', new BufferAttribute(this.sparkPos, 3));
-    geo.setAttribute('color', new BufferAttribute(this.sparkCol, 3));
+    // Sparks (and blood, debris): additive dots on a ballistic arc.
+    this.sparks = new Particles(scene, { max: MAX_SPARKS, map: typeof document !== 'undefined' ? dotTexture() : null, additive: true, name: 'sparks' });
+    this.sparkPos = this.sparks.pos;
     this.sparkVel = new Float32Array(MAX_SPARKS * 3);
     this.sparkLife = new Float32Array(MAX_SPARKS);
     this.sparkMaxLife = new Float32Array(MAX_SPARKS).fill(1);
     this.sparkBase = new Float32Array(MAX_SPARKS * 3); // per-particle color (sparks vs blood)
     this.sparkGravity = new Float32Array(MAX_SPARKS);
-    this.sparks = new Points(
-      geo,
-      new PointsMaterial({
-        size: 0.035,
-        map: dotTexture(),
-        vertexColors: true,
-        transparent: true,
-        depthWrite: false,
-        blending: AdditiveBlending,
-        toneMapped: false,
-      }),
-    );
-    this.sparks.frustumCulled = false;
     this._nextSpark = 0;
     this._alive = 0;
-    scene.add(this.sparks);
 
-    // Stone dust: soft puffs that billow out of each hit and settle (per-puff size and
-    // opacity, so a small custom point shader).
-    const dg = new BufferGeometry();
-    this.dustPos = new Float32Array(MAX_DUST * 3);
+    // Stone dust: soft puffs that billow out of each hit and settle, lit by whatever lights
+    // the air there (floodlights, flashes), fading into the surfaces they touch.
+    this.dust = new Particles(scene, { max: MAX_DUST, lit: true, soft: 0.25, name: 'dust' });
+    this.dustPos = this.dust.pos;
     this.dustVel = new Float32Array(MAX_DUST * 3);
-    this.dustSize = new Float32Array(MAX_DUST);
-    this.dustAlpha = new Float32Array(MAX_DUST);
+    this.dustSize = this.dust.size;
     this.dustLife = new Float32Array(MAX_DUST);
     this.dustMaxLife = new Float32Array(MAX_DUST).fill(1);
-    dg.setAttribute('position', new BufferAttribute(this.dustPos, 3));
-    dg.setAttribute('size', new BufferAttribute(this.dustSize, 1));
-    dg.setAttribute('alpha', new BufferAttribute(this.dustAlpha, 1));
-    this.dust = new Points(
-      dg,
-      new ShaderMaterial({
-        transparent: true,
-        depthWrite: false,
-        uniforms: { color: { value: [0.78, 0.72, 0.62] }, scale: { value: 600 } },
-        vertexShader: /* glsl */ `
-          attribute float size;
-          attribute float alpha;
-          varying float vAlpha;
-          uniform float scale;
-          void main() {
-            vAlpha = alpha;
-            vec4 mv = modelViewMatrix * vec4(position, 1.0);
-            gl_PointSize = size * scale / -mv.z;
-            gl_Position = projectionMatrix * mv;
-          }
-        `,
-        fragmentShader: /* glsl */ `
-          uniform vec3 color;
-          varying float vAlpha;
-          void main() {
-            vec2 d = gl_PointCoord - 0.5;
-            float r = length(d) * 2.0;
-            float a = smoothstep(1.0, 0.2, r) * vAlpha;
-            if (a < 0.01) discard;
-            gl_FragColor = vec4(color, a);
-          }
-        `,
-      }),
-    );
-    this.dust.frustumCulled = false;
-    this.dust.userData.noCSM = true;
     this._nextDust = 0;
     this._dustAlive = 0;
-    scene.add(this.dust);
 
     // Scorch marks from explosions (ground decals, oldest reused).
     this.scorches = new InstancedMesh(
@@ -327,12 +268,10 @@ export class Impacts {
     this.scorches.count = 0;
     this._nextScorch = 0;
     this.dustLife.fill(0);
-    this.dustAlpha.fill(0);
-    this.dust.geometry.attributes.alpha.needsUpdate = true;
+    this.dust.clear();
     this._dustAlive = 0;
     this.sparkLife.fill(0);
-    this.sparkCol.fill(0);
-    this.sparks.geometry.attributes.color.needsUpdate = true;
+    this.sparks.clear();
     this._alive = 0;
   }
 
@@ -340,9 +279,10 @@ export class Impacts {
     if (this._dustAlive === 0) return;
     let alive = 0;
     const drag = Math.exp(-3 * dt);
+    const col = this.dust.color;
     for (let i = 0; i < MAX_DUST; i++) {
       if (this.dustLife[i] <= 0) {
-        this.dustAlpha[i] = 0;
+        col[i * 4 + 3] = 0;
         continue;
       }
       alive++;
@@ -356,21 +296,27 @@ export class Impacts {
       this.dustPos[o + 2] += this.dustVel[o + 2] * dt;
       const f = Math.max(0, this.dustLife[i] / this.dustMaxLife[i]);
       this.dustSize[i] += dt * 0.35; // billows out
-      this.dustAlpha[i] = 0.55 * f * Math.min(1, (1 - f) * 8 + 0.3);
+      col[i * 4] = 0.78;
+      col[i * 4 + 1] = 0.72;
+      col[i * 4 + 2] = 0.62;
+      col[i * 4 + 3] = 0.55 * f * Math.min(1, (1 - f) * 8 + 0.3);
     }
     this._dustAlive = alive;
-    const a = this.dust.geometry.attributes;
-    a.position.needsUpdate = a.size.needsUpdate = a.alpha.needsUpdate = true;
+    this.dust.commit();
   }
 
   update(dt) {
     this._updateDust(dt);
     if (this._alive === 0) return;
     let alive = 0;
+    const col = this.sparks.color;
+    const size = this.sparks.size;
     for (let i = 0; i < MAX_SPARKS; i++) {
       const o = i * 3;
+      const c = i * 4;
       if (this.sparkLife[i] <= 0) {
-        this.sparkCol[o] = this.sparkCol[o + 1] = this.sparkCol[o + 2] = 0;
+        col[c + 3] = 0;
+        size[i] = 0;
         continue;
       }
       alive++;
@@ -382,19 +328,21 @@ export class Impacts {
       // Additive blending: fading the color to black fades the spark out.
       const f = MathUtils.clamp(this.sparkLife[i] / this.sparkMaxLife[i], 0, 1);
       if (this.sparkBase[o] < 0) {
-        this.sparkCol[o] = 1.0 * f + 0.2;
-        this.sparkCol[o + 1] = 0.75 * f * f + 0.05;
-        this.sparkCol[o + 2] = 0.35 * f * f * f;
+        // Hot sparks: brighter than white (they bloom), cooling to orange.
+        col[c] = (1.0 * f + 0.2) * 3;
+        col[c + 1] = (0.75 * f * f + 0.05) * 3;
+        col[c + 2] = 0.35 * f * f * f * 3;
+        size[i] = 0.045;
       } else {
         const g = Math.min(1, f * 1.5);
-        this.sparkCol[o] = this.sparkBase[o] * g;
-        this.sparkCol[o + 1] = this.sparkBase[o + 1] * g;
-        this.sparkCol[o + 2] = this.sparkBase[o + 2] * g;
+        col[c] = this.sparkBase[o] * g;
+        col[c + 1] = this.sparkBase[o + 1] * g;
+        col[c + 2] = this.sparkBase[o + 2] * g;
+        size[i] = 0.05;
       }
-      if (this.sparkLife[i] <= 0) this.sparkCol[o] = this.sparkCol[o + 1] = this.sparkCol[o + 2] = 0;
+      col[c + 3] = this.sparkLife[i] > 0 ? 1 : 0;
     }
     this._alive = alive;
-    this.sparks.geometry.attributes.position.needsUpdate = true;
-    this.sparks.geometry.attributes.color.needsUpdate = true;
+    this.sparks.commit();
   }
 }

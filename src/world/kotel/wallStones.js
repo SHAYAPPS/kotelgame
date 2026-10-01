@@ -3,6 +3,7 @@ import {
   CanvasTexture,
   Color,
   DoubleSide,
+  InstancedBufferAttribute,
   InstancedMesh,
   Matrix4,
   MeshStandardMaterial,
@@ -10,50 +11,40 @@ import {
   Quaternion,
   SRGBColorSpace,
   Vector3,
-} from 'three';
+} from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { mulberry32, randRange } from './random.js';
+import { stoneMaterial } from '../stoneMaterial.js';
 
 /**
  * A stone material whose textures are projected from world space onto each block's faces
- * (the wall face uses z/y), with a random offset per stone so no two blocks show the same
- * patch of texture. UVs in meters times 1/meters of the texture set.
+ * (the wall face uses z/y), with a random offset per stone (the instance attribute
+ * `aStoneOff`) so no two blocks show the same patch of texture; parallax, close-up detail and
+ * the wear of hands (world/stoneMaterial.js) once the textures arrive.
  */
-function wallMaterial(texSet) {
-  const scale = { value: 0.5 };
-  const m = new MeshStandardMaterial({ color: 0xffffff, roughness: 0.92, metalness: 0 });
-  m.onBeforeCompile = (shader) => {
-    shader.uniforms.uWallScale = scale;
-    shader.vertexShader =
-      'uniform float uWallScale;\n' +
-      shader.vertexShader.replace(
-        '#include <fog_vertex>',
-        `#include <fog_vertex>
-        {
-          vec4 wp = modelMatrix * instanceMatrix * vec4(position, 1.0);
-          vec3 io = (modelMatrix * instanceMatrix[3]).xyz;
-          vec2 off = fract(sin(vec2(dot(io, vec3(12.9898, 78.233, 37.719)), dot(io, vec3(39.346, 11.135, 83.155)))) * 43758.5453);
-          vec3 an = abs(normal);
-          vec2 wuv = (an.x > 0.5 ? wp.zy : (an.y > 0.5 ? wp.zx : wp.xy)) * uWallScale + off;
-          #ifdef USE_MAP
-            vMapUv = wuv;
-          #endif
-          #ifdef USE_NORMALMAP
-            vNormalMapUv = wuv;
-          #endif
-          #ifdef USE_ROUGHNESSMAP
-            vRoughnessMapUv = wuv;
-          #endif
-          #ifdef USE_AOMAP
-            vAoMapUv = wuv;
-          #endif
-        }`,
-      );
-  };
-  m.customProgramCacheKey = () => 'kotel-wall-projected';
+function wallMaterial(texSet, faceX) {
+  const m = stoneMaterial({ roughness: 0.92 });
   m.userData.textureSet = texSet;
-  m.userData.scale = scale;
+  m.userData.stone = { mode: 'wall', wear: 'wall', depth: 0.035, wallX: faceX };
   return m;
+}
+
+/** Each instance's texture offset (a hash of its position, like a fingerprint of the block). */
+function stoneOffsets(mesh) {
+  const n = mesh.count;
+  const data = new Float32Array(Math.max(1, n) * 2);
+  for (let i = 0; i < n; i++) {
+    mesh.getMatrixAt(i, _m);
+    _p.setFromMatrixPosition(_m);
+    const h = (a, b, c) => {
+      const v = Math.sin(_p.x * a + _p.y * b + _p.z * c) * 43758.5453;
+      return v - Math.floor(v);
+    };
+    data[i * 2] = h(12.9898, 78.233, 37.719);
+    data[i * 2 + 1] = h(39.346, 11.135, 83.155);
+  }
+  mesh.geometry = mesh.geometry.clone();
+  mesh.geometry.setAttribute('aStoneOff', new InstancedBufferAttribute(data, 2));
 }
 
 /** A small caper/hyssop leaf cluster (alpha cut-out), drawn on a canvas. */
@@ -165,8 +156,8 @@ export function buildStoneWall(o) {
 
   const unit = new BoxGeometry(1, 1, 1);
   // Two stone qualities: dressed limestone (big lower courses) and rougher stone (upper).
-  const smoothMat = wallMaterial('limestone');
-  const roughMat = wallMaterial('limestone_rough');
+  const smoothMat = wallMaterial('limestone', o.faceX);
+  const roughMat = wallMaterial('limestone_rough', o.faceX);
   const materials = [smoothMat, roughMat];
   const smoothBlocks = blocks.filter((b) => !b.rough);
   const roughBlocks = blocks.filter((b) => b.rough);
@@ -265,18 +256,14 @@ export function buildStoneWall(o) {
     mesh.userData.noCollision = true; // the level adds one simple collision box for the wall
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    if (mesh.material.userData.stone) stoneOffsets(mesh);
     mesh.computeBoundingSphere();
   }
   return {
     meshes,
     stones: blocks.length,
     materials: materials.map((mat) => ({
-      applyTextures: (library) =>
-        library.load(mat.userData.textureSet).then((set) => {
-          if (!set) return;
-          mat.userData.scale.value = 1 / set.meters;
-          return library.apply(mat, mat.userData.textureSet, { normalScale: mat === roughMat ? 1.3 : 1 });
-        }),
+      applyTextures: (library) => library.apply(mat, mat.userData.textureSet, { normalScale: mat === roughMat ? 1.3 : 1 }),
     })),
   };
 }

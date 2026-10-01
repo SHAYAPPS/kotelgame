@@ -1,5 +1,6 @@
-import { LinearSRGBColorSpace, NoColorSpace, RepeatWrapping, SRGBColorSpace } from 'three';
+import { LinearSRGBColorSpace, NoColorSpace, RepeatWrapping, SRGBColorSpace } from 'three/webgpu';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
+import { applyStone } from './stoneMaterial.js';
 
 /**
  * Surface texture sets (KTX2, see public/assets/textures/manifest.json and
@@ -82,6 +83,8 @@ export class TextureLibrary {
   apply(material, id, { scale = 1, normalScale = 1, offset = [0, 0] } = {}) {
     return this.load(id).then((set) => {
       if (!set) return;
+      // Stone (node materials: world/stoneMaterial.js) samples the set itself.
+      if (material.userData.stone) return applyStone(material, set, { scale, normalScale, offset, ...material.userData.stone });
       const rep = scale / set.meters;
       const clone = (t) => {
         const c = t.clone();

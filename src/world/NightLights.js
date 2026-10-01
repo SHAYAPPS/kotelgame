@@ -1,45 +1,82 @@
-import { Color, DataTexture, FloatType, NearestFilter, RGBAFormat, Vector3 } from 'three';
+import { Color, DataTexture, FloatType, Lighting, LightsNode, NearestFilter, RGBAFormat, Vector3 } from 'three/webgpu';
+import { Fn, If, Loop, cameraViewMatrix, dot, float, ivec2, positionView, smoothstep, textureLoad, uniform, vec4 } from 'three/tsl';
 
 // The night's static lights: the floodlights washing the wall, the lamp posts, the big
-// screens, light spilling from doorways. Far too many for three's own lights (every one
-// costs every material, and a shadow map each), so they live in a small float texture that
-// every lit material reads in its fragment shader (Environment injects the code next to the
-// cascaded-shadow setup): diffuse light from point and spot lights, a smooth cut at each
-// light's range, no shadows. Positions go into view space on the CPU once a frame.
+// screens, light spilling from doorways. Far too many for three's own lights (each one is
+// compiled into every material, and wants a shadow map), so they live in a small float
+// texture that every lit material's lighting loops over (NightLightsNode, installed as the
+// renderer's lighting for the main scene): full PBR light (diffuse and specular) from point
+// and spot lights, a smooth cut at each light's range, no shadows.
 
 export const MAX_NIGHT_LIGHTS = 64;
-const TEXELS = 3; // per light: [position (view), range] [color * intensity, spot cos outer | -2] [direction (view), cos inner]
-
-/**
- * GLSL added after three's `lights_fragment_end` (view space: `geometryPosition`,
- * `geometryNormal`, `material.diffuseColor` come from three's own chunks).
- */
-export const NIGHT_LIGHTS_GLSL = /* glsl */ `
-{
-  vec3 nlSum = vec3(0.0);
-  for (int i = 0; i < ${MAX_NIGHT_LIGHTS}; i++) {
-    if (i >= nightLightCount) break;
-    vec4 a = texelFetch(nightLightTex, ivec2(0, i), 0);
-    vec3 L = a.xyz - geometryPosition;
-    float d2 = dot(L, L);
-    if (d2 > a.w * a.w) continue;
-    vec4 b = texelFetch(nightLightTex, ivec2(1, i), 0);
-    float d = sqrt(d2);
-    L /= d;
-    float ndl = max(dot(geometryNormal, L), 0.0);
-    float cut = clamp(1.0 - pow(d / a.w, 4.0), 0.0, 1.0);
-    float att = cut * cut / max(d2, 0.5);
-    if (b.w > -1.5) {
-      vec4 c = texelFetch(nightLightTex, ivec2(2, i), 0);
-      att *= smoothstep(b.w, c.w, dot(-L, c.xyz));
-    }
-    nlSum += b.rgb * (att * ndl);
-  }
-  reflectedLight.directDiffuse += nlSum * nightLightLevel * BRDF_Lambert(material.diffuseColor);
-}
-`;
+const TEXELS = 3; // per light: [position (world), range] [color * intensity, spot cos outer | -2] [direction (world), cos inner]
 
 const _v = new Vector3();
+
+/**
+ * The scene's own lights, plus every night light (a loop over the texture, each one through
+ * the material's lighting model like a point light, a spot's cone on top).
+ */
+class NightLightsNode extends LightsNode {
+  static get type() {
+    return 'NightLightsNode';
+  }
+
+  constructor(night) {
+    super();
+    this.night = night;
+  }
+
+  setupLights(builder, lightNodes) {
+    super.setupLights(builder, lightNodes);
+    const N = this.night;
+    const { reflectedLight } = builder.context;
+    reflectedLight.directDiffuse.toStack();
+    reflectedLight.directSpecular.toStack();
+    Fn(() => {
+      If(N.levelNode.greaterThan(0), () => {
+        Loop(N.countNode, ({ i }) => {
+          const a = textureLoad(N.texture, ivec2(0, i));
+          const lightVector = cameraViewMatrix.mul(vec4(a.xyz, 1)).xyz.sub(positionView).toVar();
+          const d2 = dot(lightVector, lightVector).toVar();
+          If(d2.lessThan(a.w.mul(a.w)), () => {
+            const b = textureLoad(N.texture, ivec2(1, i));
+            const d = d2.sqrt();
+            const lightDirection = lightVector.div(d).toVar();
+            // A smooth cut at the range, inverse square (held off right at the fixture).
+            const cut = float(1).sub(d.div(a.w).pow4()).clamp();
+            const color = b.rgb.mul(N.levelNode).mul(cut.mul(cut).div(d2.max(0.5))).toVar();
+            If(b.w.greaterThan(-1.5), () => {
+              const c = textureLoad(N.texture, ivec2(2, i));
+              const axis = cameraViewMatrix.mul(vec4(c.xyz, 0)).xyz;
+              color.mulAssign(smoothstep(b.w, c.w, dot(lightDirection.negate(), axis)));
+            });
+            builder.lightsNode.setupDirectLight(builder, this, { lightDirection, lightColor: color });
+          });
+        });
+      });
+    }, 'void')();
+  }
+}
+
+/** The renderer's lighting: the night lights in `scene` only (not the weapon's own scene). */
+export class NightLighting extends Lighting {
+  constructor(night, scene) {
+    super();
+    this.night = night;
+    this.scene = scene;
+  }
+
+  getNode(scene) {
+    if (scene !== this.scene) return super.getNode(scene);
+    let node = this._lightsNodeMap.get(scene);
+    if (node === undefined) {
+      node = new NightLightsNode(this.night);
+      this._lightsNodeMap.set(scene, node);
+    }
+    return node;
+  }
+}
 
 export class NightLights {
   constructor() {
@@ -49,12 +86,9 @@ export class NightLights {
     this.texture.magFilter = NearestFilter;
     this.texture.minFilter = NearestFilter;
     this.texture.needsUpdate = true;
-    // Shared by every patched material (one upload a frame for all of them).
-    this.uniforms = {
-      nightLightTex: { value: this.texture },
-      nightLightCount: { value: 0 },
-      nightLightLevel: { value: 0 },
-    };
+    // Shared by every lit material.
+    this.countNode = uniform(0, 'int');
+    this.levelNode = uniform(0);
     this.glows = []; // fixtures' materials: emissiveIntensity = level * material.userData.glow
   }
 
@@ -66,8 +100,9 @@ export class NightLights {
 
   /**
    * @param {{ position: number[], color: number, intensity: number, range: number,
-   *   direction?: number[], cone?: number, soft?: number }} l cone: half-angle (rad) of a spot;
-   *   soft: the share of the cone that fades out
+   *   direction?: number[], cone?: number, soft?: number, volumetric?: boolean }} l cone:
+   *   half-angle (rad) of a spot; soft: the share of the cone that fades out; volumetric: its
+   *   beam shows in the haze (core/Volumetrics.js)
    */
   add(l) {
     if (this.lights.length >= MAX_NIGHT_LIGHTS) return null;
@@ -78,27 +113,55 @@ export class NightLights {
       direction: l.direction ? new Vector3().fromArray(l.direction).normalize() : null,
       cosOuter: l.cone ? Math.cos(l.cone) : -2,
       cosInner: l.cone ? Math.cos(l.cone * (1 - (l.soft ?? 0.4))) : 1,
+      volumetric: l.volumetric ?? false,
     };
     this.lights.push(light);
-    this.uniforms.nightLightCount.value = this.lights.length;
+    this._write(this.lights.length - 1);
+    this.countNode.value = this.lights.length;
+    this.version = (this.version ?? 0) + 1;
     return light;
+  }
+
+  _write(i) {
+    const l = this.lights[i];
+    const d = this.data;
+    const o = i * TEXELS * 4;
+    d[o] = l.position.x;
+    d[o + 1] = l.position.y;
+    d[o + 2] = l.position.z;
+    d[o + 3] = l.range;
+    d[o + 4] = l.color.r;
+    d[o + 5] = l.color.g;
+    d[o + 6] = l.color.b;
+    d[o + 7] = l.cosOuter;
+    if (l.direction) {
+      d[o + 8] = l.direction.x;
+      d[o + 9] = l.direction.y;
+      d[o + 10] = l.direction.z;
+      d[o + 11] = l.cosInner;
+    }
+    this.texture.needsUpdate = true;
   }
 
   clear() {
     this.lights.length = 0;
-    this.uniforms.nightLightCount.value = 0;
+    this.countNode.value = 0;
   }
 
   /** 0 = off (day) .. 1 = full night. */
   setLevel(v) {
-    this.uniforms.nightLightLevel.value = v;
+    this.levelNode.value = v;
     for (const m of this.glows) m.emissiveIntensity = v * (m.userData.glow ?? 1);
+  }
+
+  get level() {
+    return this.levelNode.value;
   }
 
   /**
    * The light at a point from every night light (no normals, no shadows): `out` gets the
    * color, `dir` the main direction it comes from (unit, toward the lights). For things the
-   * shader patch doesn't reach (the first-person weapon). Returns `out`.
+   * lighting loop doesn't reach (the first-person weapon's own scene). Returns `out`.
    */
   sample(point, out, dir) {
     out.setRGB(0, 0, 0);
@@ -129,43 +192,6 @@ export class NightLights {
     return out;
   }
 
-  get level() {
-    return this.uniforms.nightLightLevel.value;
-  }
-
-  /** Per frame, after the camera moved: positions and directions into view space. */
-  update(camera) {
-    if (!this.lights.length || this.level <= 0) return;
-    const m = camera.matrixWorldInverse;
-    const d = this.data;
-    for (let i = 0; i < this.lights.length; i++) {
-      const l = this.lights[i];
-      const o = i * TEXELS * 4;
-      _v.copy(l.position).applyMatrix4(m);
-      d[o] = _v.x;
-      d[o + 1] = _v.y;
-      d[o + 2] = _v.z;
-      d[o + 3] = l.range;
-      d[o + 4] = l.color.r;
-      d[o + 5] = l.color.g;
-      d[o + 6] = l.color.b;
-      d[o + 7] = l.cosOuter;
-      if (l.direction) {
-        _v.copy(l.direction).transformDirection(m);
-        d[o + 8] = _v.x;
-        d[o + 9] = _v.y;
-        d[o + 10] = _v.z;
-        d[o + 11] = l.cosInner;
-      }
-    }
-    this.texture.needsUpdate = true;
-  }
-
-  /** Add the lights to a lit material's shader (an onBeforeCompile step). */
-  patch(shader) {
-    Object.assign(shader.uniforms, this.uniforms);
-    shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform highp sampler2D nightLightTex;\nuniform int nightLightCount;\nuniform float nightLightLevel;')
-      .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>\n${NIGHT_LIGHTS_GLSL}`);
-  }
+  /** (World-space data: nothing to do per frame.) */
+  update() {}
 }

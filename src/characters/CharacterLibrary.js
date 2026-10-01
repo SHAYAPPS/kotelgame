@@ -1,5 +1,6 @@
 import { AnimationClip, AnimationUtils, Matrix4, Vector3, VectorKeyframeTrack } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { gpuFriendly } from '../core/gpuGeometry.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { decodeClips } from './animLibrary.js';
 import { CharacterModel } from './CharacterModel.js';
@@ -226,6 +227,7 @@ export class CharacterLibrary {
       await Promise.all(
         entries.map(async ([id, info]) => {
           const gltf = await loader.loadAsync(`${this.base}${info.file}`);
+          gpuFriendly(gltf.scene);
           this.types.set(id, new CharacterType(id, info, gltf, clips, manifest.anims));
           onProgress?.(++done, total);
         }),

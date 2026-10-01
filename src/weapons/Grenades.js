@@ -16,6 +16,7 @@ import {
   SpriteMaterial,
   Vector3,
 } from 'three';
+import { litSmokeMaterial } from '../world/Particles.js';
 
 // Frag grenades, thrown by the player and by enemies.
 // GrenadeSim is the physics (pure, unit-tested): gravity, bounces off the collision
@@ -198,7 +199,7 @@ export class GrenadeView {
     this.blasts = Array.from({ length: 10 }, () => {
       const flash = new Sprite(new SpriteMaterial({ map: flashTex, color: 0xffffff, transparent: true, blending: AdditiveBlending, depthWrite: false, toneMapped: false }));
       flash.material.color.setScalar(5); // HDR: the fireball blooms
-      const smoke = new Sprite(new SpriteMaterial({ map: smokeTex, transparent: true, depthWrite: false, toneMapped: false }));
+      const smoke = new Sprite(litSmokeMaterial(smokeTex));
       flash.visible = smoke.visible = false;
       this.root.add(smoke, flash);
       return { t: -1, flash, smoke, pos: new Vector3() };

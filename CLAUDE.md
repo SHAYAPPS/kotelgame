@@ -44,7 +44,7 @@ A browser-based 3D first-person story shooter.
 - **Commit to git after every working feature.**
 - Keep the code modular: `src/player`, `src/weapons`, `src/world`, `src/ai`, `src/story`, `src/ui`,
   `src/characters` (animated people). (`src/core` holds engine plumbing: renderer, game loop, input.)
-- Target a smooth **60 FPS on an average laptop**.
+- Target a smooth **60 FPS**: high on a mid-range gaming PC, medium on an average laptop.
 
 ## Roadmap
 
@@ -103,6 +103,19 @@ A browser-based 3D first-person story shooter.
      detector, six people, the guard's handover), a ~3 minute patrol by the wall with radio
      check-ins, the radio call and the squad gathering; the rest adjusted to the night
    - [x] Recording booth (`dev/booth.html`) for every line and the crowd-prayer slots
+9. [x] Graphics upgrade (tagged before it: `before-graphics-upgrade`)
+   - [x] WebGPU (three's `WebGPURenderer`, WebGL 2 fallback) and a node-based post chain; every
+     custom shader ported to TSL (sky, night lights, characters, crowd, red dot, particles)
+   - [x] Temporal AA, motion blur (off / low / high), GTAO or screen-space GI, contact
+     shadows, reflections on polished paving, depth of field (aiming, close conversations),
+     eye adaptation, filmic tone mapping + night grade, soft-knee bloom, faint lens flares,
+     film grain, vignette
+   - [x] Volumetric haze (the floodlights' beams), smoke and dust lit by the scene's lights,
+     heat shimmer over explosions and behind the launcher
+   - [x] Stone: parallax occlusion (joints, margins, pits carved in), close-up detail, wear
+     (paving polished where people walk, grime at wall feet, the wall darkened where hands touch)
+   - [x] Presets low / medium / high / ultra, every effect switchable on its own, dynamic
+     resolution
 
 ## Commands
 
@@ -118,9 +131,14 @@ A browser-based 3D first-person story shooter.
   with CC0 photoscans from Poly Haven / ambientCG and fetch a 2k sky HDRI (needs network access
   to api.polyhaven.com, dl.polyhaven.org, ambientcg.com). `LOCAL=<dir>` imports files you
   downloaded yourself (`<id>_color/_normal/_rough[/_ao].jpg`). A set that fails keeps what's there.
-- `npm run screenshots -- [outDir] [low|medium|high]`: Playwright screenshots from 5 fixed
+- `npm run screenshots -- [outDir] [low|medium|high|ultra]`: Playwright screenshots from 5 fixed
   spots around the plaza (dev server must be running; `playwright` is a dev dependency;
-  `GAME_URL=http://localhost:4180/` points it at a preview build instead)
+  `GAME_URL=http://localhost:4180/` points it at a preview build instead). Runs on the
+  machine's GPU (WebGPU); env: `EFFECTS='{"dynamicRes":false}'` (effect switches over the
+  preset; turn dynamic resolution off for comparable shots), `ONLY=1,3` (those spots),
+  `STEP=<mission step>` (default `radio_call`), `WEBGL=1` (the WebGL 2 fallback), `SOFTWARE=1`
+  (SwiftShader), `NODETRACE=1`. The game's URL takes `?webgl` (force WebGL 2) too.
+  `screenshots/before/` holds the set from before the graphics upgrade.
 - Recording booth: `npm run dev`, then http://localhost:5173/dev/booth.html: every line of
   the mission (and the crowd-prayer loops), record from the microphone (space), play back,
   delete; saved as `src/assets/voice/<lineId>.webm` (vite.config.js `/__voice`)
@@ -136,7 +154,8 @@ A browser-based 3D first-person story shooter.
   `scripts/assets/audio.config.mjs`; raw files in `assets-src/sfx/<pack>/`, git-ignored, fetched
   when missing). Needs ffmpeg with libopus. Rewrites `CREDITS.md`.
 - `npm run weapon-shots -- [outDir] [name filter]`: Playwright screenshots of the weapon in the
-  game (hip, aimed, in shade, firing, reload out / in, sprint, casings, launcher). The weapon on
+  game (hip, aimed, in shade, firing, reload out / in, sprint, casings, launcher; GPU, env
+  `QUALITY=low|medium|high|ultra`, `SOFTWARE=1`). The weapon on
   its own: http://localhost:5173/dev/viewmodel.html (`weapon=rifle|launcher`,
   `state=hip|ads|sprint|lowered|stow|reload|check|charge`, `t=<s>`, `empty=1`,
   `cam=view|side|left|top|front|port`). Any model file: http://localhost:5173/dev/models.html
@@ -156,8 +175,15 @@ A browser-based 3D first-person story shooter.
   loading screen shows at once); `await game.init()` builds the world (yielding between the
   heavy parts so the progress bar moves) and waits for every load (textures, characters and
   their fitted gear, weapon models, sounds), drawing the menu's scene behind the loading screen
-  meanwhile (shaders compile there). Renderer, scene, fixed-timestep loop (physics at 120 Hz,
-  rendering interpolated between steps). Modes: `loading` -> `title` (click to continue: it
+  meanwhile (shaders compile there). Renderer (`WebGPURenderer`: WebGPU, else WebGL 2;
+  `requiredLimits` asks for the adapter's color-attachment budget, the post chain's G-buffer
+  needs more than the default), scene, fixed-timestep loop (physics at 120 Hz, rendering
+  interpolated between steps). Per frame: `scene.updateMatrixWorld()` once (the scene's auto
+  update is off: the post chain renders it many times), `assignCharacterShadows()`, depth of
+  field focus (`_focus`: the aim point while aiming, the speaker in close conversations), heat
+  sources (`_heat`: blasts via `addHeat()`, rockets in flight), `post.render(dt)`, then
+  `_dynamicResolution` (pixel ratio down to the preset's `minScale` while frames run long,
+  back up when there's headroom; TRAA smooths it). Modes: `loading` -> `title` (click to continue: it
   unlocks the sound) -> `menu` (`toMenu()`: dawn, the menu camera, the story's `menuScene()`)
   -> `playing` <-> `paused` (the pointer lock: losing it while playing pauses; Resume asks for
   it again). `newGame(chapter)` / `continueGame()` set what `_beginPlay()` starts once the
@@ -208,38 +234,83 @@ A browser-based 3D first-person story shooter.
 - `src/world/capsuleContact.js`: exact capsule-vs-triangle contact (closest points).
 - `src/core/Models.js`: `models.load(path)` loads a GLB once (meshopt, KTX2 via the
   TextureLibrary's loader, set by Game).
-- `src/core/Graphics.js`: the `QUALITY` presets (low / medium / high: pixel ratio, MSAA, shadow
-  cascades / map size / distance, AO, bloom, flash-light count, anisotropy), picked in
-  Settings > Graphics; `Game.setQuality()` applies one live.
-- `src/core/PostFX.js`: EffectComposer chain: world (half-float, MSAA) -> GTAO (half-res on
-  medium) -> the viewmodel on top (depth cleared) -> bloom (threshold 3.2: only HDR-bright
-  flashes, fire, the sun) -> OutputPass (ACES filmic) -> color grade (contrast, split tone,
-  vignette). Flash materials are colored well above 1 so they bloom.
-- `src/world/Environment.js`: sky dome shader (gradient, sun disc, drifting clouds), FogExp2
-  haze, HDRI image-based light (PMREM, the HDRI's sun clamped; list of files tried in order),
-  a warm hemisphere bounce fill, and the sun as three's `CSM` (cascaded shadow maps, updated
-  every frame). `src/world/sun.js`: solar position from the level's date/time/place (Mission 1:
+- `src/core/Graphics.js`: the `QUALITY` presets (low / medium / high / ultra: pixel ratio,
+  shadow cascades / map size / distance, flash-light count, anisotropy, character LOD scale,
+  character shadows (`characterShadows` m and `characterShadowCount`: only the nearest so many),
+  AO / SSGI / haze / reflection resolution and samples, dynamic resolution's floor) and each
+  preset's `effects`. `EFFECTS`: aa, motionBlur (`MOTION_BLUR` off / low / high), ao,
+  contactShadows, ssgi, ssr, dof, eyeAdaptation, bloom, lensFlare, grain, vignette, haze, heat,
+  parallax, detail, dynamicRes. `effectsFor(preset, overrides)`: the player's switches
+  (Settings > Graphics, `settings.effects`) over the preset. `Game.setSetting('quality' |
+  'effects')` applies live (a new preset clears the switches).
+- `src/core/PostFX.js`: three's `RenderPipeline` (node post-processing). The world pass writes
+  an MRT G-buffer (color, view normals, motion vectors, albedo for SSGI, metal / roughness for
+  reflections; the extra images are written with alpha 0 and the material's blending, so
+  transparent smoke / sparks leave them alone) -> SSGI (bounced light + AO) or GTAO -> contact
+  shadows (`sss`, toward the key light) -> `StoneReflections` -> `Volumetrics` (added) -> TRAA
+  -> depth of field (`setFocus`) -> motion blur (own pass: jittered, a fixed shutter time:
+  `u.motion` scales by 1/60 s over the frame time) -> the weapon's own pass on top
+  (`TransparentPass`, MSAA, composited by its alpha) -> heat shimmer + the suppression smear ->
+  exposure (eye adaptation: a 32x18 log-luminance readback every 0.25 s, partial adaptation,
+  `setNight` sets its key / limits) -> bloom (soft-knee bright pass) + lens flares (only
+  intense sources) -> `renderOutput` (ACES filmic, sRGB) -> grade (saturation, contrast, split
+  tone warmer at night, vignette, grain); FXAA when TRAA is off. Rebuilt on every preset /
+  switch change (`setQuality`); uniforms survive. Effects the device can't afford (color
+  attachment bytes) are dropped (reflections, then SSGI).
+- `src/core/Volumetrics.js`: the haze: a reduced-resolution pass marching each view ray (to the
+  depth or 60 m, jittered) through height-fogged air under a soft ceiling, lit by up to 24
+  `volumetric` night lights (strongest first; spots keep their cones: the floodlights' beams)
+  and the moon, Henyey-Greenstein forward scattering; blurred a little.
+- `src/core/StoneReflections.js`: screen-space reflections only on up-facing smooth pixels
+  (the polished paving): view-space march, Fresnel / smoothness / edge / distance weighting.
+- `src/core/postCamera.js`: the scene camera's matrices as uniforms for post passes (in a
+  pass, three's camera nodes are the full-screen quad's camera).
+- `src/core/fastProject.js`: renderer CPU shortcuts (three r186 internals):
+  `flattenRenderables` (an object with `userData.renderables`, a character's body, is drawn by
+  visiting just those meshes, not its ~90 bones) and `steadyShadowMaterials` (see Notes).
+- `src/core/gpuGeometry.js`: `gpuFriendly(root)` expands 1- / 3-component 8 / 16-bit vertex
+  attributes (WebGPU has no such formats) to floats, shared ones stay shared.
+- `src/world/Environment.js`: sky dome (TSL: gradient, sun disc, drifting clouds, the night
+  sky), FogExp2 haze, HDRI image-based light (the HDRI's sun clamped; the renderer prefilters
+  it; list of files tried in order), a warm hemisphere bounce fill, and the sun / moon as a
+  DirectionalLight `keyLight` with three's `CSMShadowNode` (cascaded shadow maps, practical
+  splits, fading between cascades; rebuilt by `setQuality`). `src/world/sun.js`: solar position from the level's date/time/place (Mission 1:
   21:00 on the night of the final Selichot: the sun far below the horizon).
   Night (`config.environment.night`): below the horizon (`_keyLight`) the moon becomes the CSM
   key light (dim, cool), the night HDRI lights the scene, the sky dome samples the night sky
   (`night_sky.jpg`: darkened, stars by a high-pass, the city's glow, a moon disc), and the
   level's `NightLights` turn on. `npm run assets:fetch hdri` also fetches the night sky.
 - `src/world/NightLights.js`: up to 64 lights without shadows (lamp posts, floodlights on the
-  wall, the screens' glow, windows) in a float texture of view-space lights read in every lit
-  fragment shader (patched in after `lights_fragment_end` by `Environment._setupMaterial`):
-  point / spot (cone, softness), each with a range. Glow materials follow the night level;
-  `sample(point)` lights the viewmodel. `src/world/kotel/night.js` builds the level's lights:
+  wall, the screens' glow, windows) in a float texture (world space: position + range, color,
+  spot axis + cones). `NightLighting` (installed as `renderer.lighting`) gives the main scene a
+  `NightLightsNode`: three's lights plus a loop over the texture through each material's own
+  lighting model (diffuse and specular), a smooth cut at each light's range. `volumetric: true`
+  lights also light the haze. Glow materials follow the night level; `sample(point)` lights
+  the viewmodel. `src/world/particleLight.js` (`lightAt(p)`): the light in the air at a point
+  (night lights, moon, `FlashLights`' flashes as uniform arrays) for smoke and dust. `src/world/kotel/night.js` builds the level's lights:
   flood poles on the plaza edge washing the wall, uplights along its foot, lamp posts, the two
   giant screens (a canvas: the Selichot broadcast) and loudspeaker poles; `facades.js` lights
   a share of the windows.
 - `src/world/Textures.js`: `TextureLibrary` loads KTX2 texture sets (`<id>_color/_normal/_orm`,
   see `public/assets/textures/manifest.json`) and streams them into existing materials
-  (`apply(material, id, { scale, normalScale })`; UVs are in meters). Asset scripts live in
+  (`apply(material, id, { scale, normalScale })`; UVs are in meters; a `userData.stone`
+  material gets `applyStone`).
+- `src/world/stoneMaterial.js`: stone as node materials: the set sampled (UVs; the wall's
+  blocks from world space + each block's offset; props without UVs from world space), parallax
+  occlusion (12 steps into the AO channel as height, close up), the mapped normal on a
+  derivative frame, close-up detail (noise bump + color grain), wear by world position (paving
+  polished where people walk: smoother, so it reflects; grime at the foot of walls and in the
+  joints; the wall darkened and smoothed where hands touch it). `STONE.parallax` / `.detail`:
+  the switches.
+- `src/world/Particles.js`: instanced camera-facing particles (one draw: position, size, color),
+  optionally lit by `lightAt` and soft against surfaces (sparks, dust, the rocket's trail);
+  `litSmokeMaterial(map)` for smoke sprites (grenade, truck). Asset scripts live in
   `scripts/assets/` (`generate.mjs`, `fetch.mjs`, `credits.mjs`, `ktx2.mjs`).
 - `src/world/FlashLights.js`: a small pool of point lights (count per quality) for muzzle
   flashes, explosions, the rocket launch and phone photo flashes; the dimmest one is reused.
-  At night `boost` makes them reach farther and peak brighter (and PostFX `setNight` lowers
-  the bloom threshold).
+  At night `boost` makes them reach farther and peak brighter (and PostFX `setNight` raises
+  the bloom and the grade's night look). Their positions / colors are also uniform arrays
+  for the lit smoke and dust (`particleLight.js`).
 - `src/world/greybox.js`: procedural 1 m grid texture, color palette, box/ramp geometry with UVs in meters
   (the test range still uses the grid).
 - `src/world/kotel/`: the greybox Western Wall plaza (Mission 1), 1 unit = 1 m.
@@ -472,7 +543,9 @@ A browser-based 3D first-person story shooter.
     nearest shelter / exit, crowding at the bottlenecks. The renderer bakes each character
     type's animation (skinning matrices at 12 fps into a half-float texture), draws LOD1 / LOD2
     instances with head wear merged in and per-instance outfit (palette texture), clip, phase
-    and head turn; on `FAR_LAYER`.
+    and head turn (a TSL material: skinned in `positionNode`, its `positionPrevious` the placed
+    position; vertex and instance data each in one interleaved buffer); on `FAR_LAYER`.
+    `CrowdDirector.ready` once built (no updates before).
 - `src/world/SkyFx.js`: rocket barrage over the city (pooled interceptor trails, flashes, smoke
   puffs, horizon impacts); `onFlash(distance, strength)`.
 - `WeaponAudio.echoBus`: the plaza reverb's send (`Mixer.reverb`); gunshots, explosions, the
@@ -506,9 +579,13 @@ A browser-based 3D first-person story shooter.
     attachments (`attach`, rifle via `addRifle`), and the hit zones in root space (`hit`).
     Performance: LOD by distance, animation every frame < 16 m / every 2nd < 36 m / every 4th,
     off-screen every 8th (never drawn before its first pose); IK < 18 m; shadows <
-    `characterShadows` (Graphics.js); characters
-    beyond 20 m on `FAR_LAYER` (drawn, but not in the AO prepass or shadow maps); bone
-    matrices uploaded only when the pose or placement changed. Tuning: `config.js`.
+    `characterShadows` and only the nearest `characterShadowCount` (Graphics.js;
+    `registry.js` `assignCharacterShadows()` each frame); characters beyond 20 m on
+    `FAR_LAYER` (drawn, but not in the shadow maps); bone matrices uploaded, and the bones'
+    world matrices walked, only when the pose or placement changed. The material is a node
+    material whose graph every character shares (one shader program): per-part arrays come
+    from each mesh's `userData` (`reference()`); motion vectors from the placement only
+    (`positionPrevious`, see Notes). Tuning: `config.js`.
   - `SoldierAnimator.js`: squad and enemies from the AI state (`soldierState()` in
     EnemyView.js): postures relaxed / alert / combat, idles (aiming, crouched, cover wall with
     the back to high cover), 8-way walk / run / crouch-walk (`directionBlend`) at the real
@@ -687,24 +764,50 @@ A browser-based 3D first-person story shooter.
 - three r186 removed `PCFSoftShadowMap`; use `PCFShadowMap` with `shadow.radius`.
 - Dev builds expose `window.__game` for console debugging and automated checks
   (e.g. `__game.setActive(true)` plays without pointer lock).
-- Headless Chromium (Playwright) renders with SwiftShader: fine for screenshots and logic checks,
-  meaningless for FPS numbers. Set `__game.fixedFrame = 1 / 60` so every frame advances 1/60 s of
+- Headless Chromium (Playwright) can render on the real GPU (WebGPU) with `--enable-unsafe-webgpu
+  --enable-gpu --use-angle=metal --ignore-gpu-blocklist` (the screenshot scripts do); FPS from
+  it is a fair CPU-side measure. With SwiftShader (`SOFTWARE=1`) it is fine for screenshots and
+  logic checks, meaningless for FPS numbers. The desktop app's hidden browser pane throttles
+  requestAnimationFrame (~1 FPS): don't measure there. Set `__game.fixedFrame = 1 / 60` so every frame advances 1/60 s of
   game time (else long frames hit the 0.1 s cap: springs, cloth and stairs smoothing see huge
   steps; they are sub-stepped, but the scene then isn't what a player sees). At ~5 FPS the frame-time cap makes game time run slower than real
   time (with every character on screen it can drop under 1 FPS, a few tenths of a second of game
   time in 15 s: fast-forward what a shot needs, e.g. `view.update(0.1)` in a loop for the
   death falls in `character-shots.mjs`). Under pointer lock, Playwright's synthetic mouse events report bogus large movements
   (the view jumps); drive input via `__game.input.held` / `.pressed` instead.
-- Two render passes per frame (world, then viewmodel), so `renderer.info.autoReset` is off and
-  `Game.frame()` resets it.
+- The post chain renders many passes per frame, so `renderer.info.autoReset` is off and
+  `Game.frame()` resets it (the HUD's draw-call count is the whole frame).
 - Viewmodel materials use low metalness: without an environment map, metals render black.
 - Levels export `navBounds` and `enemySpawns` for the AI. Keep cover objects >= 0.75 m tall
   (the cover generator's crouched-chest height) if they should count as cover.
-- CSM: every lit material must go through `csm.setupMaterial()` or it is lit once per cascade
-  (far too bright). `Environment.prepare()` does that each frame for new materials and chains
-  any existing `onBeforeCompile` patch (keep custom patches on `onBeforeCompile` before the
-  first render, or store them in `userData.baseOnBeforeCompile`). Mark unlit/special meshes
-  `userData.noCSM`.
+- WebGPU / TSL: `.assign()` only inside `Fn`; a `toVar()` first used inside an `If` exists only
+  there (declare shared values at the top with `.toStack()`); texture samples in a loop that
+  can `Break` need explicit gradients (`.grad(dx, dy)`); wrap `getViewPosition()` in `vec3()`.
+  No 1- / 3-component 8 / 16-bit vertex formats (`gpuFriendly`), at most 8 vertex buffers
+  (the crowd interleaves its attributes). `materialReference()` breaks in shadow passes (they
+  draw with an override material): use object `reference('userData.x')`.
+- Post passes: three's camera nodes (`cameraProjectionMatrix`, `cameraPosition`, ...) inside a
+  pass are the full-screen quad's orthographic camera: use `postCamera.js` uniforms.
+- A pass first rendered from inside another (an `rtt`) clears to opaque black (three resets
+  the clear color there): the weapon's pass is a `TransparentPass` (PostFX.js).
+- MRT: extra outputs are written without blending by default, so a transparent sprite stamps
+  its whole quad into the normals (dark rectangles in the AO). PostFX writes them with alpha
+  0 and `MaterialBlending`.
+- Motion vectors: three skins the previous pose with the matrices of one skeleton per shader
+  program; characters share one program, so the rest got a stranger's previous pose (huge
+  smears in TRAA and motion blur). `CharacterModel` (and the crowd) set `positionPrevious` to
+  the current local position: motion vectors from placement and camera only.
+- Shadow passes copy each caster's `alphaTest` into one shared material, and three's setter
+  bumps the material's version when alpha testing turns on or off: every caster then
+  recomputed its full shader cache key every frame. `steadyShadowMaterials()` keeps the
+  version for shadow-pass materials.
+- three r186 `updateMatrixWorld()` always walks the children; `matrixWorldAutoUpdate = false`
+  only freezes that object's own world matrix (don't use it to skip a subtree). CharacterModel
+  wraps the root bone's `updateMatrixWorld` instead.
+- ACES desaturates very bright saturated colors toward orange / white: the red dot is red at
+  ~2.6, not 6, and hides what's behind it (alpha) instead of adding to a lit wall.
+- Bloom: a hard threshold makes lights pop in and out of the glow as the exposure moves; the
+  bright pass has a soft knee.
 - KTX2: three's `KTX2Loader` loads its Basis transcoder from three's own folder (Vite bundles
   it); don't set a transcoder path. Normal maps are UASTC (ETC1S artifacts
   show badly in lighting); color and ORM are ETC1S. Textures ship at 1024 px.

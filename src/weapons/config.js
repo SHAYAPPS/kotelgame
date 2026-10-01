@@ -51,9 +51,9 @@ export const RED_DOT = {
   lensRadius: 0.0148,
   height: 0.0405, // optical axis above the rail top (a "lower 1/3" riser: the front sight post shows just under the dot)
   rearZ: 0.012, // rear end of the tube on the receiver rail (rifle model z)
-  dotSize: 0.0019, // dot radius (rad); a real 2 MOA dot would be under a pixel
-  glow: 0.35,
-  color: [4.5, 0.12, 0.08], // HDR red: blooms slightly in daylight
+  dotSize: 0.0025, // dot radius (rad); a real 2 MOA dot would be under a pixel
+  glow: 0.12,
+  color: [2.6, 0.03, 0.02], // red (brighter would turn orange in the filmic tone curve)
   rearTint: [0.1, 0.09, 0.16], // coating sheen (additive), strongest at the rim
   frontTint: [0.07, 0.06, 0.09],
 };

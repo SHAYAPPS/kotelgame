@@ -6,13 +6,16 @@ import {
   LoopRepeat,
   Matrix3,
   Matrix4,
+  MeshStandardNodeMaterial,
   Quaternion,
   Sphere,
   Vector3,
   Vector4,
-} from 'three';
+} from 'three/webgpu';
+import { Fn, attribute, dot, float, int, materialColor, max, mix, normalLocal, positionLocal, positionPrevious, reference, select, vec3, vec4 } from 'three/tsl';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { CHARACTER, FAR_LAYER, PARTS } from './config.js';
+import { characters } from './registry.js';
 import { ClothSim } from './ClothSim.js';
 import { setWorldQuaternion, solveTwoBone } from './ik.js';
 import { createRifle } from './weapons.js';
@@ -75,6 +78,17 @@ export class CharacterModel {
       this._skinWorld.copy(this.body.matrixWorld);
       this._skinDirty = false;
     };
+    // The scene's per-frame matrix update walks every bone (a hundred people: ~11,000): a
+    // skeleton is walked only when the pose or the body's placement changed since its last walk.
+    this._bonesWorld = new Matrix4();
+    for (const b of skeleton.bones.filter((x) => !x.parent?.isBone)) {
+      const walk = b.updateMatrixWorld;
+      b.updateMatrixWorld = (force) => {
+        if (!this._skinDirty && this.body.matrixWorld.equals(this._bonesWorld)) return;
+        walk.call(b, force);
+        this._bonesWorld.copy(this.body.matrixWorld);
+      };
+    }
     this.bones = new Map(skeleton.bones.map((b) => [b.name, b]));
 
     // Per-person material (same shader program): part tints. `flat` per part: 0 keeps the
@@ -85,11 +99,12 @@ export class CharacterModel {
     this.inflate = new Array(PARTS).fill(0); // geometry units, see setInflate()
     this.hide = new Array(PARTS).fill(0); // 1 = part not drawn (e.g. hair under a headscarf)
     if (tints) for (const [part, c] of Object.entries(tints)) this.tints[+part].set(c[0], c[1], c[2], c[3] ?? 1);
-    const material = this.lods[0].material.clone();
     const lum = Array.from({ length: PARTS }, (_, i) => this.info.partLum?.[i] ?? 0.3);
-    patchMaterial(material, this.tints, lum, this.flat, this.inflate, this.hide);
+    const material = characterMaterial(this.lods[0].material, this.tints, lum, this.flat, this.inflate, this.hide);
     for (const m of this.lods) {
       m.material = material;
+      // The per-part arrays the shared shader reads (core of each person's look).
+      Object.assign(m.userData, { tints: this.tints, partLum: lum, flat: this.flat, inflate: this.inflate, hide: this.hide });
       m.castShadow = true;
       m.receiveShadow = true;
       m.frustumCulled = true;
@@ -149,6 +164,10 @@ export class CharacterModel {
     this.rifle = null;
     this.size = 1; // setSize()
     this.gear = []; // attachments: { object, shadow, hideBeyond }
+    // What the renderer draws of the body: the LOD meshes and the attachments. The renderer
+    // goes straight to these (core/fastProject.js) instead of walking the ~90 bones every pass.
+    this.renderables = [...this.lods];
+    this.body.userData.renderables = this.renderables;
     this._zoneBones = ['Head', 'LeftFoot', 'RightFoot'].map((n) => this.bone(n)).filter(Boolean);
     this._layer = 0;
   }
@@ -162,6 +181,13 @@ export class CharacterModel {
     this.size = scale;
     this.body.scale.setScalar(scale);
     this.bone('Head')?.scale.setScalar(headScale);
+  }
+
+  /** Casts a shadow (the body; its gear only close by). */
+  setCastShadow(on) {
+    if (this.lods[0].castShadow !== on) for (const m of this.lods) m.castShadow = on;
+    const gear = on && this._gearShadow;
+    for (const g of this.gear) g.object.castShadow = g.shadow && gear;
   }
 
   setLod(i) {
@@ -180,6 +206,7 @@ export class CharacterModel {
     if (b) b.add(object);
     object.castShadow = false;
     this.gear.push({ object, shadow, hideBeyond });
+    this.renderables.push(object);
     return object;
   }
 
@@ -355,8 +382,10 @@ export class CharacterModel {
       else if (this.lod === 1 && d > c.lodFar + hy) this.setLod(2);
       else if (this.lod === 2 && d < c.lodFar - hy) this.setLod(1);
       else if (this.lod === 2 && d < c.lodNear) this.setLod(0);
-      const shadow = this.distance < c.shadowDistance;
-      if (this.lods[this.lod].castShadow !== shadow) for (const m of this.lods) m.castShadow = shadow;
+      // Shadows: close enough, and among the nearest few (registry.js assignCharacterShadows).
+      this._gearShadow = this.distance < c.shadowDistance * 0.5;
+      if (this.distance < c.shadowDistance) characters.casters.push(this);
+      else this.setCastShadow(false);
       // Far: out of the AO prepass (and shadows).
       const layer = this.distance > c.aoDistance * c.lodScale ? FAR_LAYER : 0;
       if (layer !== this._layer) {
@@ -365,12 +394,8 @@ export class CharacterModel {
         for (const g of this.gear) g.object.layers.set(layer);
         if (this.rifle) this.rifle.flash.layers.set(layer);
       }
-      // Gear: shadows only close by, small pieces hidden far away.
-      const gearShadow = this.distance < c.shadowDistance * 0.5;
-      for (const g of this.gear) {
-        g.object.visible = this.distance < g.hideBeyond * c.lodScale;
-        g.object.castShadow = g.shadow && gearShadow;
-      }
+      // Gear: small pieces hidden far away (their shadows: setCastShadow).
+      for (const g of this.gear) g.object.visible = this.distance < g.hideBeyond * c.lodScale;
       if (ctx.frustum) {
         _v.copy(_w);
         _v.y += 0.9;
@@ -714,42 +739,55 @@ function sphereVisible(frustum, center) {
 }
 const _sphere = new Sphere(new Vector3(), 1.3);
 
+/** The material properties a converted character's material carries over. */
+const COPY = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap', 'alphaMap', 'roughness', 'metalness', 'alphaTest', 'transparent', 'opacity', 'side', 'depthWrite', 'envMapIntensity', 'aoMapIntensity', 'name'];
+
 /**
- * Per-part recolor on top of the atlas (shared shader, per-person uniforms): the texel's
- * luminance times the tint color, relative to the part's mean luminance.
+ * The character's own material (node based): the atlas recolored per clothing part (the
+ * texel's luminance times the tint, relative to the part's mean luminance; `flat` a plain
+ * color), parts pushed out along the normal (bare skin dressed as sleeves or trousers) or
+ * collapsed to a point (hidden: hair under a headscarf). The node graph is shared by every
+ * character (one shader program); the arrays are each material's own (userData, edited in
+ * place, read when it draws).
  */
-function patchMaterial(material, tints, partLum, flat, inflate, hide) {
-  material.onBeforeCompile = (shader) => {
-    shader.uniforms.uTint = { value: tints };
-    shader.uniforms.uPartLum = { value: partLum };
-    shader.uniforms.uFlat = { value: flat };
-    shader.uniforms.uInflate = { value: inflate };
-    shader.uniforms.uHide = { value: hide };
-    // Per part: pushed out along the normal (dressed skin), or collapsed to a point (hidden).
-    shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', `#include <common>\nattribute float _part;\nvarying float vPart;\nuniform float uInflate[${PARTS}];\nuniform float uHide[${PARTS}];`)
-      .replace(
-        '#include <begin_vertex>',
-        `#include <begin_vertex>
-        vPart = _part;
-        int part = int(_part + 0.5);
-        transformed += normal * uInflate[part];
-        if (uHide[part] > 0.5) transformed = vec3(0.0);`,
-      );
-    shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\nuniform vec4 uTint[${PARTS}];\nuniform float uPartLum[${PARTS}];\nuniform float uFlat[${PARTS}];\nvarying float vPart;`)
-      .replace(
-        '#include <map_fragment>',
-        `#include <map_fragment>
-        {
-          int p = int(vPart + 0.5);
-          vec4 t = uTint[p];
-          if (t.a > 0.0) {
-            float l = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
-            float rel = mix(l / max(uPartLum[p], 0.02), 1.0, uFlat[p]);
-            diffuseColor.rgb = mix(diffuseColor.rgb, t.rgb * rel, t.a);
-          }
-        }`,
-      );
-  };
+function characterMaterial(source, tints, partLum, flat, inflate, hide) {
+  const m = new MeshStandardNodeMaterial();
+  for (const k of COPY) if (source[k] !== undefined && source[k] !== null) m[k] = source[k];
+  m.color.copy(source.color);
+  m.emissive.copy(source.emissive);
+  m.normalScale.copy(source.normalScale);
+  const n = characterNodes();
+  m.positionNode = n.position;
+  m.colorNode = n.color;
+  return m;
+}
+
+let _nodes = null;
+function characterNodes() {
+  if (_nodes) return _nodes;
+  // (each mesh's own arrays: object references, so shadow passes read them too)
+  const tintU = reference('userData.tints', 'vec4');
+  const lumU = reference('userData.partLum', 'float');
+  const flatU = reference('userData.flat', 'float');
+  const inflateU = reference('userData.inflate', 'float');
+  const hideU = reference('userData.hide', 'float');
+  const part = int(attribute('_part', 'float').add(0.5));
+  // Per part: pushed out along the (skinned) normal, or collapsed to a point.
+  const pushed = positionLocal.add(normalLocal.mul(inflateU.element(part)));
+  const position = Fn(() => {
+    const p = select(hideU.element(part).greaterThan(0.5), vec3(0), pushed).toVar();
+    // Motion vectors (temporal AA, motion blur) from the body's placement and the camera, not
+    // the pose: three skins the previous pose with one skeleton's matrices per shader program,
+    // and every character shares this one (the others would get a stranger's pose).
+    positionPrevious.assign(p);
+    return p;
+  })();
+  // The atlas (materialColor: color x map), recolored per part.
+  const t = tintU.element(part);
+  const src = materialColor;
+  const l = dot(src.rgb, vec3(0.2126, 0.7152, 0.0722));
+  const rel = mix(l.div(max(lumU.element(part), 0.02)), float(1), flatU.element(part));
+  const color = vec4(mix(src.rgb, t.rgb.mul(rel), t.a), src.a);
+  _nodes = { position, color };
+  return _nodes;
 }

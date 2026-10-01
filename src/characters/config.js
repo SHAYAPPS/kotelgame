@@ -26,8 +26,8 @@ export const CHARACTER = {
   // Loose clothes (ClothSim.js): skirts and the hems of tops swing (springs with inertia) this
   // close; farther, the legs only push them out of the way (no swing); beyond, they rest.
   cloth: {
-    simDistance: 14,
-    kinematicDistance: 34,
+    simDistance: 11,
+    kinematicDistance: 17,
     maxStep: 1 / 60, // one step a frame at 60 FPS
     // frequency rad/s, damping ratio, air drag 1/s, gravity 0..1 (a tilted pelvis still hangs
     // straight; gravityLower: the lower bone hangs too, whatever the upper one does), clearance

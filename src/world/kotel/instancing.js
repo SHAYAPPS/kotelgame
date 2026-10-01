@@ -55,12 +55,13 @@ export class PropType {
     const byMaterial = new Map();
     for (const { geometry, material, local } of this.parts) {
       const g = geometry.index ? geometry.toNonIndexed() : geometry.clone();
-      g.deleteAttribute('uv');
       g.applyMatrix4(local);
       if (!byMaterial.has(material)) byMaterial.set(material, []);
       byMaterial.get(material).push(g);
     }
     for (const [material, geos] of byMaterial) {
+      // Attributes every part has stay (texture coordinates: a screen's image, stone in meters).
+      for (const g of geos) for (const k of Object.keys(g.attributes)) if (!geos.every((o) => o.attributes[k])) g.deleteAttribute(k);
       const merged = mergeGeometries(geos);
       const mesh = new InstancedMesh(merged, material, n);
       mesh.name = this.name;

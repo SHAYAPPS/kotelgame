@@ -94,7 +94,7 @@ export function buildNight(root, m, groundY) {
   glows.push(lampGlass);
   for (const x of [-42, -67, -94]) {
     for (let z = plaza.northZ + 6; z < plaza.southZ - 3; z += 13) {
-      lights.push({ position: [x, groundY(x, z) + 5, z], color: LAMP, intensity: 32, range: 13 });
+      lights.push({ position: [x, groundY(x, z) + 5, z], color: LAMP, intensity: 32, range: 13, volumetric: true });
     }
   }
 
@@ -112,7 +112,7 @@ export function buildNight(root, m, groundY) {
   const poleX = -prayer.depth + 2.5;
   for (const z of [-24, -12, 0, 12, 21.5, 27.5]) {
     pole.add(placement(poleX, 0, z, 0));
-    lights.push({ position: [poleX + 0.4, 11.4, z], direction: [-poleX, 10.5 - 11.4, 0], cone: 0.5, soft: 0.85, color: WARM, intensity: 5200, range: 52 });
+    lights.push({ position: [poleX + 0.4, 11.4, z], direction: [-poleX, 10.5 - 11.4, 0], cone: 0.5, soft: 0.85, color: WARM, intensity: 5200, range: 52, volumetric: true });
   }
 
   // Uplights in the paving at the wall's foot: grazing light on the lower courses.
@@ -147,7 +147,7 @@ export function buildNight(root, m, groundY) {
   for (const z of [-21, 36]) {
     const x = -prayer.depth - 6;
     screen.add(placement(x, groundY(x, z), z, 0));
-    lights.push({ position: [x - 1.5, BOTTOM + H / 2, z], direction: [-1, -0.35, 0], cone: 1.05, soft: 0.6, color: SCREEN, intensity: 55, range: 22 });
+    lights.push({ position: [x - 1.5, BOTTOM + H / 2, z], direction: [-1, -0.35, 0], cone: 1.05, soft: 0.6, color: SCREEN, intensity: 55, range: 22, volumetric: true });
   }
 
   // Loudspeaker poles along the plaza (for the service, far from the wall).

@@ -36,7 +36,7 @@ test('settings: defaults, saved and loaded, bad values checked, the old keys tak
   saveSettings(s, store);
   assert.deepEqual(loadSettings(store), s, 'round trip');
   // A hand-edited or broken save: clamped, unknown names back to the defaults.
-  store.setItem(SETTINGS_KEY, JSON.stringify({ sensitivity: 99, fov: -5, quality: 'ultra', difficulty: 'nightmare', volumes: { sfx: 3 }, subtitles: 'no' }));
+  store.setItem(SETTINGS_KEY, JSON.stringify({ sensitivity: 99, fov: -5, quality: 'insane', difficulty: 'nightmare', volumes: { sfx: 3 }, subtitles: 'no', effects: { ssr: 'yes', motionBlur: 'max', bloom: false } }));
   const bad = loadSettings(store);
   assert.equal(bad.sensitivity, LIMITS.sensitivity[1]);
   assert.equal(bad.fov, LIMITS.fov[0]);
@@ -45,6 +45,7 @@ test('settings: defaults, saved and loaded, bad values checked, the old keys tak
   assert.equal(bad.volumes.sfx, 1);
   assert.equal(bad.volumes.voice, DEFAULT_SETTINGS.volumes.voice);
   assert.equal(bad.subtitles, true);
+  assert.deepEqual(bad.effects, { bloom: false }, 'effect switches: only valid ones kept');
   store.setItem(SETTINGS_KEY, '{not json');
   assert.deepEqual(loadSettings(store), DEFAULT_SETTINGS);
   // Before the settings object: separate keys.

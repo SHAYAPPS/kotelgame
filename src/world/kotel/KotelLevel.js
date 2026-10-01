@@ -8,6 +8,7 @@ import { buildStoneWall } from './wallStones.js';
 import { buildSurroundings } from './kotelSurroundings.js';
 import { buildFacades } from './facades.js';
 import { buildNight } from './night.js';
+import { stoneMaterial } from '../stoneMaterial.js';
 
 const HALF_PI = Math.PI / 2;
 // Prop yaws: a seated/standing prop faces local -Z, its back is +Z.
@@ -34,6 +35,9 @@ export const SURFACES = {
 };
 
 const METALS = new Set(['gold', 'steel', 'metal', 'metalDark']);
+// How each stone surface wears (world/stoneMaterial.js): paving polished underfoot, walls
+// grimy at the foot.
+const WEAR = { paving: 'floor', pavingUpper: 'floor', stone: 'floor', stoneLight: 'floor', fence: 'none', building: 'none', buildingDark: 'none', dig: 'none', concrete: 'floor' };
 
 /** Greybox materials by color role (textured stone for SURFACES roles), cached. */
 function createMaterials() {
@@ -43,7 +47,12 @@ function createMaterials() {
       const color = KOTEL_COLORS[key];
       if (color === undefined) throw new Error(`Unknown Kotel color "${key}"`);
       const shiny = METALS.has(key);
-      cache.set(key, new MeshStandardMaterial({ color, roughness: shiny ? 0.45 : 0.9, metalness: shiny ? 0.6 : 0 }));
+      if (SURFACES[key]) {
+        // Stone: a node material (parallax, detail, wear) once its textures arrive.
+        const m = stoneMaterial({ color, roughness: 0.9 });
+        m.userData.stone = { mode: 'uv', wear: WEAR[key] ?? 'none', depth: key.startsWith('paving') ? 0.012 : 0.02 };
+        cache.set(key, m);
+      } else cache.set(key, new MeshStandardMaterial({ color, roughness: shiny ? 0.45 : 0.9, metalness: shiny ? 0.6 : 0 }));
     }
     return cache.get(key);
   };

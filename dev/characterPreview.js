@@ -16,12 +16,11 @@ import {
   PCFShadowMap,
   PerspectiveCamera,
   PlaneGeometry,
-  PMREMGenerator,
   Scene,
   SRGBColorSpace,
   Vector3,
-  WebGLRenderer,
 } from 'three';
+import { PMREMGenerator, WebGPURenderer } from 'three/webgpu';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
@@ -34,7 +33,8 @@ function seeded(seed) {
   let x = seed * 9301 + 49297;
   return () => ((x = (x * 9301 + 49297) % 233280) / 233280);
 }
-const renderer = new WebGLRenderer({ antialias: true });
+const renderer = new WebGPURenderer({ antialias: true });
+await renderer.init(); // (WebGPU, else WebGL 2: the game's renderer)
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = ACESFilmicToneMapping;

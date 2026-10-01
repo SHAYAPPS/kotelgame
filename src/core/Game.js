@@ -1,4 +1,4 @@
-import { ACESFilmicToneMapping, Frustum, MathUtils, Matrix4, PCFShadowMap, PerspectiveCamera, Quaternion, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
+import { ACESFilmicToneMapping, Color, Frustum, Material, MathUtils, Matrix4, Node, PCFShadowMap, PerspectiveCamera, Quaternion, Scene, Vector2, Vector3, WebGPURenderer } from 'three/webgpu';
 import { Input } from './Input.js';
 import { PlayerController } from '../player/PlayerController.js';
 import { PlayerCamera } from '../player/PlayerCamera.js';
@@ -7,10 +7,14 @@ import { CollisionWorld } from '../world/CollisionWorld.js';
 import { Environment } from '../world/Environment.js';
 import { FlashLights } from '../world/FlashLights.js';
 import { TextureLibrary } from '../world/Textures.js';
-import { characters } from '../characters/registry.js';
+import { assignCharacterShadows, characters } from '../characters/registry.js';
 import { CHARACTER, FAR_LAYER } from '../characters/config.js';
 import { PostFX } from './PostFX.js';
-import { QUALITY } from './Graphics.js';
+import { QUALITY, effectsFor } from './Graphics.js';
+import { NightLighting } from '../world/NightLights.js';
+import { flattenRenderables, steadyShadowMaterials } from './fastProject.js';
+import { STONE } from '../world/stoneMaterial.js';
+import { airLight } from '../world/particleLight.js';
 import { Bindings } from './Bindings.js';
 import { MenuCamera } from './MenuCamera.js';
 import { browserStorage, loadSettings, saveSettings } from './Settings.js';
@@ -60,6 +64,9 @@ const _up = new Vector3(0, 1, 0);
 const _o = new Vector3();
 const _b = new Vector3();
 const _size = new Vector2();
+const _hv = new Vector3();
+const _ac = new Color();
+const _hp = new Vector3();
 const _c = new Vector3();
 const _down = new Vector3(0, -1, 0);
 const _pv = new Matrix4();
@@ -81,6 +88,9 @@ export class Game {
     this.bindings = new Bindings(this.settings.bindings);
     setDifficulty(this.settings.difficulty);
     this.range = new URLSearchParams(window.location.search).get('level') === 'range';
+    this.forceWebGL = new URLSearchParams(window.location.search).has('webgl');
+    // (?nodetrace: where a shader node was made, in TSL's error messages)
+    if (new URLSearchParams(window.location.search).has('nodetrace')) Node.captureStackTrace = true;
     this.mode = 'loading'; // 'loading' | 'title' (loaded, waiting for a click) | 'menu' | 'playing' | 'paused'
     this.active = false;
     this.shell = new Shell(document.body, {
@@ -119,14 +129,30 @@ export class Game {
   async init() {
     const container = this.container;
     await nextFrame(); // the loading screen first
-    // Antialiasing happens in the post chain (MSAA render target), not on the canvas.
-    const renderer = new WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+    // WebGPU (WebGL 2 where the browser has no WebGPU; ?webgl forces it). Antialiasing is
+    // temporal, in the post chain (core/PostFX.js), not on the canvas.
+    // The world pass writes several images at once (color, normals, motion, albedo, metal /
+    // roughness for the screen-space effects): ask for the room the adapter has.
+    const requiredLimits = {};
+    try {
+      const adapter = !this.forceWebGL && navigator.gpu ? await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' }) : null;
+      const max = adapter?.limits?.maxColorAttachmentBytesPerSample ?? 32;
+      if (max > 32) requiredLimits.maxColorAttachmentBytesPerSample = Math.min(64, max);
+    } catch {
+      // (no WebGPU: the WebGL 2 fallback)
+    }
+    const renderer = new WebGPURenderer({ antialias: false, powerPreference: 'high-performance', forceWebGL: this.forceWebGL, requiredLimits });
+    await renderer.init();
+    flattenRenderables(renderer);
+    steadyShadowMaterials(Material);
     this.qualityName = this.settings.quality;
     this.quality = QUALITY[this.qualityName];
+    this.effects = effectsFor(this.qualityName, this.settings.effects);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.quality.pixelRatio));
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.toneMapping = ACESFilmicToneMapping; // filmic; applied by the post chain's output pass
+    renderer.toneMapping = ACESFilmicToneMapping; // filmic; applied in the post chain
     renderer.toneMappingExposure = 1.0;
+    renderer.setClearColor(0x000000, 0); // (the weapon's pass is laid over the world by its alpha)
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = PCFShadowMap;
     renderer.info.autoReset = false; // several passes per frame; reset manually
@@ -134,6 +160,9 @@ export class Game {
     this.renderer = renderer;
 
     this.scene = new Scene();
+    // World matrices are brought up to date once a frame (Game.frame), not on every pass
+    // (the world, each shadow cascade...): thousands of bones would be walked each time.
+    this.scene.matrixWorldAutoUpdate = false;
     this.camera = new PerspectiveCamera(VIEW.fov, window.innerWidth / window.innerHeight, VIEW.near, VIEW.far);
     this.camera.layers.enable(FAR_LAYER); // far characters (see characters/config.js)
 
@@ -141,7 +170,7 @@ export class Game {
     // Level: the Kotel plaza by default; ?level=range loads the movement test range.
     const range = this.range;
     const level = range
-      ? createTestRange(createGreyboxMaterials(createGridTexture(renderer.capabilities.getMaxAnisotropy())))
+      ? createTestRange(createGreyboxMaterials(createGridTexture(renderer.getMaxAnisotropy())))
       : createKotelLevel();
     this.level = level;
     this.scene.add(level.root);
@@ -149,6 +178,10 @@ export class Game {
     // The night's floodlights, lamps and screens, and their glowing fixtures.
     for (const l of level.night?.lights ?? []) this.environment.lights.add(l);
     for (const g of level.night?.glows ?? []) this.environment.lights.addGlow(g);
+    // Every lit material in the plaza loops over the night lights (world/NightLights.js).
+    renderer.lighting = new NightLighting(this.environment.lights, this.scene);
+    airLight.night = this.environment.lights; // (smoke, dust and the haze take them too)
+    this._applyStoneDetail();
     // Stone textures stream in after the level shows (KTX2).
     this.textures = new TextureLibrary(renderer);
     this.textures.anisotropy = this.quality.anisotropy;
@@ -180,6 +213,7 @@ export class Game {
     this._loaded('level', 1);
     await nextFrame();
     this.flashes = new FlashLights(this.scene, this.quality.flashLights);
+    airLight.flashes = this.flashes;
     // A phone's photo flash in the crowd (a brief cold light on the people in front of it).
     viewFx.flash = (p) => this.flashes.flash(p, { color: 0xdfe8ff, intensity: 16, distance: 5, duration: 0.07 });
     this._blastHit = { point: new Vector3(), normal: new Vector3(), distance: 0 };
@@ -206,7 +240,10 @@ export class Game {
     this._sunlit = 1; // is the player's weapon in the sun? (a ray toward the sun, a few times a second)
     this._shadeTimer = 0;
     this._shadeHit = { point: new Vector3(), normal: new Vector3(), distance: 0 };
-    this.post = new PostFX(renderer, this.scene, this.camera, this.viewmodel.scene, this.viewmodel.camera, this.quality);
+    this.post = new PostFX(renderer, this.scene, this.camera, this.viewmodel.scene, this.viewmodel.camera, { quality: this.quality, effects: this.effects, environment: this.environment });
+    this.heatSources = []; // explosions' shimmer: { position, radius, strength, life, maxLife }
+    this._frameMs = 16.7; // dynamic resolution: smoothed frame time
+    this._resTimer = 0;
     this.impacts = new Impacts(this.scene);
     this._dustScale();
     // Spent casings from the ejection port: world physics, they clink on the stone.
@@ -519,7 +556,12 @@ export class Game {
     this.settings[key] = value;
     saveSettings(this.settings, this.storage);
     if (key === 'sensitivity' || key === 'aimSensitivity' || key === 'invertY' || key === 'fov') this._applyView();
-    else if (key === 'quality') this.setQuality(value);
+    else if (key === 'quality') {
+      // A preset sets every effect; the player's own switches start over.
+      this.settings.effects = {};
+      saveSettings(this.settings, this.storage);
+      this.setQuality(value);
+    } else if (key === 'effects') this.setQuality(this.qualityName);
     else if (key === 'showFps') this.hud.setFpsVisible(value);
     else if (key === 'volumes') this.audio.setVolumes(value);
     else if (key === 'difficulty') setDifficulty(value);
@@ -557,36 +599,41 @@ export class Game {
     this.camera.updateProjectionMatrix();
     this.viewmodel.setAspect(this.camera.aspect);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    const size = this.renderer.getDrawingBufferSize(_size);
-    this.post.setSize(size.x, size.y);
-    this.environment.csm.updateFrustums();
-    this._dustScale();
+    this.post.setSize();
+    if (this.environment.csm?.camera) this.environment.csm.updateFrustums();
   }
 
-  /** Dust puffs are sized in meters: pixels per meter at 1 m for the current view. */
-  _dustScale() {
-    const h = this.renderer.getDrawingBufferSize(_size).y;
-    this.impacts.dust.material.uniforms.scale.value = h / (2 * Math.tan(MathUtils.degToRad(this.camera.fov) / 2));
-  }
+  /** (Dust puffs are sprites sized in meters now: nothing to rescale.) */
+  _dustScale() {}
 
   /** Graphics setting (low / medium / high): applied live and saved. */
   setQuality(name) {
     if (!QUALITY[name]) return;
     this.qualityName = name;
     this.quality = QUALITY[name];
+    this.effects = effectsFor(name, this.settings.effects);
+    this.post.resolutionScale = 1; // (dynamic resolution starts over at the new preset)
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.quality.pixelRatio));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.environment.setQuality(this.quality);
-    this.post.setQuality(this.quality);
+    this.post.setQuality(this.quality, this.effects);
+    this._applyStoneDetail();
     this.flashes.setCount(this.quality.flashLights);
     this.textures.setAnisotropy(this.quality.anisotropy);
     this._applyCharacterQuality();
     this.resize();
   }
 
+  /** Parallax and close-up detail on the stone (uniforms: no rebuild). */
+  _applyStoneDetail() {
+    STONE.parallax.value = this.effects.parallax ? 1 : 0;
+    STONE.detail.value = this.effects.detail ? 1 : 0;
+  }
+
   _applyCharacterQuality() {
     CHARACTER.lodScale = this.quality.characterLod ?? 1;
     CHARACTER.shadowDistance = this.quality.characterShadows ?? 40;
+    characters.shadowBudget = this.quality.characterShadowCount ?? Infinity;
   }
 
   frame(timeMs) {
@@ -621,6 +668,9 @@ export class Game {
     // Flashes and explosions hit harder in the dark.
     const night = this.environment.night;
     this.flashes.boost = 1 + 1.4 * night;
+    // The light in the air (smoke, dust): the sky's fill and the key light, roughly.
+    const env = this.environment;
+    airLight.ambient.value.copy(env.hemi.color).multiplyScalar(env.hemi.intensity * 0.35).add(_ac.copy(env.keyLight.color).multiplyScalar(env.keyLight.intensity * 0.2));
     this.post.setNight?.(night);
     this.flashes.update(dt);
     const L = this.weapon === 'launcher';
@@ -673,11 +723,106 @@ export class Game {
     this.damage.update(dt, this.health, this.player.position, this.view.viewYaw, this._fadeIn ?? fade);
     this._updateHud(dt);
 
-    // World first, then the weapon on top with a cleared depth buffer.
+    assignCharacterShadows();
+    // The frame (core/PostFX.js): depth of field, heat shimmer, then the whole chain.
+    this._focus(dt);
+    this._heat(dt);
     const r = this.renderer;
     r.info.reset();
+    this.scene.updateMatrixWorld();
     this.post.render(dt);
     this.screenshot.capture();
+    this._dynamicResolution(dt);
+  }
+
+  /**
+   * Depth of field: aiming down the sights focuses on what the sight is on (the rest a little
+   * soft); in a close conversation, on the one talking.
+   */
+  _focus(dt) {
+    const p = this.post;
+    if (!this.effects.dof) return;
+    const aim = this.weapon === 'launcher' ? this.launcher.state.aim : this.rifle.state.aim;
+    const talk = this.story?._talk ? this.story.dialogue.current : null;
+    const speaker = talk?.who ? this.story.npcs.get(talk.who) : null;
+    const eye = this.view.eye;
+    let target = 0;
+    let dist = p.u.focus.value;
+    if (aim > 0.05 && this.mode === 'playing') {
+      const dir = this.view.getAimDirection(this._forward);
+      const hit = this.collision.raycast(eye, dir, 300, this._focusHit ?? (this._focusHit = { point: new Vector3(), normal: new Vector3(), distance: 0 }));
+      dist = hit ? hit.distance : 80;
+      target = 0.55 * aim;
+      p.u.focalLength.value = Math.max(2.5, dist * 0.7);
+      p.u.bokeh.value = 1.4;
+    } else if (speaker && speaker.position.distanceTo(eye) < 4) {
+      dist = speaker.headPoint.distanceTo(eye);
+      target = 0.6;
+      p.u.focalLength.value = 3.5;
+      p.u.bokeh.value = 1.6;
+    }
+    this._dofAmount = (this._dofAmount ?? 0) + (target - (this._dofAmount ?? 0)) * (1 - Math.exp(-6 * dt));
+    p.setFocus(dist, this._dofAmount);
+  }
+
+  /** A heat shimmer source (an explosion, a fire): fades over `life` seconds. */
+  addHeat(position, radius, strength, life) {
+    this.heatSources.push({ position: position.clone(), radius, strength, life, maxLife: life });
+  }
+
+  /** The heat sources on screen this frame (blasts, the launcher's rocket, burning wrecks). */
+  _heat(dt) {
+    if (!this.effects.heat) return;
+    const list = (this._heatList ??= []);
+    list.length = 0;
+    const cam = this.camera;
+    const add = (pos, radius, strength) => {
+      _hv.copy(pos).applyMatrix4(cam.matrixWorldInverse);
+      if (_hv.z > -0.5) return; // behind the camera
+      const viewZ = _hv.z;
+      _hv.copy(pos).project(cam);
+      if (Math.abs(_hv.x) > 1.3 || Math.abs(_hv.y) > 1.3) return;
+      // Screen radius: the world radius at that distance.
+      const r = radius / (-viewZ * Math.tan(MathUtils.degToRad(cam.fov) / 2) * 2);
+      list.push({ x: _hv.x * 0.5 + 0.5, y: 0.5 - _hv.y * 0.5, radius: Math.min(0.6, r), strength, viewZ });
+    };
+    for (let i = this.heatSources.length - 1; i >= 0; i--) {
+      const h = this.heatSources[i];
+      h.life -= dt;
+      if (h.life <= 0) {
+        this.heatSources.splice(i, 1);
+        continue;
+      }
+      const k = h.life / h.maxLife;
+      add(h.position, h.radius * (1.4 - 0.4 * k), h.strength * k);
+    }
+    for (const r of this.rockets?.items ?? []) if (r.live) add(r.position, 1.2, 0.8);
+    this.post.setHeat(list);
+  }
+
+  /**
+   * Dynamic resolution: the world renders smaller while the frame rate dips (the temporal
+   * upscaler restores the full image), and comes back up when there's room again.
+   */
+  _dynamicResolution(dt) {
+    const p = this.post;
+    const base = Math.min(window.devicePixelRatio, this.quality.pixelRatio);
+    if (!this.effects.dynamicRes || dt <= 0) {
+      if (p.resolutionScale !== 1) p.setResolutionScale(1, base);
+      return;
+    }
+    this._frameMs += (dt * 1000 - this._frameMs) * 0.05;
+    this._resTimer -= dt;
+    if (this._resTimer > 0) return;
+    const s = p.resolutionScale;
+    const min = this.quality.minScale ?? 0.65;
+    if (this._frameMs > 18.2 && s > min) {
+      p.setResolutionScale(Math.max(min, s - 0.1), base);
+      this._resTimer = 1.5;
+    } else if (this._frameMs < 14 && s < 1) {
+      p.setResolutionScale(Math.min(1, s + 0.05), base);
+      this._resTimer = 3;
+    } else this._resTimer = 0.5;
   }
 
   /** Footsteps: one per step of the walk cycle (the head bob's phase), on stairs one per stair. */
@@ -925,6 +1070,8 @@ export class Game {
       this.audio.explosion(at, radius < 5 ? 'small' : 'big');
       this.impacts.burst(at, _up, [0.45, 0.4, 0.33], 26);
       this.flashes.flash(at, { color: 0xffa050, intensity: 900 * fx, distance: 16 + 6 * fx, duration: 0.35 });
+      // The hot air shimmers over it for a moment.
+      this.addHeat(_hp.set(at.x, at.y + 1, at.z), 2.5 * fx + 1, 1, 1.6);
       // Scorch the surface under it and kick up stone dust.
       const hit = this.collision.raycast(_c.set(at.x, at.y + 0.5, at.z), _down, 3, this._blastHit);
       if (hit) {
@@ -977,7 +1124,7 @@ export class Game {
     hud.setGrenades(this.thrower.count, lowered ? 0 : this.thrower.cfg.max);
     hud.update(dt, {
       player: this.player,
-      drawCalls: this.renderer.info.render.calls,
+      drawCalls: this.renderer.info.render.drawCalls ?? this.renderer.info.render.calls,
       extra: () => {
         const alive = this.enemies.enemies.filter((e) => e.alive).length;
         return [

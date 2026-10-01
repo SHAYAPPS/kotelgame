@@ -119,6 +119,7 @@ export class CrowdDirector {
     renderer.build(F);
     onProgress?.(1, 1);
     this.count = n;
+    this.ready = true;
   }
 
   _toScreens(x, z) {
@@ -153,7 +154,7 @@ export class CrowdDirector {
 
   /** Per frame. `player`, `camera`: { x, z } (the camera's own position for the drawing). */
   update(dt, player, camera3) {
-    if (!this.renderer || !this.visible) return;
+    if (!this.ready || !this.visible) return;
     this.field.update(dt, player, camera3 ? camera3.position : player);
     this.renderer.update(this.field, camera3, dt);
   }

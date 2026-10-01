@@ -11,14 +11,13 @@ import {
   HemisphereLight,
   Mesh,
   MeshStandardMaterial,
-  PMREMGenerator,
   PerspectiveCamera,
   SRGBColorSpace,
   Scene,
   TextureLoader,
   Vector3,
-  WebGLRenderer,
 } from 'three';
+import { PMREMGenerator, WebGPURenderer } from 'three/webgpu';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
@@ -29,7 +28,8 @@ import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
 
 const params = new URLSearchParams(location.search);
 const ui = document.getElementById('ui');
-const renderer = new WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+const renderer = new WebGPURenderer({ antialias: true });
+await renderer.init(); // (WebGPU, else WebGL 2: the game's renderer)
 renderer.setPixelRatio(Math.min(2, devicePixelRatio));
 renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = ACESFilmicToneMapping;

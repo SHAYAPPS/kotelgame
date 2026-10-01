@@ -1,6 +1,7 @@
 // Shared loader for the game's GLB models (public/assets/...): meshopt geometry, KTX2 textures
 // through the TextureLibrary's transcoder. Game sets `models.ktx2Loader`; each file loads once.
 // Loaded lazily (dynamic imports), so tests and the first frame don't pay for it.
+import { gpuFriendly } from './gpuGeometry.js';
 
 const cache = new Map();
 
@@ -11,7 +12,7 @@ export const models = {
 
   /** Resolves to the parsed glTF ({ scene, ... }); the same promise for the same path. */
   load(path) {
-    if (!cache.has(path)) cache.set(path, this._get().then((loader) => loader.loadAsync(`${import.meta.env?.BASE_URL ?? '/'}${path}`)));
+    if (!cache.has(path)) cache.set(path, this._get().then((loader) => loader.loadAsync(`${import.meta.env?.BASE_URL ?? '/'}${path}`)).then((gltf) => (gpuFriendly(gltf.scene), gltf)));
     return cache.get(path);
   },
 

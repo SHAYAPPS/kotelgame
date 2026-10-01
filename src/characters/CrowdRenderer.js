@@ -7,16 +7,55 @@ import {
   FloatType,
   Group,
   HalfFloatType,
-  InstancedBufferAttribute,
-  InstancedMesh,
+  DynamicDrawUsage,
+  InstancedBufferGeometry,
+  InstancedInterleavedBuffer,
+  InterleavedBuffer,
+  InterleavedBufferAttribute,
   Matrix4,
+  Mesh,
+  MeshStandardNodeMaterial,
   NearestFilter,
   Quaternion,
   RGBAFormat,
+  Sphere,
   Vector3,
-} from 'three';
+} from 'three/webgpu';
+import {
+  Fn,
+  If,
+  abs,
+  attribute,
+  cos,
+  dot,
+  float,
+  floor,
+  fract,
+  int,
+  ivec2,
+  mat4,
+  materialColor,
+  materialNormal,
+  max,
+  mix,
+  mod,
+  normalGeometry,
+  normalLocal,
+  normalViewGeometry,
+  normalize,
+  positionGeometry,
+  positionPrevious,
+  screenCoordinate,
+  select,
+  sin,
+  textureLoad,
+  uniform,
+  vec2,
+  vec3,
+  vec4,
+} from 'three/tsl';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
-import { FAR_LAYER, PART, PARTS } from './config.js';
+import { PART, PARTS } from './config.js';
 import { makeOutfit } from './wardrobe.js';
 import { blackHat, hatFit, headscarf, kippah, kippahFit, KIPPAH, scarfFit } from './attachments.js';
 import { ACT, CROWD } from '../story/crowd/CrowdField.js';
@@ -34,6 +73,7 @@ const FPS = 12;
 const WEAR = PARTS; // the merged head wear's part (after the model's own)
 const SLOTS = PARTS + 1;
 const OUTFITS = 40; // palette rows per type
+const INST = 12; // floats per member in the instance buffer
 
 // The clip each act plays, per sex.
 const CLIPS = {
@@ -187,122 +227,112 @@ function compactLod(type, lod, wearGeo, bakeInfo) {
       idx.push(j);
     }
   }
+  // One interleaved vertex buffer (WebGPU allows only 8 buffers per draw; the instances need theirs).
+  const STRIDE = 17;
+  const data = new Float32Array(n * STRIDE);
+  for (let i = 0; i < n; i++) {
+    const o = i * STRIDE;
+    data.set(pos.subarray(i * 3, i * 3 + 3), o);
+    data.set(nor.subarray(i * 3, i * 3 + 3), o + 3);
+    data.set(uv.subarray(i * 2, i * 2 + 2), o + 6);
+    data.set(si.subarray(i * 4, i * 4 + 4), o + 8);
+    data.set(sw.subarray(i * 4, i * 4 + 4), o + 12);
+    data[o + 16] = part[i];
+  }
+  const ib = new InterleavedBuffer(data, STRIDE);
   const out = new BufferGeometry();
-  out.setAttribute('position', new Float32BufferAttribute(pos, 3));
-  out.setAttribute('normal', new Float32BufferAttribute(nor, 3));
-  out.setAttribute('uv', new Float32BufferAttribute(uv, 2));
-  out.setAttribute('skinIndex', new Float32BufferAttribute(si, 4));
-  out.setAttribute('skinWeight', new Float32BufferAttribute(sw, 4));
-  out.setAttribute('_part', new Float32BufferAttribute(part, 1));
+  out.setAttribute('position', new InterleavedBufferAttribute(ib, 3, 0));
+  out.setAttribute('normal', new InterleavedBufferAttribute(ib, 3, 3));
+  out.setAttribute('uv', new InterleavedBufferAttribute(ib, 2, 6));
+  out.setAttribute('skinIndex', new InterleavedBufferAttribute(ib, 4, 8));
+  out.setAttribute('skinWeight', new InterleavedBufferAttribute(ib, 4, 12));
+  out.setAttribute('_part', new InterleavedBufferAttribute(ib, 1, 16));
   out.setIndex(idx);
   return out;
 }
 
-/** The crowd material: the type's own (atlas, normal map), skinned from the baked texture. */
+/**
+ * The crowd material (node based): the type's own (atlas, normal map), skinned in the vertex
+ * stage from the baked texture (each instance's clip, phase and rate; the head turned about
+ * the neck joint for a glance), then placed (position + yaw); recolored per outfit from the
+ * palette; dithered while fading in / out; the merged head wear without the normal map.
+ */
 function crowdMaterial(type, bakeInfo, palette, uniforms) {
   const meshes = [];
   type.scene.traverse((o) => o.isSkinnedMesh && meshes.push(o));
-  const m = meshes[0].material.clone();
-  m.userData.crowd = true;
-  m.customProgramCacheKey = () => 'crowd-v1';
-  m.onBeforeCompile = (shader) => {
-    shader.uniforms.uBones = { value: bakeInfo.texture };
-    shader.uniforms.uPalette = { value: palette };
-    shader.uniforms.uTime = uniforms.time;
-    shader.uniforms.uHead = { value: bakeInfo.head };
-    shader.uniforms.uHeadBind = { value: bakeInfo.headBind };
-    shader.vertexShader = shader.vertexShader
-      .replace(
-        '#include <common>',
-        `#include <common>
-        attribute vec4 skinIndex;
-        attribute vec4 skinWeight;
-        attribute float _part;
-        attribute vec4 aAnim; // start frame, frames, phase 0..1, cycles per second
-        attribute vec2 aState; // head turn (rad), fade 0..1
-        attribute float aOutfit;
-        uniform highp sampler2D uBones;
-        uniform highp sampler2D uPalette;
-        uniform float uTime;
-        uniform int uHead;
-        uniform vec3 uHeadBind;
-        varying float vPart;
-        varying float vOutfit;
-        varying float vFade;
-        mat4 crowdBone(int b, int f) {
-          return mat4(texelFetch(uBones, ivec2(b * 4, f), 0), texelFetch(uBones, ivec2(b * 4 + 1, f), 0),
-            texelFetch(uBones, ivec2(b * 4 + 2, f), 0), texelFetch(uBones, ivec2(b * 4 + 3, f), 0));
-        }`,
-      )
-      .replace(
-        '#include <skinbase_vertex>',
-        `vPart = _part;
-        vOutfit = aOutfit;
-        vFade = aState.y;
-        float crowdN = aAnim.y;
-        float crowdF = mod(uTime * aAnim.w * crowdN + aAnim.z * crowdN, crowdN);
-        int f0 = int(aAnim.x) + int(floor(crowdF));
-        int f1 = int(aAnim.x) + int(mod(floor(crowdF) + 1.0, crowdN));
-        float ft = fract(crowdF);
-        mat4 look = mat4(1.0);
-        if (abs(aState.x) > 0.002) {
-          mat4 hb = crowdBone(uHead, f0) * (1.0 - ft) + crowdBone(uHead, f1) * ft;
-          vec3 pv = (hb * vec4(uHeadBind, 1.0)).xyz;
-          float c = cos(aState.x);
-          float s = sin(aState.x);
-          mat4 r = mat4(c, 0.0, -s, 0.0, 0.0, 1.0, 0.0, 0.0, s, 0.0, c, 0.0, 0.0, 0.0, 0.0, 1.0);
-          mat4 t0 = mat4(1.0);
-          t0[3] = vec4(-pv, 1.0);
-          mat4 t1 = mat4(1.0);
-          t1[3] = vec4(pv, 1.0);
-          look = t1 * r * t0;
-        }
-        mat4 crowdSkin = mat4(0.0);
-        for (int k = 0; k < 4; k++) {
-          float w = skinWeight[k];
-          if (w <= 0.0) continue;
-          int b = int(skinIndex[k] + 0.5);
-          mat4 bm = crowdBone(b, f0) * (1.0 - ft) + crowdBone(b, f1) * ft;
-          if (b == uHead) bm = look * bm;
-          crowdSkin += bm * w;
-        }
-        int crowdPart = int(_part + 0.5);
-        vec4 crowdFlags = texelFetch(uPalette, ivec2(crowdPart * 2 + 1, int(aOutfit + 0.5)), 0);
-        objectNormal = normalize((crowdSkin * vec4(objectNormal, 0.0)).xyz);`,
-      )
-      .replace(
-        '#include <begin_vertex>',
-        `vec3 transformed = vec3(position) + normal * crowdFlags.y;
-        transformed = (crowdSkin * vec4(transformed, 1.0)).xyz;
-        if (crowdFlags.z > 0.5 || aState.y <= 0.0) transformed = vec3(0.0);`,
-      );
-    shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform highp sampler2D uPalette;\nvarying float vPart;\nvarying float vOutfit;\nvarying float vFade;')
-      .replace(
-        '#include <map_fragment>',
-        `#include <map_fragment>
-        {
-          int p = int(vPart + 0.5);
-          int row = int(vOutfit + 0.5);
-          vec4 t = texelFetch(uPalette, ivec2(p * 2, row), 0);
-          vec4 fl = texelFetch(uPalette, ivec2(p * 2 + 1, row), 0);
-          if (t.a > 0.0) {
-            float l = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
-            float rel = mix(l / max(fl.w, 0.02), 1.0, fl.x);
-            diffuseColor.rgb = mix(diffuseColor.rgb, t.rgb * rel, t.a);
-          }
-          if (vFade < 0.999) {
-            float h = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
-            if (h > vFade) discard;
-          }
-        }`,
-      )
-      .replace(
-        '#include <normal_fragment_maps>',
-        `#include <normal_fragment_maps>
-        if (vPart > ${WEAR - 0.5}) normal = normalize(vNormal); // the head wear: no normal map`,
-      );
-  };
+  const src = meshes[0].material;
+  const m = new MeshStandardNodeMaterial();
+  for (const k of ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'roughness', 'metalness', 'alphaTest', 'side']) if (src[k] !== undefined && src[k] !== null) m[k] = src[k];
+  m.color.copy(src.color);
+  m.normalScale.copy(src.normalScale);
+  m.name = `crowd-${type.id}`;
+  const bones = bakeInfo.texture;
+  const head = int(bakeInfo.head);
+  const headBind = vec3(...bakeInfo.headBind.toArray());
+  const time = uniforms.time;
+  const anim = attribute('aAnim', 'vec4'); // start frame, frames, phase 0..1, cycles per second
+  const state = attribute('aState', 'vec2'); // head turn (rad), fade 0..1
+  const place = attribute('aPlace', 'vec4'); // x, y, z, yaw
+  const outfit = int(attribute('aOutfit', 'float').add(0.5));
+  const part = int(attribute('_part', 'float').add(0.5));
+  const rotY = (v, c, s) => vec3(c.mul(v.x).add(s.mul(v.z)), v.y, s.negate().mul(v.x).add(c.mul(v.z)));
+  m.positionNode = Fn(() => {
+    const N = anim.y;
+    const F = mod(time.mul(anim.w).mul(N).add(anim.z.mul(N)), N).toVar();
+    const f0 = int(anim.x).add(int(floor(F))).toVar();
+    const f1 = int(anim.x).add(int(mod(floor(F).add(1), N))).toVar();
+    const ft = fract(F).toVar();
+    const bone = (b, f) => mat4(textureLoad(bones, ivec2(b.mul(4), f)), textureLoad(bones, ivec2(b.mul(4).add(1), f)), textureLoad(bones, ivec2(b.mul(4).add(2), f)), textureLoad(bones, ivec2(b.mul(4).add(3), f)));
+    const boneAt = (b) => bone(b, f0).mul(ft.oneMinus()).add(bone(b, f1).mul(ft));
+    const flags = textureLoad(palette, ivec2(part.mul(2).add(1), outfit));
+    const p0 = vec4(positionGeometry.add(normalGeometry.mul(flags.y)), 1).toVar();
+    const n0 = vec4(normalGeometry, 0).toVar();
+    // The glance: the head's vertices turn about the head joint.
+    const look = state.x;
+    const lc = cos(look).toVar();
+    const ls = sin(look).toVar();
+    const pv = boneAt(head).mul(vec4(headBind, 1)).xyz.toVar();
+    const pos = vec3(0).toVar();
+    const nor = vec3(0).toVar();
+    const si = attribute('skinIndex', 'vec4');
+    const sw = attribute('skinWeight', 'vec4');
+    for (const c of ['x', 'y', 'z', 'w']) {
+      const w = sw[c];
+      If(w.greaterThan(0), () => {
+        const b = int(si[c].add(0.5));
+        const M = boneAt(b).toVar();
+        const pp = M.mul(p0).xyz.toVar();
+        const nn = M.mul(n0).xyz.toVar();
+        If(b.equal(head).and(abs(look).greaterThan(0.002)), () => {
+          pp.assign(pv.add(rotY(pp.sub(pv), lc, ls)));
+          nn.assign(rotY(nn, lc, ls));
+        });
+        pos.addAssign(pp.mul(w));
+        nor.addAssign(nn.mul(w));
+      });
+    }
+    // Placed: turned to the member's yaw, moved to its spot.
+    const yc = cos(place.w).toVar();
+    const ys = sin(place.w).toVar();
+    normalLocal.assign(normalize(rotY(nor, yc, ys)));
+    const placed = select(flags.z.greaterThan(0.5).or(state.y.lessThanEqual(0)), vec3(0), rotY(pos, yc, ys).add(place.xyz)).toVar();
+    // Motion vectors: where it was last frame (the camera's own motion; people move slowly).
+    positionPrevious.assign(placed);
+    return placed;
+  })();
+  // The outfit's tint on the atlas (the texel's luminance relative to the part's mean).
+  const t = textureLoad(palette, ivec2(part.mul(2), outfit));
+  const fl = textureLoad(palette, ivec2(part.mul(2).add(1), outfit));
+  const base = materialColor;
+  const l = dot(base.rgb, vec3(0.2126, 0.7152, 0.0722));
+  const rel = mix(l.div(max(fl.w, 0.02)), float(1), fl.x);
+  m.colorNode = vec4(mix(base.rgb, t.rgb.mul(rel), t.a), base.a);
+  // Fading in / out: dithered.
+  const fade = state.y;
+  const h = fract(sin(dot(screenCoordinate.xy, vec2(12.9898, 78.233))).mul(43758.5453));
+  m.maskNode = fade.greaterThanEqual(0.999).or(h.lessThanEqual(fade));
+  // The head wear: no normal map.
+  m.normalNode = select(part.greaterThanEqual(int(WEAR)), normalViewGeometry, materialNormal);
   return m;
 }
 
@@ -365,7 +395,7 @@ export class CrowdRenderer {
     this.root = new Group();
     this.root.name = 'crowd';
     scene.add(this.root);
-    this.uniforms = { time: { value: 0 } };
+    this.uniforms = { time: uniform(0) };
     this.types = []; // { id, info, bake, outfits: [...], byKind: { kind: [rows] }, meshes: { wear: [near, far] } }
   }
 
@@ -442,19 +472,24 @@ export class CrowdRenderer {
         for (const l of lods) {
           if (l.mesh) {
             l.mesh.removeFromParent();
-            l.mesh.dispose();
+            l.mesh.geometry.dispose();
           }
-          const g = l.geometry;
-          g.setAttribute('aAnim', new InstancedBufferAttribute(new Float32Array(cap * 4), 4));
-          g.setAttribute('aState', new InstancedBufferAttribute(new Float32Array(cap * 2), 2));
-          g.setAttribute('aOutfit', new InstancedBufferAttribute(new Float32Array(cap), 1));
-          const mesh = new InstancedMesh(g, T.material, cap);
-          mesh.count = 0;
+          // One draw per type, wear and LOD: the members are instances (placed by the shader).
+          const g = new InstancedBufferGeometry().copy(l.geometry);
+          // Per member, one interleaved buffer: clip (4), place (4), look + fade (2), outfit, pad.
+          const inst = new InstancedInterleavedBuffer(new Float32Array(cap * INST), INST).setUsage(DynamicDrawUsage);
+          g.setAttribute('aAnim', new InterleavedBufferAttribute(inst, 4, 0));
+          g.setAttribute('aPlace', new InterleavedBufferAttribute(inst, 4, 4));
+          g.setAttribute('aState', new InterleavedBufferAttribute(inst, 2, 8));
+          g.setAttribute('aOutfit', new InterleavedBufferAttribute(inst, 1, 10));
+          g.userData.inst = inst;
+          g.instanceCount = 0;
+          g.boundingSphere = new Sphere(new Vector3(), 1e5);
+          const mesh = new Mesh(g, T.material);
           mesh.frustumCulled = false;
           mesh.castShadow = false;
           mesh.receiveShadow = true;
           mesh.name = `crowd-${T.id}-${wear}`;
-          mesh.layers.set(FAR_LAYER); // not in the AO prepass (it draws without the skinning)
           l.mesh = mesh;
           this.root.add(mesh);
         }
@@ -478,34 +513,32 @@ export class CrowdRenderer {
           const k = d2 < near2 ? 0 : 1;
           const mesh = lods[k].mesh;
           const i = counts[k]++;
-          _q.setFromAxisAngle(UP, m.yaw);
-          _p.set(m.x, m.y, m.z);
-          _m.compose(_p, _q, _s);
-          _m.toArray(mesh.instanceMatrix.array, i * 16);
-          const c = T.bake.clips[m.act] ?? T.bake.clips[ACT.stand];
           const g = mesh.geometry;
-          const a = g.attributes.aAnim.array;
+          const d = g.userData.inst.array;
+          const o = i * INST;
+          d[o + 4] = m.x;
+          d[o + 5] = m.y;
+          d[o + 6] = m.z;
+          d[o + 7] = m.yaw;
+          const c = T.bake.clips[m.act] ?? T.bake.clips[ACT.stand];
           // Moving people play their cycle at their own speed (no sliding feet).
           let rate = m.rate / c.duration;
           if ((m.act === ACT.walk || m.act === ACT.run || m.act === ACT.oldWalk || m.act === ACT.back) && c.speed > 0) rate = (m.speed / c.speed) / c.duration;
-          a[i * 4] = c.start;
-          a[i * 4 + 1] = c.count;
-          a[i * 4 + 2] = m.phase;
-          a[i * 4 + 3] = rate;
-          const s = g.attributes.aState.array;
-          s[i * 2] = m.look;
-          s[i * 2 + 1] = m.fade;
-          g.attributes.aOutfit.array[i] = m.outfit;
+          d[o] = c.start;
+          d[o + 1] = c.count;
+          d[o + 2] = m.phase;
+          d[o + 3] = rate;
+          d[o + 8] = m.look;
+          d[o + 9] = m.fade;
+          d[o + 10] = m.outfit;
         }
         lods.forEach((l, k) => {
           const mesh = l.mesh;
-          mesh.count = counts[k];
-          if (!counts[k]) return;
-          mesh.instanceMatrix.needsUpdate = true;
           const g = mesh.geometry;
-          g.attributes.aAnim.needsUpdate = true;
-          g.attributes.aState.needsUpdate = true;
-          g.attributes.aOutfit.needsUpdate = true;
+          g.instanceCount = counts[k];
+          mesh.visible = counts[k] > 0;
+          if (!counts[k]) return;
+          g.userData.inst.needsUpdate = true;
         });
       }
     }

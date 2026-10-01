@@ -1,7 +1,4 @@
 import {
-  AdditiveBlending,
-  BufferAttribute,
-  BufferGeometry,
   CanvasTexture,
   ConeGeometry,
   CylinderGeometry,
@@ -9,11 +6,10 @@ import {
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
-  Points,
-  PointsMaterial,
   SRGBColorSpace,
   Vector3,
-} from 'three';
+} from 'three/webgpu';
+import { Particles } from '../world/Particles.js';
 
 // Rockets from the shoulder launcher. RocketSim is the flight (pure, unit-tested): a
 // fast projectile with a slight drop that stops at the first thing it hits (the world
@@ -125,36 +121,18 @@ export class RocketView {
       this.root.add(g);
       return g;
     });
-    this.pos = new Float32Array(TRAIL * 3);
-    this.col = new Float32Array(TRAIL * 3);
+    // The smoke trail: grey puffs lit by the night (and the motor's own flash), soft.
+    this.trail = new Particles(this.root, { max: TRAIL, map: typeof document !== 'undefined' ? puffTexture() : null, lit: true, soft: 0.5, name: 'rocket-smoke' });
+    this.pos = this.trail.pos;
     this.life = new Float32Array(TRAIL);
-    const geo = new BufferGeometry();
-    geo.setAttribute('position', new BufferAttribute(this.pos, 3));
-    geo.setAttribute('color', new BufferAttribute(this.col, 3));
-    this.trail = new Points(
-      geo,
-      new PointsMaterial({
-        size: 0.9,
-        map: typeof document !== 'undefined' ? puffTexture() : null,
-        vertexColors: true,
-        transparent: true,
-        depthWrite: false,
-        // Additive: fading a puff's color to black fades it out (no per-point alpha).
-        blending: AdditiveBlending,
-      }),
-    );
-    this.trail.frustumCulled = false;
-    this.root.add(this.trail);
     this._next = 0;
     this._emit = 0;
   }
 
   clear() {
     this.life.fill(0);
-    this.col.fill(0);
     this.pos.fill(0);
-    this.trail.geometry.attributes.position.needsUpdate = true;
-    this.trail.geometry.attributes.color.needsUpdate = true;
+    this.trail.clear();
   }
 
   update(dt) {
@@ -177,15 +155,21 @@ export class RocketView {
       }
     });
     // Smoke puffs: fading and rising a little.
+    const col = this.trail.color;
+    const size = this.trail.size;
     for (let k = 0; k < TRAIL; k++) {
-      if (this.life[k] <= 0) continue;
+      if (this.life[k] <= 0) {
+        col[k * 4 + 3] = 0;
+        continue;
+      }
       this.life[k] = Math.max(0, this.life[k] - dt / 2.2);
-      const v = 0.45 * this.life[k] * this.life[k];
-      this.col[k * 3] = this.col[k * 3 + 1] = this.col[k * 3 + 2] = v;
+      const f = this.life[k];
+      col[k * 4] = col[k * 4 + 1] = col[k * 4 + 2] = 0.62;
+      col[k * 4 + 3] = 0.5 * f * f;
+      size[k] = 0.5 + (1 - f) * 1.6; // spreading out
       this.pos[k * 3 + 1] += dt * 0.3;
     }
-    this.trail.geometry.attributes.position.needsUpdate = true;
-    this.trail.geometry.attributes.color.needsUpdate = true;
+    this.trail.commit();
   }
 }
 

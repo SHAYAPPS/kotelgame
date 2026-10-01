@@ -10,16 +10,19 @@ import {
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
+  MeshStandardNodeMaterial,
   PlaneGeometry,
   SRGBColorSpace,
   SphereGeometry,
   Sprite,
   SpriteMaterial,
-} from 'three';
-import { Matrix4 } from 'three';
+  Matrix4,
+} from 'three/webgpu';
+import { Fn, clamp, float, floor, fract, materialColor, materialRoughness, max, mix, positionWorld, uniform, vec3, vec4 } from 'three/tsl';
 import { TRUCK_GUN } from './Truck.js';
 import { characters } from '../characters/registry.js';
 import { models } from '../core/Models.js';
+import { litSmokeMaterial } from '../world/Particles.js';
 
 export const TRUCK_MODEL = 'assets/weapons/truck.glb';
 
@@ -62,55 +65,45 @@ function assets() {
 let looks = null;
 function truckLooks() {
   if (looks) return looks;
-  const uniforms = { uInvRoot: { value: new Matrix4() }, uCharred: { value: 0 } };
-  const dusty = (m, amount) => {
-    m.onBeforeCompile = (shader) => {
-      shader.uniforms.uInvRoot = uniforms.uInvRoot;
-      shader.uniforms.uCharred = uniforms.uCharred;
-      shader.vertexShader = shader.vertexShader
-        .replace('#include <common>', '#include <common>\nuniform mat4 uInvRoot;\nvarying vec3 vTruck;')
-        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvTruck = (uInvRoot * modelMatrix * vec4(transformed, 1.0)).xyz;');
-      shader.fragmentShader = shader.fragmentShader
-        .replace(
-          '#include <common>',
-          `#include <common>
-          uniform float uCharred;
-          varying vec3 vTruck;
-          float tHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
-          float tNoise(vec3 x) {
-            vec3 i = floor(x); vec3 f = fract(x); f = f * f * (3.0 - 2.0 * f);
-            return mix(mix(mix(tHash(i), tHash(i + vec3(1,0,0)), f.x), mix(tHash(i + vec3(0,1,0)), tHash(i + vec3(1,1,0)), f.x), f.y),
-                       mix(mix(tHash(i + vec3(0,0,1)), tHash(i + vec3(1,0,1)), f.x), mix(tHash(i + vec3(0,1,1)), tHash(i + vec3(1,1,1)), f.x), f.y), f.z);
-          }`,
-        )
-        .replace(
-          '#include <color_fragment>',
-          `#include <color_fragment>
-          float tn = tNoise(vTruck * 3.1) * 0.6 + tNoise(vTruck * 13.0) * 0.4;
-          float tDirt = clamp((1.25 - vTruck.y) * 0.85 + (tn - 0.5) * 0.9, 0.0, 1.0) * ${amount.toFixed(2)};
-          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.36, 0.3, 0.23), tDirt);
-          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.02, 0.018, 0.016) * (0.6 + tn), uCharred);`,
-        )
-        .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.95, max(tDirt, uCharred));');
-    };
-    m.customProgramCacheKey = () => `truck-dust-${amount}`;
+  // (node uniforms; `.value` like the old shader's)
+  const uniforms = { uInvRoot: uniform(new Matrix4()), uCharred: uniform(0) };
+  const tHash = Fn(([p0]) => {
+    const p = fract(p0.mul(0.3183099).add(0.1)).mul(17).toVar();
+    return fract(p.x.mul(p.y).mul(p.z).mul(p.x.add(p.y).add(p.z)));
+  });
+  const tNoise = Fn(([x]) => {
+    const i = floor(x).toVar();
+    const f = fract(x).toVar();
+    f.assign(f.mul(f).mul(float(3).sub(f.mul(2))));
+    const h = (dx, dy, dz) => tHash(i.add(vec3(dx, dy, dz)));
+    return mix(mix(mix(h(0, 0, 0), h(1, 0, 0), f.x), mix(h(0, 1, 0), h(1, 1, 0), f.x), f.y), mix(mix(h(0, 0, 1), h(1, 0, 1), f.x), mix(h(0, 1, 1), h(1, 1, 1), f.x), f.y), f.z);
+  });
+  // Dust thickening toward the wheels (noisy), charred black once the wreck burns.
+  const dusty = (o, amount) => {
+    const m = new MeshStandardNodeMaterial(o);
+    const p = uniforms.uInvRoot.mul(vec4(positionWorld, 1)).xyz;
+    const tn = tNoise(p.mul(3.1)).mul(0.6).add(tNoise(p.mul(13)).mul(0.4));
+    const dirt = clamp(float(1.25).sub(p.y).mul(0.85).add(tn.sub(0.5).mul(0.9)), 0, 1).mul(amount);
+    const dusted = mix(materialColor.rgb, vec3(0.36, 0.3, 0.23), dirt);
+    m.colorNode = vec4(mix(dusted, vec3(0.02, 0.018, 0.016).mul(tn.add(0.6)), uniforms.uCharred), materialColor.a);
+    m.roughnessNode = mix(materialRoughness, float(0.95), max(dirt, uniforms.uCharred));
     return m;
   };
   const std = (o) => new MeshStandardMaterial(o);
   looks = {
     uniforms,
-    paint: dusty(std({ color: 0xd8d2c4, roughness: 0.45 }), 0.75),
-    cladding: dusty(std({ color: 0x2c2c2b, roughness: 0.72 }), 0.6),
-    trim: dusty(std({ color: 0x161616, roughness: 0.75 }), 0.55),
-    rubber: dusty(std({ color: 0x141413, roughness: 0.92 }), 0.5),
+    paint: dusty({ color: 0xd8d2c4, roughness: 0.45 }, 0.75),
+    cladding: dusty({ color: 0x2c2c2b, roughness: 0.72 }, 0.6),
+    trim: dusty({ color: 0x161616, roughness: 0.75 }, 0.55),
+    rubber: dusty({ color: 0x141413, roughness: 0.92 }, 0.5),
     wheelwell: std({ color: 0x0f0e0d, roughness: 1 }),
-    glass: dusty(std({ color: 0x0a0d10, roughness: 0.07, envMapIntensity: 1.6 }), 0.2),
-    rim: dusty(std({ color: 0x8d9093, roughness: 0.42, metalness: 0.7 }), 0.45),
+    glass: dusty({ color: 0x0a0d10, roughness: 0.07, envMapIntensity: 1.6 }, 0.2),
+    rim: dusty({ color: 0x8d9093, roughness: 0.42, metalness: 0.7 }, 0.45),
     hub: std({ color: 0x2b2b2b, roughness: 0.6, metalness: 0.4 }),
     lamp: std({ color: 0xd9d7cf, roughness: 0.12, metalness: 0.6 }),
     indicator: std({ color: 0xd2861c, roughness: 0.25 }),
     taillight: std({ color: 0x8c120e, roughness: 0.22 }),
-    chrome: dusty(std({ color: 0xc8c8c8, roughness: 0.2, metalness: 1 }), 0.3),
+    chrome: dusty({ color: 0xc8c8c8, roughness: 0.2, metalness: 1 }, 0.3),
   };
   return looks;
 }
@@ -178,7 +171,7 @@ export class TruckView {
     this.fires = [];
     for (let i = 0; i < 4; i++) {
       const f = new Sprite(new SpriteMaterial({ map: a.fireTex, color: new Color(3, 2.6, 2.2), transparent: true, blending: AdditiveBlending, depthWrite: false, toneMapped: false }));
-      const s = new Sprite(new SpriteMaterial({ map: a.smokeTex, transparent: true, depthWrite: false, toneMapped: false }));
+      const s = new Sprite(litSmokeMaterial(a.smokeTex, { soft: 1 }));
       f.visible = s.visible = false;
       this.root.add(f, s);
       this.fires.push({ f, s, x: (i % 2 ? 0.5 : -0.5) * (i < 2 ? 1 : 0.6), z: i < 2 ? -1.3 : 1.2, phase: i * 1.7 });

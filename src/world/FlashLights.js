@@ -1,4 +1,7 @@
-import { PointLight } from 'three';
+import { PointLight, Vector4 } from 'three/webgpu';
+import { uniform, uniformArray } from 'three/tsl';
+
+export const MAX_FLASHES = 8;
 
 /**
  * A small pool of point lights for brief flashes (enemy / squad muzzle flashes,
@@ -13,6 +16,13 @@ export class FlashLights {
     // At night a flash lights up much more of the dark around it (Game sets this from the
     // environment: 1 by day).
     this.boost = 1;
+    // The same flashes for things lit by hand (smoke, dust, haze: world/particleLight.js):
+    // position + reach, color x intensity.
+    this.posData = Array.from({ length: MAX_FLASHES }, () => new Vector4());
+    this.colData = Array.from({ length: MAX_FLASHES }, () => new Vector4());
+    this.posU = uniformArray(this.posData, 'vec4');
+    this.colU = uniformArray(this.colData, 'vec4');
+    this.countU = uniform(0, 'int');
     this.setCount(count);
   }
 
@@ -53,6 +63,7 @@ export class FlashLights {
   }
 
   update(dt) {
+    let n = 0;
     for (const l of this.lights) {
       if (l.t <= 0) {
         l.light.intensity = 0;
@@ -61,6 +72,14 @@ export class FlashLights {
       l.t = Math.max(0, l.t - dt);
       const f = l.t / l.dur;
       l.light.intensity = l.peak * f * f;
+      if (n < MAX_FLASHES) {
+        const p = l.light.position;
+        this.posData[n].set(p.x, p.y, p.z, l.light.distance);
+        const c = l.light.color;
+        this.colData[n].set(c.r * l.light.intensity, c.g * l.light.intensity, c.b * l.light.intensity, 0);
+        n++;
+      }
     }
+    this.countU.value = n;
   }
 }

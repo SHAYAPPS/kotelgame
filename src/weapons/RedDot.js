@@ -8,13 +8,14 @@ import {
   Group,
   LatheGeometry,
   Mesh,
+  MeshBasicNodeMaterial,
   MeshStandardMaterial,
   OneFactor,
   OneMinusSrcAlphaFactor,
-  ShaderMaterial,
   Vector2,
   Vector3,
-} from 'three';
+} from 'three/webgpu';
+import { Fn, abs, acos, clamp, dot, exp, float, length, normalView, normalize, positionGeometry, positionView, pow, smoothstep, uniform, vec4 } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RED_DOT } from './config.js';
 
@@ -92,63 +93,22 @@ export function buildRedDot() {
 }
 
 /**
- * Lens shader. In view space the eye is at the origin; a fragment shows the dot when the
- * direction to it lies within the dot's angular radius of the sight axis (uniform `axis`,
+ * Lens shader (TSL). In view space the eye is at the origin; a fragment shows the dot when
+ * the direction to it lies within the dot's angular radius of the sight axis (`uniforms.axis`,
  * view space: the optic's -Z). Additive dot over a faint coating tint.
  */
 function lensMaterial(reticle) {
   const C = RED_DOT;
-  return new ShaderMaterial({
-    uniforms: {
-      axis: { value: new Vector3(0, 0, -1) },
-      dotColor: { value: new Color(...C.color) },
-      dotSize: { value: C.dotSize },
-      glow: { value: C.glow },
-      brightness: { value: 1 },
-      tint: { value: new Color(...(reticle ? C.rearTint : C.frontTint)) },
-      lensRadius: { value: C.lensRadius },
-    },
-    defines: reticle ? { RETICLE: 1 } : {},
-    vertexShader: /* glsl */ `
-      varying vec3 vView;
-      varying vec2 vLocal;
-      varying vec3 vNormalV;
-      void main() {
-        vec4 mv = modelViewMatrix * vec4(position, 1.0);
-        vView = mv.xyz;
-        vLocal = position.xy;
-        vNormalV = normalize(normalMatrix * normal);
-        gl_Position = projectionMatrix * mv;
-      }
-    `,
-    fragmentShader: /* glsl */ `
-      uniform vec3 axis;
-      uniform vec3 dotColor;
-      uniform float dotSize;
-      uniform float glow;
-      uniform float brightness;
-      uniform vec3 tint;
-      uniform float lensRadius;
-      varying vec3 vView;
-      varying vec2 vLocal;
-      varying vec3 vNormalV;
-      void main() {
-        vec3 v = normalize(vView);
-        float r = clamp(length(vLocal) / lensRadius, 0.0, 1.0);
-        // Coating: a faint colored sheen, stronger toward the rim and at grazing angles.
-        float facing = abs(dot(v, normalize(vNormalV)));
-        float sheen = (0.25 + 0.75 * r * r) * (0.35 + 0.65 * pow(1.0 - facing, 2.0));
-        vec3 col = tint * sheen;
-        float alpha = 0.02 + 0.06 * sheen;
-        #ifdef RETICLE
-          float ang = acos(clamp(dot(v, normalize(axis)), -1.0, 1.0));
-          float core = 1.0 - smoothstep(dotSize * 0.55, dotSize, ang);
-          float halo = exp(-pow(ang / (dotSize * 2.6), 2.0)) * glow;
-          col += dotColor * brightness * (core + halo);
-        #endif
-        gl_FragColor = vec4(col, alpha);
-      }
-    `,
+  const U = {
+    axis: uniform(new Vector3(0, 0, -1)),
+    dotColor: uniform(new Color(...C.color)),
+    dotSize: uniform(C.dotSize),
+    glow: uniform(C.glow),
+    brightness: uniform(1),
+    tint: uniform(new Color(...(reticle ? C.rearTint : C.frontTint))),
+    lensRadius: uniform(C.lensRadius),
+  };
+  const m = new MeshBasicNodeMaterial({
     transparent: true,
     depthWrite: false,
     side: DoubleSide,
@@ -157,4 +117,25 @@ function lensMaterial(reticle) {
     blendDst: OneMinusSrcAlphaFactor,
     toneMapped: false,
   });
+  m.colorNode = Fn(() => {
+    const v = normalize(positionView);
+    const r = clamp(length(positionGeometry.xy).div(U.lensRadius), 0, 1);
+    // Coating: a faint colored sheen, stronger toward the rim and at grazing angles.
+    const facing = abs(dot(v, normalView));
+    const sheen = float(0.25).add(r.mul(r).mul(0.75)).mul(float(0.35).add(pow(float(1).sub(facing), 2).mul(0.65)));
+    const col = U.tint.mul(sheen).toVar();
+    const alpha = float(0.02).add(sheen.mul(0.06)).toVar();
+    if (reticle) {
+      const ang = acos(clamp(dot(v, normalize(U.axis)), -1, 1));
+      const core = float(1).sub(smoothstep(U.dotSize.mul(0.55), U.dotSize, ang));
+      const halo = exp(pow(ang.div(U.dotSize.mul(2.6)), 2).negate()).mul(U.glow);
+      col.addAssign(U.dotColor.mul(U.brightness).mul(core.add(halo)));
+      // The dot outshines what's behind it (it stays red against a floodlit wall).
+      alpha.assign(alpha.max(core.mul(0.95)));
+    }
+    return vec4(col, alpha);
+  })();
+  // (the old shader's uniforms, by name: Viewmodel turns the sight's axis each frame)
+  m.uniforms = U;
+  return m;
 }

@@ -27,11 +27,13 @@ const SHOTS = [
   { name: 'launcher-ads', at: [-30, 0, 2], look: [-2, 1.6, -4], frames: 80, launcher: true, aim: true },
 ];
 
-const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+// The machine's GPU (WebGPU); SOFTWARE=1: SwiftShader (slow). QUALITY=low|medium|high|ultra.
+const gpuArgs = process.env.SOFTWARE ? ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] : ['--enable-gpu', '--use-angle=metal', '--ignore-gpu-blocklist'];
+const browser = await chromium.launch({ args: ['--enable-unsafe-webgpu', ...gpuArgs] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 page.setDefaultTimeout(240000);
 page.on('pageerror', (e) => console.log(`[pageerror] ${e.message}`));
-await page.addInitScript(() => localStorage.setItem('kotelgame.settings', JSON.stringify({ quality: 'medium' })));
+await page.addInitScript((q) => localStorage.setItem('kotelgame.settings', JSON.stringify({ quality: q, effects: { dynamicRes: false } })), process.env.QUALITY ?? 'high');
 await page.goto(process.env.GAME_URL ?? 'http://localhost:5173/', { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => window.__game?.characters?.ready && window.__game.viewmodel.models, null, { timeout: 240000, polling: 1000 });
 

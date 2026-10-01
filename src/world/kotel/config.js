@@ -159,9 +159,9 @@ export const KOTEL = {
       // The moon a day past first quarter, that night at 21:00: south-west, ~27 degrees up.
       moon: { azimuth: 211, elevation: 27 },
       skyYaw: 184, // turns the photographed sky so its moon's halo sits under ours
-      moonIntensity: 0.32,
-      envIntensity: 0.4,
-      hemiIntensity: 0.32,
+      moonIntensity: 0.62,
+      envIntensity: 0.24,
+      hemiIntensity: 0.2,
       fogDensity: 0.0024,
       lights: 1, // the floodlights, lamps and screens (world/kotel/night.js)
     },

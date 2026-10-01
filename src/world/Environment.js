@@ -1,20 +1,45 @@
 import {
   BackSide,
   Color,
+  DataTexture,
+  DirectionalLight,
   EquirectangularReflectionMapping,
   FloatType,
   FogExp2,
   HemisphereLight,
   Mesh,
-  PMREMGenerator,
+  MeshBasicNodeMaterial,
   RepeatWrapping,
   SRGBColorSpace,
-  ShaderMaterial,
   SphereGeometry,
   TextureLoader,
   Vector3,
-} from 'three';
-import { CSM } from 'three/addons/csm/CSM.js';
+} from 'three/webgpu';
+import {
+  Fn,
+  If,
+  Loop,
+  asin,
+  atan,
+  clamp,
+  dot,
+  float,
+  floor,
+  fract,
+  max,
+  mix,
+  normalize,
+  positionLocal,
+  pow,
+  sin,
+  smoothstep,
+  texture,
+  uniform,
+  vec2,
+  vec3,
+  vec4,
+} from 'three/tsl';
+import { CSMShadowNode } from 'three/addons/csm/CSMShadowNode.js';
 import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
 import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
 import { solarPosition, sunDirection } from './sun.js';
@@ -52,9 +77,8 @@ const RAD = Math.PI / 180;
  *   resolution), matched to the HDRI.
  * - Image-based light and reflections from a CC0 HDRI (PMREM); the HDRI's own sun is clamped
  *   out because the directional sun below casts the real light and shadows.
- * - The sun: placed from the time of day (see ./sun.js); cascaded shadow maps (CSM) cover the
- *   whole view with sharp shadows near you. Every lit material in the scene has to be set up
- *   for CSM; `prepare()` does that for anything new each frame.
+ * - The sun: placed from the time of day (see ./sun.js); cascaded shadow maps (three's
+ *   CSMShadowNode) cover the whole view with sharp shadows near you.
  * - Haze: exponential fog tinted like the horizon.
  */
 export class Environment {
@@ -86,10 +110,24 @@ export class Environment {
     this._dayFog = SKY_HORIZON.clone().lerp(new Color(0xe6dccb), 0.25);
     scene.fog = new FogExp2(this._dayFog.clone(), o.fogDensity ?? 0.0021);
 
+    this.skyU = {
+      zenith: uniform(SKY_ZENITH.clone()),
+      horizon: uniform(SKY_HORIZON.clone()),
+      below: uniform(GROUND_BELOW.clone()),
+      sunDir: uniform(this.sunDir),
+      sunColor: uniform(new Color(1, 0.97, 0.9)),
+      time: uniform(0),
+      night: uniform(0),
+      hasNightTex: uniform(0),
+      nightYaw: uniform(0),
+      glow: uniform(new Color()),
+    };
+    // (the photographed night sky replaces it once it loads)
+    this.nightTex = new DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1);
+    this.nightTex.needsUpdate = true;
     this.sky = new Mesh(new SphereGeometry(500, 48, 24), this._skyMaterial());
     this.sky.frustumCulled = false;
     this.sky.renderOrder = -1;
-    this.sky.userData.noCSM = true;
     scene.add(this.sky);
 
     // Fill: sky blue from above and, from below, the warm light the sunlit pale plaza
@@ -114,8 +152,8 @@ export class Environment {
           t.colorSpace = SRGBColorSpace;
           t.wrapS = RepeatWrapping;
           t.anisotropy = 4;
-          this.sky.material.uniforms.nightTex.value = t;
-          this.sky.material.uniforms.hasNightTex.value = 1;
+          this.nightTexNode.value = t;
+          this.skyU.hasNightTex.value = 1;
         });
       }
     }
@@ -136,14 +174,20 @@ export class Environment {
     sunDirection(solarPosition({ ...this.o.sun, time }), this.sunDir);
     this._sunFromElevation();
     this._keyLight();
-    if (this.csm) {
-      this.csm.lightDirection.copy(this.sunDir).negate();
-      for (const light of this.csm.lights) {
-        light.color.copy(this.sunColor);
-        light.intensity = this.sunIntensity;
-      }
-    }
+    this._applyKey();
     this._applySky();
+  }
+
+  /** The key light (sun or moon) from sunDir, its color and strength. */
+  _applyKey() {
+    const light = this.keyLight;
+    if (!light) return;
+    light.color.copy(this.sunColor);
+    light.intensity = this.sunIntensity;
+    light.position.copy(this.sunDir).multiplyScalar(200);
+    light.target.position.set(0, 0, 0);
+    light.updateMatrixWorld();
+    light.target.updateMatrixWorld();
   }
 
   /**
@@ -176,7 +220,7 @@ export class Environment {
     const d = this.dawn;
     const n = this.night;
     const N = this.nightConfig ?? {};
-    const u = this.sky?.material.uniforms;
+    const u = this.skyU;
     if (u) {
       u.zenith.value.copy(SKY_ZENITH).lerp(DAWN.zenith, d).lerp(NIGHT.zenith, n);
       u.horizon.value.copy(SKY_HORIZON).lerp(DAWN.horizon, d).lerp(NIGHT.horizon, n);
@@ -198,100 +242,80 @@ export class Environment {
     }
   }
 
+  /**
+   * The sky dome (TSL): a gradient with the sun disc and a soft glow, fair-weather clouds on a
+   * flat layer; at night the photographed sky (an equirect upper half: its background darkened
+   * so only the stars stay, which a high-pass picks out), the city's glow along the horizon,
+   * the moon as a bright disc with a halo.
+   */
   _skyMaterial() {
-    return new ShaderMaterial({
-      side: BackSide,
-      depthWrite: false,
-      fog: false,
-      uniforms: {
-        zenith: { value: SKY_ZENITH.clone() },
-        horizon: { value: SKY_HORIZON.clone() },
-        below: { value: GROUND_BELOW },
-        sunDir: { value: this.sunDir },
-        sunColor: { value: new Color(1, 0.97, 0.9) },
-        time: { value: 0 },
-        night: { value: 0 },
-        nightTex: { value: null },
-        hasNightTex: { value: 0 },
-        nightYaw: { value: 0 },
-        glow: { value: new Color() },
-      },
-      vertexShader: /* glsl */ `
-        varying vec3 vDir;
-        void main() {
-          vDir = normalize(position);
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-          gl_Position.z = gl_Position.w; // always at the far plane
-        }
-      `,
-      fragmentShader: /* glsl */ `
-        uniform vec3 zenith;
-        uniform vec3 horizon;
-        uniform vec3 below;
-        uniform vec3 sunDir;
-        uniform vec3 sunColor;
-        uniform float time;
-        uniform float night;
-        uniform sampler2D nightTex;
-        uniform float hasNightTex;
-        uniform float nightYaw;
-        uniform vec3 glow;
-        varying vec3 vDir;
-        float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-        float noise(vec2 p) {
-          vec2 i = floor(p), f = fract(p);
-          vec2 u = f * f * (3.0 - 2.0 * f);
-          return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y);
-        }
-        float fbm(vec2 p) {
-          float s = 0.0, a = 0.5;
-          for (int i = 0; i < 5; i++) { s += a * noise(p); p *= 2.03; a *= 0.5; }
-          return s;
-        }
-        // Night: the photographed sky (an equirect upper half), its background darkened to a
-        // deep blue so only the stars stay, the city's glow along the horizon, the moon.
-        vec3 nightSky(vec3 d, float cs) {
-          float h = d.y;
-          vec3 col = mix(horizon, zenith, pow(max(h, 0.0), 0.45));
-          col += glow * pow(1.0 - max(h, 0.0), 7.0);
-          if (hasNightTex > 0.5 && h > 0.0) {
-            vec2 uv = vec2(atan(d.x, -d.z) / 6.2831853 + 0.5 + nightYaw / 6.2831853, 1.0 - asin(clamp(h, 0.0, 1.0)) / 1.5707963);
-            // Explicit levels (the wrap-around seam would break automatic mip selection).
-            vec3 s = textureLod(nightTex, uv, 0.0).rgb;
-            vec3 bg = textureLod(nightTex, uv, 5.0).rgb;
-            // Only the brighter stars (the city's glow drowns the faint ones), fading at the horizon.
-            float star = max(0.0, dot(s - bg, vec3(0.2126, 0.7152, 0.0722)) - 0.07);
-            col += vec3(0.85, 0.9, 1.0) * star * 0.55 * smoothstep(0.05, 0.4, h);
-            col += bg * vec3(0.012, 0.016, 0.03);
-          }
-          // The moon: a small bright disc with a halo (it blooms).
-          col += sunColor * (smoothstep(0.99993, 0.99996, cs) * 9.0 + pow(max(cs, 0.0), 300.0) * 0.25 + pow(max(cs, 0.0), 12.0) * 0.03);
-          return col;
-        }
-        void main() {
-          vec3 d = normalize(vDir);
-          float h = d.y;
-          vec3 col = h >= 0.0
-            ? mix(horizon, zenith, pow(max(h, 0.0), 0.5))
-            : mix(horizon, below, clamp(-h * 6.0, 0.0, 1.0));
-          // Sun: a bright disc and a soft glow around it.
-          float cs = dot(d, normalize(sunDir));
-          col += sunColor * (pow(max(cs, 0.0), 900.0) * 40.0 + pow(max(cs, 0.0), 24.0) * 0.35) * (1.0 - night);
-          // Fair-weather clouds on a flat layer, thinning toward the zenith and horizon.
-          if (h > 0.02) {
-            vec2 p = d.xz / (h + 0.08) * 1.6 + vec2(time * 0.004, time * 0.0015);
-            float c = smoothstep(0.52, 0.78, fbm(p));
-            c *= smoothstep(0.02, 0.18, h);
-            float lit = 0.85 + 0.15 * max(cs, 0.0);
-            col = mix(col, vec3(0.97, 0.97, 0.98) * lit, c * 0.85 * (1.0 - night));
-          }
-          if (night > 0.0) col = mix(col, nightSky(d, cs), night);
-          gl_FragColor = vec4(col, 1.0);
-          #include <tonemapping_fragment>
-          #include <colorspace_fragment>
-        }
-      `,
+    const U = this.skyU;
+    this.nightTexNode = texture(this.nightTex);
+    const hash = Fn(([p]) => fract(sin(dot(p, vec2(127.1, 311.7))).mul(43758.5453)));
+    const noise = Fn(([p]) => {
+      const i = floor(p);
+      const f = fract(p);
+      const u = f.mul(f).mul(float(3).sub(f.mul(2)));
+      return mix(mix(hash(i), hash(i.add(vec2(1, 0))), u.x), mix(hash(i.add(vec2(0, 1))), hash(i.add(vec2(1, 1))), u.x), u.y);
     });
+    const fbm = Fn(([p0]) => {
+      const p = vec2(p0).toVar();
+      const s = float(0).toVar();
+      const a = float(0.5).toVar();
+      Loop(5, () => {
+        s.addAssign(a.mul(noise(p)));
+        p.mulAssign(2.03);
+        a.mulAssign(0.5);
+      });
+      return s;
+    });
+    const nightSky = Fn(([d, cs]) => {
+      const h = d.y;
+      const col = mix(U.horizon, U.zenith, pow(max(h, 0), 0.45)).toVar();
+      col.addAssign(U.glow.mul(pow(float(1).sub(max(h, 0)), 7)));
+      If(U.hasNightTex.greaterThan(0.5).and(h.greaterThan(0)), () => {
+        const uv = vec2(atan(d.x, d.z.negate()).div(6.2831853).add(0.5).add(U.nightYaw.div(6.2831853)), float(1).sub(asin(clamp(h, 0, 1)).div(1.5707963)));
+        // Explicit levels (the wrap-around seam would break automatic mip selection).
+        const st = this.nightTexNode.sample(uv).level(0).rgb;
+        const bg = this.nightTexNode.sample(uv).level(5).rgb;
+        // Only the brighter stars (the city's glow drowns the faint ones), fading at the horizon.
+        const star = max(0, dot(st.sub(bg), vec3(0.2126, 0.7152, 0.0722)).sub(0.07));
+        col.addAssign(vec3(0.85, 0.9, 1.0).mul(star).mul(0.55).mul(smoothstep(0.05, 0.4, h)));
+        col.addAssign(bg.mul(vec3(0.012, 0.016, 0.03)));
+      });
+      // The moon: a small bright disc with a halo (it blooms).
+      col.addAssign(U.sunColor.mul(smoothstep(0.99993, 0.99996, cs).mul(9).add(pow(max(cs, 0), 300).mul(0.25)).add(pow(max(cs, 0), 12).mul(0.03))));
+      return col;
+    });
+    const sky = Fn(() => {
+      const d = normalize(positionLocal).toVar();
+      const h = d.y;
+      const col = vec3(0).toVar();
+      If(h.greaterThanEqual(0), () => {
+        col.assign(mix(U.horizon, U.zenith, pow(max(h, 0), 0.5)));
+      }).Else(() => {
+        col.assign(mix(U.horizon, U.below, clamp(h.negate().mul(6), 0, 1)));
+      });
+      // Sun: a bright disc and a soft glow around it.
+      const cs = dot(d, normalize(U.sunDir)).toVar();
+      const day = float(1).sub(U.night);
+      col.addAssign(U.sunColor.mul(pow(max(cs, 0), 900).mul(40).add(pow(max(cs, 0), 24).mul(0.35))).mul(day));
+      // Fair-weather clouds on a flat layer, thinning toward the zenith and horizon.
+      If(h.greaterThan(0.02).and(day.greaterThan(0.001)), () => {
+        const p = d.xz.div(h.add(0.08)).mul(1.6).add(vec2(U.time.mul(0.004), U.time.mul(0.0015)));
+        const c = smoothstep(0.52, 0.78, fbm(p)).mul(smoothstep(0.02, 0.18, h));
+        const lit = float(0.85).add(max(cs, 0).mul(0.15));
+        col.assign(mix(col, vec3(0.97, 0.97, 0.98).mul(lit), c.mul(0.85).mul(day)));
+      });
+      If(U.night.greaterThan(0), () => {
+        col.assign(mix(col, nightSky(d, cs), U.night));
+      });
+      return vec4(col, 1);
+    });
+    const m = new MeshBasicNodeMaterial({ side: BackSide, depthWrite: false, fog: false });
+    m.colorNode = sky();
+    m.name = 'sky';
+    return m;
   }
 
   /**
@@ -313,11 +337,9 @@ export class Environment {
         for (let i = 0; i < data.length; i++) if (data[i] > 24) data[i] = 24;
         tex.mapping = EquirectangularReflectionMapping;
         tex.needsUpdate = true;
-        const pmrem = new PMREMGenerator(this.renderer);
-        this.envMaps[key] = pmrem.fromEquirectangular(tex).texture;
+        // (the renderer prefilters it into a PMREM the first time it lights something)
+        this.envMaps[key] = tex;
         if (key === 'day') this.envMap = this.envMaps.day;
-        pmrem.dispose();
-        tex.dispose();
         if (key === 'day') this._hemiBase = this.o.bounce ?? 0.9;
         this._applySky();
       },
@@ -326,66 +348,33 @@ export class Environment {
     );
   }
 
-  /** Graphics preset changed: rebuild the cascaded shadows. */
+  /** Graphics preset changed: rebuild the key light's cascaded shadows. */
   setQuality(q) {
-    const materials = this.csm ? [...this.csm.shaders.keys()] : [];
-    if (this.csm) {
-      this.csm.remove();
-      this.csm.dispose();
+    if (this.keyLight) {
+      this.keyLight.shadow.shadowNode?.dispose?.();
+      this.keyLight.shadow.dispose();
+      this.scene.remove(this.keyLight, this.keyLight.target);
     }
     this.quality = q;
-    this.csm = new CSM({
-      camera: this.camera,
-      parent: this.scene,
-      cascades: q.cascades,
-      maxFar: q.shadowFar,
-      mode: 'practical',
-      shadowMapSize: q.shadowMapSize,
-      shadowBias: -0.00025,
-      lightDirection: this.sunDir.clone().negate(),
-      lightIntensity: this.sunIntensity,
-      lightNear: 1,
-      lightFar: 600,
-      lightMargin: 120,
-    });
-    this.csm.fade = true;
-    for (const light of this.csm.lights) {
-      light.color.copy(this.sunColor);
-      light.shadow.normalBias = 0.035;
-      light.shadow.radius = 1.5;
-    }
-    this._prepared = new WeakSet();
-    this.renderer.shadowMap.autoUpdate = true;
-    for (const m of materials) this._setupMaterial(m, true);
+    const light = new DirectionalLight(this.sunColor, this.sunIntensity);
+    light.castShadow = true;
+    light.shadow.mapSize.set(q.shadowMapSize, q.shadowMapSize);
+    light.shadow.camera.near = 1;
+    light.shadow.camera.far = 600;
+    light.shadow.bias = -0.00025;
+    light.shadow.normalBias = 0.035;
+    light.shadow.radius = 1.5;
+    const csm = new CSMShadowNode(light, { cascades: q.cascades, maxFar: q.shadowFar, mode: 'practical', lightMargin: 120 });
+    csm.fade = true;
+    light.shadow.shadowNode = csm;
+    this.csm = csm;
+    this.keyLight = light;
+    this.scene.add(light, light.target);
+    this._applyKey();
   }
 
-  _setupMaterial(m, force = false) {
-    if (!force && this._prepared.has(m)) return;
-    this._prepared.add(m);
-    if (m.userData.noCSM || !m.isMeshStandardMaterial && !m.isMeshPhysicalMaterial && !m.isMeshLambertMaterial && !m.isMeshPhongMaterial) return;
-    // CSM replaces onBeforeCompile; keep any shader patch the material already has.
-    const prev = m.userData.baseOnBeforeCompile ?? m.onBeforeCompile;
-    m.userData.baseOnBeforeCompile = prev;
-    this.csm.setupMaterial(m);
-    const csmHook = m.onBeforeCompile;
-    const lights = this.lights;
-    m.onBeforeCompile = (shader, renderer) => {
-      if (prev) prev.call(m, shader, renderer);
-      csmHook.call(m, shader, renderer);
-      lights.patch(shader); // the night's floodlights and lamps
-    };
-    m.needsUpdate = true;
-  }
-
-  /** Set up every lit material in `root` for the cascaded shadows (cheap when nothing is new). */
-  prepare(root = this.scene) {
-    root.traverse((obj) => {
-      const mat = obj.material;
-      if (!mat || obj.userData.noCSM) return;
-      if (Array.isArray(mat)) for (const m of mat) this._setupMaterial(m);
-      else this._setupMaterial(mat);
-    });
-  }
+  /** (Kept for callers from the WebGL version: node materials need no per-material setup.) */
+  prepare() {}
 
   /** Kept for callers from before CSM; shadows now update every frame. */
   refreshShadows() {}
@@ -393,11 +382,8 @@ export class Environment {
   /** Per frame: sky follows the camera, shadow cascades follow the view. */
   update(camera, dt = 0) {
     this.sky.position.copy(camera.position);
-    this.sky.material.uniforms.time.value += dt;
-    this.prepare();
-    this.csm.update();
+    this.skyU.time.value += dt;
     camera.updateMatrixWorld();
-    this.lights.update(camera);
   }
 }
 

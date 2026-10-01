@@ -1,5 +1,6 @@
 import { ACTIONS, RESERVED, keyLabel } from '../../core/Bindings.js';
 import { LIMITS } from '../../core/Settings.js';
+import { EFFECTS, effectsFor } from '../../core/Graphics.js';
 import { HE } from '../strings.he.js';
 import { button, el, row, segments, slider, toggle } from './kit.js';
 
@@ -104,6 +105,7 @@ export class SettingsPanel {
     this.w.aimSensitivity.set(s.aimSensitivity);
     this.w.invertY.set(s.invertY);
     this.w.quality.set(s.quality);
+    this._effectsRefresh();
     this.w.fov.set(s.fov);
     this.w.showFps.set(s.showFps);
     for (const k of Object.keys(this.w.volumes)) this.w.volumes[k].set(s.volumes[k]);
@@ -158,12 +160,35 @@ export class SettingsPanel {
   _graphics(page) {
     const S = HE.settings;
     const s = this.settings;
-    this.w.quality = segments(['low', 'medium', 'high'].map((id) => ({ id, label: HE.graphics[id] })), s.quality, (v) => this.onChange('quality', v));
+    this.w.quality = segments(['low', 'medium', 'high', 'ultra'].map((id) => ({ id, label: HE.graphics[id] })), s.quality, (v) => {
+      this.onChange('quality', v);
+      this._effectsRefresh();
+    });
     page.append(row(S.quality, this.w.quality, S.qualityHint));
     this.w.fov = slider({ min: LIMITS.fov[0], max: LIMITS.fov[1], step: 1, value: s.fov, format: (v) => `${Math.round(v)}°`, onInput: (v) => this.onChange('fov', Math.round(v)) });
     page.append(row(S.fov, this.w.fov));
     this.w.showFps = toggle(s.showFps, { on: S.on, off: S.off }, (v) => this.onChange('showFps', v));
     page.append(row(S.showFps, this.w.showFps));
+    // Every effect on its own, over the preset (a preset resets them).
+    page.append(el('h3', null, S.effectsTitle));
+    page.append(el('p', null, S.effectsHint));
+    this.w.effects = {};
+    const set = (k, v) => this.onChange('effects', { ...this.settings.effects, [k]: v });
+    const now = effectsFor(s.quality, s.effects);
+    for (const k of EFFECTS) {
+      const w =
+        k === 'motionBlur'
+          ? segments(['off', 'low', 'high'].map((id) => ({ id, label: S.motionBlurLevels[id] })), now[k], (v) => set(k, v))
+          : toggle(now[k], { on: S.on, off: S.off }, (v) => set(k, v));
+      this.w.effects[k] = w;
+      page.append(row(S.effects[k], w));
+    }
+  }
+
+  /** The effect switches as the preset and the player's own choices make them now. */
+  _effectsRefresh() {
+    const now = effectsFor(this.settings.quality, this.settings.effects);
+    for (const k of EFFECTS) this.w.effects[k]?.set(now[k]);
   }
 
   _audio(page) {
