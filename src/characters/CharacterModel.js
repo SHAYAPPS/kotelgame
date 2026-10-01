@@ -382,7 +382,12 @@ export class CharacterModel {
     this._accum = 0;
     this._blend(step);
     if (this.phase !== null) this.setPhase(this.phase);
+    // three's mixer only writes a bone when its animated value changed since the last write, so
+    // the procedural edits below (head turn, spine aim, IK, the hips drop for the feet) would
+    // pile up on any bone the clip holds still. Put back the clean animated pose first.
+    this._restorePose();
     this.mixer.update(step);
+    this._savePose();
     this._skinDirty = true;
     const near = this.distance < c.ikDistance * c.lodScale;
     const aim = this.aimWeight > 0.01 && near;
@@ -390,9 +395,15 @@ export class CharacterModel {
     const look = this._lookUpdate(step) && this.distance < c.lookDistance * c.lodScale;
     const feet = this.feetWeight > 0.01 && this.world && this.distance < c.feetDistance * c.lodScale;
     if (!feet) this._feetState.pelvis = this._feetState.dl = this._feetState.dr = 0;
-    if (aim || ik || look || feet) {
+    // Climbing, the stair clip drives the hips (and so the torso's lean). On any flight the
+    // cloth calms down (the feet are on the steps: feetWeight).
+    const stairs = this.slots.get('stairs');
+    const stairW = stairs && stairs.weight > 0.01 ? stairs.weight : 0;
+    if (this.cloth) this.cloth.calm = Math.max(stairW, this.feetWeight);
+    if (aim || ik || look || feet || stairW) {
       this.root.updateMatrixWorld(true);
       if (feet) this._feet(step);
+      if (stairW) this._upright(stairW, CHARACTER.stairLean);
       if (aim) this._aim();
       if (ik) this._ik();
       if (look) this._lookApply();
@@ -510,6 +521,33 @@ export class CharacterModel {
     if (f.blinkIdx >= 0) inf[f.blinkIdx] = blink;
   }
 
+  /** The bones the procedural layers edit (head turn, aim, arm IK, foot IK + hips). */
+  _poseBones() {
+    if (this._pose) return this._pose;
+    const names = ['Hips', 'Spine', 'Spine1', 'Spine2', 'Neck', 'Head', 'LeftArm', 'LeftForeArm', 'LeftHand', 'RightArm', 'RightForeArm', 'RightHand', 'LeftUpLeg', 'LeftLeg', 'LeftFoot', 'RightUpLeg', 'RightLeg', 'RightFoot'];
+    this._pose = names
+      .map((n) => this.bone(n))
+      .filter(Boolean)
+      .map((b) => ({ b, q: b.quaternion.clone(), p: b.position.clone(), saved: false }));
+    return this._pose;
+  }
+
+  _restorePose() {
+    for (const e of this._poseBones()) {
+      if (!e.saved) continue;
+      e.b.quaternion.copy(e.q);
+      e.b.position.copy(e.p);
+    }
+  }
+
+  _savePose() {
+    for (const e of this._poseBones()) {
+      e.q.copy(e.b.quaternion);
+      e.p.copy(e.b.position);
+      e.saved = true;
+    }
+  }
+
   /** Smooth the head's turn toward `lookTarget` (or back). Returns whether to apply it. */
   _lookUpdate(dt) {
     const L = this._look;
@@ -555,6 +593,36 @@ export class CharacterModel {
       setWorldQuaternion(b, _q.premultiply(_q3).premultiply(_q2));
       b.updateMatrixWorld(true);
     }
+  }
+
+  /**
+   * Keeps the torso's lean (hips -> neck, front to back) near `target` rad (+ forward): the
+   * stair clip pitches the hips, and the walking upper body on top would lean with them. The
+   * spine takes the correction, `w` of it.
+   */
+  _upright(w, target) {
+    const hips = this.bone('Hips');
+    const neck = this.bone('Neck');
+    if (!hips || !neck) return;
+    neck.getWorldPosition(_v);
+    hips.getWorldPosition(_w);
+    _v.sub(_w);
+    this.root.getWorldQuaternion(_q);
+    _axis.set(1, 0, 0).applyQuaternion(_q); // the character's right
+    _w.set(0, 0, -1).applyQuaternion(_q); // its forward
+    const lean = Math.atan2(_v.dot(_w), _v.y);
+    const fix = Math.max(-0.6, Math.min(0.6, (target - lean) * w));
+    if (Math.abs(fix) < 0.002) return;
+    const share = CHARACTER.aimShare;
+    ['Spine', 'Spine1', 'Spine2'].forEach((n, i) => {
+      const b = this.bone(n);
+      if (!b) return;
+      // Forward = a turn about the right axis by minus the angle.
+      _q2.setFromAxisAngle(_axis, -fix * share[i]);
+      b.getWorldQuaternion(_q3);
+      setWorldQuaternion(b, _q3.premultiply(_q2));
+      b.updateMatrixWorld(true);
+    });
   }
 
   _aim() {

@@ -57,6 +57,10 @@ A browser-based 3D first-person story shooter.
        siren), plaza reverb + wall slap-backs, suppression (muffle + edge blur), footsteps on
        stone / wood, city / crowd / birds ambience, music by mood, dialogue ducking, volume
        sliders
+     - [x] Character fixes: heads no longer drift and spin (clean pose before the mixer),
+       walking down stairs on the walk + foot IK (upright), calmer skirts on stairs, head wear
+       fitted to each model's real head (kippot, hats, headbands, headscarves), the squad's
+       added vest fitted to the torso
 
 ## Commands
 
@@ -371,12 +375,15 @@ A browser-based 3D first-person story shooter.
     throttled updates lagged), then the body freezes and stays down).
   - Stairs: the level lists its flights (`stairZones`: rectangles with the uphill direction;
     `src/world/stairs.js` `stairsAt()`; Game hangs them on `collision.stairZones`).
-    `stairs.js` `stairLegs()` plays a Mixamo stair clip (walking up / down; the converter
-    measures its horizontal speed and climb, takes both out, and marks when each foot is
-    planted: `contacts`) over the lower body (mode `lower`) while a walker crosses a flight
-    (in at the bottom, out at the top, 0.15 s fades), at the real ground speed within 0.6-1.9x
-    the clip's own pace; runners keep their run. Views offset the drawn body
-    (`model.body.position.y`) by the StairTracker (smooth climb). `CharacterModel._feet()`
+    `stairs.js` `stairLegs()` plays the Mixamo stair-up clip (the converter measures its
+    horizontal speed and climb, takes both out, and marks when each foot is planted:
+    `contacts`) over the lower body (mode `lower`) while a walker climbs a flight (in at the
+    bottom, out at the top, 0.15 s fades), at the real ground speed within 0.6-1.9x the clip's
+    own pace; runners keep their run. Going down, walkers keep the walk (the stair-down clip's
+    hips leaned the body back and squatted it) and the foot IK places the feet. On a flight
+    `CharacterModel._upright()` keeps the torso's lean while climbing (hips -> neck,
+    `stairLean`: a little forward) through the spine. Views offset the drawn
+    body (`model.body.position.y`) by the StairTracker (smooth climb). `CharacterModel._feet()`
     (foot IK within `feetDistance`): planted feet are pinned onto the step under them,
     swinging ones kept out of the steps, the hips drop (at most about a riser) so the lower
     foot reaches, feet stay level.
@@ -387,8 +394,10 @@ A browser-based 3D first-person story shooter.
     gravity: it hangs straight when the hips tilt), pushed out of the legs (tapered capsules
     on thigh and shin, always to the outside: a knee lifted into a skirt goes under it), never
     into the body; neighbors spread a push (a tent, not a fold). Up close (< 14 m) with
-    dynamics, to 34 m only the legs push it, beyond it rests. Skirted women run with shorter
-    steps (part walk cycle). Tuning: `config.js` `cloth`.
+    dynamics, to 34 m only the legs push it, beyond it rests. On a flight of stairs the cloth
+    calms (`cloth.calm`, from the stair clip's or the foot IK's weight: stiffer, more damped,
+    a smaller swing).
+    Skirted women run with shorter steps (part walk cycle). Tuning: `config.js` `cloth`.
   - `CivilianAnimator.js`: idles by kind, praying (desynchronized), walk / run (scared upper
     body while fleeing), frozen cowering, panic, nervous waiting in the shelter, talking
     (standing: the talk clip; walking: its upper body over the walk).
@@ -415,10 +424,22 @@ A browser-based 3D first-person story shooter.
     `CAST` = which models play each NPC kind,
     `dressPerson(kind, neighbors)` picks a model and outfit unlike the people nearby
     (`likeness`). `outfits.js` applies an outfit (and arms squad / enemies);
-    `attachments.js`: kippah (a cap laid on the skull ellipsoid scaled to the hair), black
-    hat, headscarf (a tichel over the scalp, hair hidden), headband, vest. Head wear sits on
-    `CharacterType.hairScale(dir)`: how far hair / scalp stand off the skull, measured from
-    the rest-pose mesh at load. `weapons.js` (M4 / AK from boxes).
+    `attachments.js`: kippah, black hat, headscarf, headband, vest. Head wear is fitted to
+    each model's real head: `CharacterType.headSurface(part)` = points ~5 mm apart over the
+    LOD0 triangles that follow the Head bone (rest pose, Head-bone frame; a low-poly cap is a
+    few big triangles, so corners alone miss it), `fitted(key, make)` caches a fit per model;
+    `headFit.js` (pure): `fitRing` (quantile radius around a ring, tilted lower at the back),
+    `fitCap` (quantile radii over a cap of directions), `topHeight`. The kippah lies on the
+    outermost hair at the back of the crown; the hat's band on the hair; an enemy's headband
+    is fitted along its top edge, middle and bottom edge and raised above anything sticking
+    out in front (a cap's brim); the headscarf (tichel, hair hidden) lies on the skin where
+    the model has it and on the skull ellipsoid under the hair (the converter took the scalp
+    out from under it), over a layer of flattened hair and a bun, never under the skin (ears),
+    with a rolled hem, creases into a knot at the nape and two tails. The vest (a plate
+    carrier on Spine2) lies on `torsoSurface()` (what follows Spine1 / Spine2): `surfaceGrid`
+    height fields of the chest and the back, the plates on them smoothed (bridging the spine's
+    groove), straps over the shoulders, pouches on the front plate. `weapons.js` (M4 / AK
+    from boxes).
   - `EnemyView.js` / `story/NpcView.js` / `ai/TruckView.js` (the gunner) build the models
     once the library is ready; until then (and in tests) the old placeholder figures.
     NpcView dresses each civilian through `dressPerson` with the civilians already built
@@ -558,6 +579,11 @@ A browser-based 3D first-person story shooter.
   rings with nothing measured take the size of the ring below (a radius of 0 put every
   chain's pivot at the hip center and the skirt exploded). Leg capsules start a quarter of the
   way down the thigh (at the hip joint they swallow the waistband).
+- Characters, procedural bone edits: three's `PropertyMixer` only writes a bone when the
+  animated value changed, so an edit made on top of the clip (head look, spine aim, IK, foot
+  IK, upright) piles up frame after frame on bones whose clip value holds still (heads that
+  drifted and spun). `CharacterModel` restores the clean pose of the edited bones before
+  `mixer.update()` and saves it right after (`_restorePose` / `_savePose`).
 - Characters, runtime: `SkinnedMesh.boundingSphere` is preset (a fixed sphere) so three never
   computes skinned bounds; three calls `skeleton.update()` on every `render()` that draws the
   mesh (the post chain renders the scene more than once), which CharacterModel skips when

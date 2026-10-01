@@ -96,6 +96,7 @@ export class ClothSim {
    *   the rest distance from the body axis it may lose), maxAngle (rad from rest)
    */
   constructor(model, info, tuning) {
+    this.calm = 0; // 0..1: stiffer, steadier cloth (on stairs: set by CharacterModel)
     this.body = model.body;
     this.hips = model.bones.get('Hips');
     this.tuning = tuning;
@@ -310,9 +311,12 @@ export class ClothSim {
     c.radial.subVectors(_head, _hipsPos);
     c.radial.addScaledVector(_axis, -c.radial.dot(_axis));
     if (c.radial.lengthSq() > 1e-10) c.radial.normalize();
-    const w = T.frequency;
+    // On stairs (calm 0..1) the steps jolt the hips up and down: a stiffer, critically damped
+    // cloth that follows the body instead of flaring out with every step.
+    const calm = this.calm;
+    const w = T.frequency * (1 + 1.2 * calm);
     const k = w * w;
-    const damp = 2 * T.damping * w;
+    const damp = 2 * (T.damping + (1 - T.damping) * calm) * w;
     for (let j = 0; j < c.bones.length; j++) {
       const bone = c.bones[j];
       const L = c.len[j];
@@ -357,7 +361,7 @@ export class ClothSim {
           // (else a leg's push would fling it), and never faster than it could flap.
           _prev.copy(p);
           this._collide(c, j, p, L, T);
-          v.addScaledVector(_n.subVectors(p, _prev), (T.pushVelocity ?? 0.15) / h);
+          v.addScaledVector(_n.subVectors(p, _prev), ((T.pushVelocity ?? 0.15) * (1 - 0.7 * calm)) / h);
           _n.subVectors(v, _a); // relative to the body: never faster than it could flap
           const sp = _n.length();
           if (sp > MAX_SPEED) v.copy(_a).addScaledVector(_n, MAX_SPEED / sp);
@@ -368,7 +372,7 @@ export class ClothSim {
       c.head[j].copy(_head);
       // No wild swings: at most maxAngle away from the target direction (the lower bone of a
       // chain may go farther: a knee kicked up under a skirt).
-      const maxAngle = j ? T.maxAngleLower ?? T.maxAngle : T.maxAngle;
+      const maxAngle = (j ? T.maxAngleLower ?? T.maxAngle : T.maxAngle) * (1 - 0.55 * this.calm);
       _n.subVectors(p, _head).normalize();
       const cos = _n.dot(_dir);
       if (cos < Math.cos(maxAngle)) {

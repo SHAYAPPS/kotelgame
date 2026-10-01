@@ -11,6 +11,35 @@ import { dressCharacter } from './outfits.js';
 const _a = new Vector3();
 const _b = new Vector3();
 
+/** Points over a mesh's triangles (those with every vertex `on`): every vertex, plus one per sub-triangle `spacing` m across. */
+function samples({ pos, on, index }, spacing) {
+  const out = [];
+  for (let i = 0; i < on.length; i++) if (on[i]) out.push(pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2]);
+  const d = (i, j) => Math.hypot(pos[i] - pos[j], pos[i + 1] - pos[j + 1], pos[i + 2] - pos[j + 2]);
+  for (let k = 0; k < index.count; k += 3) {
+    const A = index.getX(k);
+    const B = index.getX(k + 1);
+    const C = index.getX(k + 2);
+    if (!on[A] || !on[B] || !on[C]) continue;
+    const a = A * 3;
+    const b = B * 3;
+    const c = C * 3;
+    const n = Math.ceil(Math.max(d(a, b), d(b, c), d(c, a)) / spacing);
+    if (n < 2) continue; // small enough: its corners will do
+    const emit = (u, w) => {
+      for (let x = 0; x < 3; x++) out.push(pos[a + x] + u * (pos[b + x] - pos[a + x]) + w * (pos[c + x] - pos[a + x]));
+    };
+    // The centroid of each of the n x n sub-triangles (no point twice, none on the edges).
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n - i; j++) {
+        emit((i + 1 / 3) / n, (j + 1 / 3) / n);
+        if (i + j < n - 1) emit((i + 2 / 3) / n, (j + 2 / 3) / n);
+      }
+    }
+  }
+  return new Float32Array(out);
+}
+
 /** One character model as loaded: template scene, material and its own clip set. */
 export class CharacterType {
   constructor(id, info, gltf, sourceClips, anims) {
@@ -57,84 +86,62 @@ export class CharacterType {
     this._variants = new Map();
     this.meta = anims.clips;
     this.rifle = anims.rifle;
-    this._shell = null;
   }
 
   /**
-   * How far the hair stands off the skull around a direction (Head-bone frame, in the space
-   * of the skull ellipsoid measured by the converter: center at the forehead ring, radii
-   * rx / crown / rz), as a scale on that ellipsoid: 1 = bald. Never below the scalp (checked
-   * over `skinCone`); on the hair at its `q` quantile (a few strands may poke out), unless
-   * `withHair` is off (the hair is hidden, e.g. under a headscarf).
-   * Kippot, hats and scarves sit on it.
-   * @param {{ x: number, y: number, z: number }} dir unit direction in ellipsoid space
+   * The head's rest-pose surface: points ~5 mm apart over every LOD0 triangle that follows the
+   * Head bone, of one part (PART in config.js; -1: every part: skin, hair, a hood, a cap), in
+   * the Head bone's frame (meters). Sampled over the triangles, not only at their corners: a
+   * low-poly cap's crown is a few big triangles. Head wear is fitted to it (headFit.js). Cached.
    */
-  hairScale(dir, cone = 0.35, q = 0.85, skinCone = cone + 0.4, withHair = true) {
-    const shell = this._shellData();
-    if (!shell) return 1;
-    let skin = 1;
-    const cs = Math.cos(skinCone);
-    const S = shell.skin;
-    for (let i = 0; i < S.n; i++) {
-      if (S.dir[i * 3] * dir.x + S.dir[i * 3 + 1] * dir.y + S.dir[i * 3 + 2] * dir.z >= cs && S.rho[i] > skin) skin = S.rho[i];
-    }
-    if (!withHair) return skin + 0.02;
-    const hair = this._scratch;
-    hair.length = 0;
-    const ch = Math.cos(cone);
-    const Hr = shell.hair;
-    for (let i = 0; i < Hr.n; i++) {
-      if (Hr.dir[i * 3] * dir.x + Hr.dir[i * 3 + 1] * dir.y + Hr.dir[i * 3 + 2] * dir.z >= ch) hair.push(Hr.rho[i]);
-    }
-    hair.sort((a, b) => a - b);
-    const onHair = hair.length >= 6 ? hair[Math.floor((hair.length - 1) * q)] : 1;
-    return Math.max(skin + 0.02, onHair);
+  headSurface(part = -1) {
+    return this.surface(`head:${part}`, { bones: ['Head', 'HeadTop_End'], frame: 'Head', part });
   }
 
-  /** Hair and scalp points around the head as directions + radii on the skull ellipsoid. */
-  _shellData() {
-    if (this._shell !== null) return this._shell;
-    const h = this.info.head;
-    if (!h?.ring) return (this._shell = undefined);
-    const { y: cy, cz, rx, rz } = h.ring;
-    const ry = Math.max(0.04, h.topY - cy);
-    const conv = (pts) => {
-      const n = pts.length / 3;
-      const dir = new Float32Array(n * 3);
-      const rho = new Float32Array(n);
-      for (let i = 0; i < n; i++) {
-        const dx = pts[i * 3] / rx;
-        const dy = (pts[i * 3 + 1] - cy) / ry;
-        const dz = (pts[i * 3 + 2] - cz) / rz;
-        const r = Math.hypot(dx, dy, dz) || 1;
-        dir[i * 3] = dx / r;
-        dir[i * 3 + 1] = dy / r;
-        dir[i * 3 + 2] = dz / r;
-        rho[i] = r;
-      }
-      return { n, dir, rho };
-    };
-    this._scratch = [];
-    return (this._shell = { hair: conv(this._headPoints(4)), skin: conv(this._headPoints(0)) });
+  /** The chest and upper back (what follows Spine1 / Spine2), in Spine2's frame: the vest's fit. */
+  torsoSurface() {
+    return this.surface('torso', { bones: ['Spine1', 'Spine2'], frame: 'Spine2', spacing: 0.01 });
   }
 
-  /** Rest positions of one part's vertices that follow the head, in the Head bone's frame. */
-  _headPoints(partId) {
+  /**
+   * Rest-pose surface points over the LOD0 triangles whose vertices follow one of `bones`
+   * (one part, -1: any), in the `frame` bone's space, `spacing` m apart. Cached by `key`.
+   */
+  surface(key, { bones, frame, part = -1, spacing = 0.005 }) {
+    this._surfaces ??= new Map();
+    if (!this._surfaces.has(key)) {
+      const v = this._vertices(bones, frame, part);
+      this._surfaces.set(key, v ? samples(v, spacing) : new Float32Array(0));
+    }
+    return this._surfaces.get(key);
+  }
+
+  /** Fitted shapes (headFit.js results) for this model, built once: key -> make(every part's head surface, this). */
+  fitted(key, make) {
+    this._fits ??= new Map();
+    if (!this._fits.has(key)) this._fits.set(key, make(this.headSurface(), this));
+    return this._fits.get(key);
+  }
+
+  /** LOD0 vertices whose main bone is one of `boneNames` (one part's, -1: any): rest positions in `frameName`'s frame. */
+  _vertices(boneNames, frameName, partId) {
     const sm = this.scene.getObjectByProperty('isSkinnedMesh', true);
     const g = sm.geometry;
     const part = g.getAttribute('_part');
     const si = g.getAttribute('skinIndex');
     const sw = g.getAttribute('skinWeight');
     const bones = sm.skeleton.bones;
-    const head = bones.findIndex((b) => b.name === 'Head');
-    const top = bones.findIndex((b) => b.name === 'HeadTop_End');
-    if (!part || head < 0) return new Float32Array(0);
-    const inv = new Matrix4().copy(bones[head].matrixWorld).invert();
-    const out = [];
-    const used = new Uint8Array(part.count);
+    const ids = new Set(boneNames.map((name) => bones.findIndex((b) => b.name === name)).filter((i) => i >= 0));
+    const frame = bones.find((b) => b.name === frameName);
+    if (!part || !frame || !ids.size) return null;
+    const inv = new Matrix4().copy(frame.matrixWorld).invert();
+    const n = part.count;
+    const pos = new Float32Array(n * 3);
+    const on = new Uint8Array(n);
+    const used = new Uint8Array(n);
     for (let k = 0; k < g.index.count; k++) used[g.index.getX(k)] = 1; // LOD0's own vertices
-    for (let i = 0; i < part.count; i++) {
-      if (!used[i] || Math.round(part.getX(i)) !== partId) continue;
+    for (let i = 0; i < n; i++) {
+      if (!used[i] || (partId >= 0 && Math.round(part.getX(i)) !== partId)) continue;
       let best = -1;
       let bw = -1;
       for (let k = 0; k < 4; k++) {
@@ -144,11 +151,14 @@ export class CharacterType {
           best = si.getComponent(i, k);
         }
       }
-      if (best !== head && best !== top) continue;
+      if (!ids.has(best)) continue;
       sm.getVertexPosition(i, _a).applyMatrix4(sm.matrixWorld).applyMatrix4(inv);
-      out.push(_a.x, _a.y, _a.z);
+      pos[i * 3] = _a.x;
+      pos[i * 3 + 1] = _a.y;
+      pos[i * 3 + 2] = _a.z;
+      on[i] = 1;
     }
-    return new Float32Array(out);
+    return { pos, on, index: g.index };
   }
 
   /**

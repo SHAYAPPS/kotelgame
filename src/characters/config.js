@@ -19,6 +19,8 @@ export const CHARACTER = {
   shadowDistance: 30,
   ikDistance: 18,
   lookDistance: 25, // head turns toward a listener / speaker
+  // Torso lean (rad, + forward, hips -> neck) kept while the stair-up clip drives the hips.
+  stairLean: 0.17,
   feetDistance: 30, // feet placed on the steps (stairs) this close to the camera
 
   // Loose clothes (ClothSim.js): skirts and the hems of tops swing (springs with inertia) this
