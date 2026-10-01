@@ -34,6 +34,7 @@ const _inv = new Matrix4();
 const _axis = new Vector3();
 const _feet = new Vector3();
 const SYNC = { sync: true };
+const PELVIS_DROP = 0.17; // m, the most the hips go down for a foot on a lower step
 const NO_OPTS = {};
 
 /**
@@ -435,12 +436,16 @@ export class CharacterModel {
           d = planted ? sole - _v.y : Math.max(0, sole - _v.y);
         } else d = sole + Math.max(0, _v.y - ground - ankle) - _v.y;
       }
+      // A foot never reaches more than a step and a half (the clip's stride isn't our treads:
+      // a foot over the step two risers down would pull the body into a squat).
+      d = Math.max(-0.25, Math.min(0.25, d));
       if (s) dr = d;
       else dl = d;
     }
     F.dl += (dl - F.dl) * k;
     F.dr += (dr - F.dr) * k;
-    F.pelvis += (Math.max(-0.35, Math.min(0, F.dl, F.dr)) - F.pelvis) * k;
+    // The hips drop at most about one riser (the lower foot reaches the rest of the way).
+    F.pelvis += (Math.max(-PELVIS_DROP, Math.min(0, F.dl, F.dr)) - F.pelvis) * k;
     // Hips down (world y) so the lower foot can reach.
     if (Math.abs(F.pelvis) > 1e-4) {
       _m3.setFromMatrix4(hips.parent.matrixWorld).invert();

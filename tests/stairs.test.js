@@ -127,3 +127,72 @@ test('the player\'s view climbs the terraces smoothly (no jerk per step)', async
   // Before: each 15 cm step came through at 14/s (a jolt of several m/s² per step).
   assert.ok(maxAccel < 40, `smooth: max vertical accel ${maxAccel.toFixed(1)} m/s²`);
 });
+
+// Stair zones (src/world/stairs.js): where the flights are, so the stair animation starts and
+// stops exactly at a flight and walkers slow to a stair pace on it.
+const { stairsAt } = await import('../src/world/stairs.js');
+const { stairZones } = await import('../src/world/kotel/KotelLevel.js');
+const { Npc, NPC } = await import('../src/story/Npc.js');
+world.stairZones = stairZones();
+
+test('the stair zones cover every step of the plaza and nothing else', () => {
+  const hit = { point: new Vector3(), normal: new Vector3(), distance: 0 };
+  const down = new Vector3(0, -1, 0);
+  const o = new Vector3();
+  let edges = 0;
+  for (const z of [-30, 0, 24, 28, 32, 50]) {
+    let prev = null;
+    for (let x = -128; x <= 0; x += 0.05) {
+      const y = world.raycast(o.set(x, 30, z), down, 60, hit) ? hit.point.y : null;
+      if (y !== null && prev !== null && Math.abs(y - prev) > 0.08 && Math.abs(y - prev) < 0.25) {
+        edges++;
+        const inside = world.stairZones.some((s) => x >= s.x0 - 0.1 && x <= s.x1 + 0.1 && z >= s.z0 && z <= s.z1);
+        assert.ok(inside, `a step at x ${x.toFixed(2)} z ${z} is in a flight`);
+      }
+      prev = y;
+    }
+  }
+  assert.ok(edges > 60, `found the steps (${edges})`);
+  // Flat ground is not a flight.
+  const out = { on: 0, dir: 1, zone: null };
+  for (const [x, z] of [[-30, 0], [-70, 10], [-10, 40], [-100, 0]]) assert.equal(stairsAt(world.stairZones, x, z, -1, 0, out).zone, null, `${x},${z}`);
+});
+
+test('on a flight: up or down by the direction of travel, level when walking along a step', () => {
+  const out = { on: 0, dir: 1, zone: null };
+  const x = TERRACE.x - 2; // on terrace 2's steps
+  stairsAt(world.stairZones, x, 0, -1.2, 0.2, out); // west: up
+  assert.deepEqual([out.on, out.dir], [1, 1]);
+  stairsAt(world.stairZones, x, 0, 1.2, -0.3, out); // east: down
+  assert.deepEqual([out.on, out.dir], [1, -1]);
+  stairsAt(world.stairZones, x, 0, 0.1, 1.3, out); // along the step
+  assert.equal(out.on, 0);
+  assert.ok(out.zone);
+  stairsAt(world.stairZones, x, 0, 0, 0, out); // standing
+  assert.equal(out.on, 0);
+});
+
+test('a walker slows to a stair pace on a flight and back to its pace after it', () => {
+  const nav = { nodeAt: () => -1, y: [], findPath: (a, b) => [a.clone(), b.clone()] };
+  for (const [from, to, cap] of [[TERRACE.x + 4, TERRACE.x - 6, NPC.stairUpSpeed], [TERRACE.x - 6, TERRACE.x + 4, NPC.stairDownSpeed]]) {
+    const npc = new Npc({ world, nav, id: 'walker', kind: 'tourist', position: new Vector3(from, groundY(from, 0), 0) });
+    npc.setRoute({ points: [[to, 0]], speed: 1.4 });
+    const player = { position: new Vector3(500, 0, 500) };
+    let onFlight = 0;
+    let maxOn = 0;
+    let after = 0;
+    for (let i = 0; i < 30 / DT && !npc.arrived; i++) {
+      npc.update(DT, player);
+      const x = npc.position.x;
+      const inFlight = x > TERRACE.x - TERRACE.steps * KOTEL.plaza.stepRun + 0.3 && x < TERRACE.x - 0.3;
+      if (inFlight && i > 60) {
+        onFlight++;
+        maxOn = Math.max(maxOn, npc.speed);
+      }
+      if (Math.abs(x - to) < 2.5 && Math.abs(x - to) > 1.2) after = Math.max(after, npc.speed);
+    }
+    assert.ok(npc.arrived || Math.abs(npc.position.x - to) < 1, `got there (${npc.position.x.toFixed(2)})`);
+    assert.ok(onFlight > 0 && maxOn <= cap + 0.05, `stair pace ${maxOn.toFixed(2)} m/s (cap ${cap})`);
+    assert.ok(after > 1.2, `walks on at its pace (${after.toFixed(2)} m/s)`);
+  }
+});

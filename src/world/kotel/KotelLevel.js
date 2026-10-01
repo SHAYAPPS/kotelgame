@@ -71,6 +71,27 @@ export function groundY(x, z) {
   return y;
 }
 
+/** The stair flights (src/world/stairs.js): the terrace step bands and the Yehuda HaLevi stairs. */
+export function stairZones() {
+  const { plaza } = KOTEL;
+  const zones = plaza.terraces.map((t) => ({
+    x0: t.x - t.steps * plaza.stepRun,
+    x1: t.x,
+    z0: plaza.northZ,
+    z1: plaza.southZ,
+    up: [-1, 0], // rising west
+    rise: t.rise / t.steps,
+    run: plaza.stepRun,
+  }));
+  const s = KOTEL.stairs;
+  let x = plaza.westX;
+  for (let f = 0; f < s.flights; f++) {
+    zones.push({ x0: x - s.stepsPerFlight * s.run, x1: x, z0: s.z[0], z1: s.z[1], up: [-1, 0], rise: s.rise, run: s.run });
+    x -= s.stepsPerFlight * s.run + (f === s.flights - 1 ? 6 : s.landing);
+  }
+  return zones;
+}
+
 function buildFloors(b) {
   const { plaza, wilsonsArch } = KOTEL;
   const [pz0, pz1] = KOTEL.wall.prayerZ;
@@ -295,6 +316,7 @@ export function createKotelLevel() {
     spawn: { position: new Vector3(s.x, spawnY, s.z), yaw },
     environment: KOTEL.environment,
     navBounds: KOTEL.ai.navBounds,
+    stairZones: stairZones(),
     enemySpawns: KOTEL.ai.enemySpawns.map((e) => ({ position: new Vector3(e.x, groundY(e.x, e.z), e.z), yaw: e.yaw })),
     stats: { stones },
     /** Stream the stone textures in (the level shows plain colors until they arrive). */

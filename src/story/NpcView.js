@@ -21,6 +21,7 @@ import { characters } from '../characters/registry.js';
 import { dressPerson } from '../characters/wardrobe.js';
 import { LipSync } from '../characters/LipSync.js';
 import { StairTracker } from '../player/StairTracker.js';
+import { stairsAt } from '../world/stairs.js';
 import { soldierState } from '../ai/EnemyView.js';
 
 const SKIN = [0xc79a78, 0xa87b5a, 0xe0b596, 0x8d6246, 0xd2a282];
@@ -239,6 +240,7 @@ export class NpcView {
     this.lip = new LipSync(rand);
     this._speech = null;
     this.stairs = new StairTracker();
+    this._flight = { on: 0, dir: 1, zone: null };
     if (!this._build()) this.placeholder = new PlaceholderFigure(npc, this.root, rand);
   }
 
@@ -282,11 +284,13 @@ export class NpcView {
     // Stairs: the drawn body climbs smoothly (the physics steps a riser at a time), the legs
     // play the stair clip, the feet go onto the steps near the camera.
     const st = this.stairs.update(dt, n.position.y, n.body.grounded, n.body.horizontalSpeed);
+    const v = n.body.velocity;
+    const flight = stairsAt(n.world.stairZones, n.position.x, n.position.z, v.x, v.z, this._flight, 0.15);
     this.model.body.position.y = st.offset;
     this.model.world = n.world;
-    this.model.feetWeight = st.amount;
-    this.state.stairs = this.civ.stairs = st.amount;
-    this.state.stairDir = this.civ.stairDir = st.dir;
+    this.model.feetWeight += ((flight.zone ? 1 : st.amount) - this.model.feetWeight) * Math.min(1, dt * 8);
+    this.state.stairs = this.civ.stairs = flight.on;
+    this.state.stairDir = this.civ.stairDir = flight.dir;
     if (this.soldier) {
       const b = n.brain;
       if (b) soldierState(b, this.state);

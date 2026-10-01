@@ -51,10 +51,15 @@ export class StairTracker {
     }
     if (this.sinceStep > 0.5) this.climb *= Math.exp(-10 * dt);
     // Spring toward the lead (the spring's lag at the climbing speed), velocity continuous.
+    // Small steps: a long frame (a hitch, the 0.1 s cap) must not make it ring.
     const w = this.w;
     const lead = (this.climb * 2) / w;
-    this.vel += (w * w * (lead - this.offset) - 2 * w * this.vel) * dt;
-    this.offset += this.vel * dt;
+    const n = Math.min(12, Math.ceil(dt * 120));
+    const h = n ? dt / n : 0;
+    for (let i = 0; i < n; i++) {
+      this.vel += (w * w * (lead - this.offset) - 2 * w * this.vel) * h;
+      this.offset += this.vel * h;
+    }
     if (Math.abs(this.offset) > 0.45) {
       this.offset = Math.sign(this.offset) * 0.45;
       this.vel = 0;

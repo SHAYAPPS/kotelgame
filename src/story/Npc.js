@@ -3,6 +3,7 @@ import { PLAYER } from '../player/config.js';
 import { PlayerController } from '../player/PlayerController.js';
 import { raySphere, rayCapsule } from '../ai/hitZones.js';
 import { modelHitTest } from '../ai/Enemy.js';
+import { stairsAt } from '../world/stairs.js';
 
 const _a = new Vector3();
 const _b = new Vector3();
@@ -17,7 +18,11 @@ export const NPC = {
   talkRange: 2.8,
   talkAngle: 0.5, // radians off the view center
   runSpeed: 3.6, // fleeing to shelter
+  // Walking a flight of stairs people slow down (m/s across the flight); runners don't.
+  stairUpSpeed: 0.6,
+  stairDownSpeed: 0.72,
 };
+const _stairs = { on: 0, dir: 1, zone: null };
 
 /** Kinds decide the look and whether hitting them is a civilian or a teammate hit. */
 export const TEAMMATE_KINDS = new Set(['commander', 'soldier']);
@@ -280,6 +285,10 @@ export class Npc {
       }
     }
 
+    if (moveYaw !== null && speed < 2.3 && this.world.stairZones) {
+      stairsAt(this.world.stairZones, this.position.x, this.position.z, -Math.sin(moveYaw), -Math.cos(moveYaw), _stairs, 0.25);
+      if (_stairs.on) speed = Math.min(speed, _stairs.dir > 0 ? NPC.stairUpSpeed : NPC.stairDownSpeed);
+    }
     if (moveYaw !== null) {
       this.body.yaw = moveYaw;
       ctl.forward = 1;

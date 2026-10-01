@@ -24,6 +24,7 @@ import {
 import { ENEMY } from './config.js';
 import { characters } from '../characters/registry.js';
 import { StairTracker } from '../player/StairTracker.js';
+import { stairsAt } from '../world/stairs.js';
 
 let shared = null;
 function assets() {
@@ -188,6 +189,7 @@ export class EnemyView {
       stairs: 0, stairDir: 1,
     };
     this.stairs = new StairTracker();
+    this._flight = { on: 0, dir: 1, zone: null };
     if (!this._build()) this.placeholder = new PlaceholderSoldier(enemy, this.root);
 
     if (enemy.cfg.marksman) {
@@ -223,11 +225,13 @@ export class EnemyView {
     if (this.model) {
       // Stairs: smooth climb, stair legs, feet on the steps near the camera (see NpcView).
       const st = this.stairs.update(dt, e.position.y, e.body.grounded && e.alive, e.body.horizontalSpeed);
+      const v = e.body.velocity;
+      const flight = stairsAt(this.world?.stairZones, e.position.x, e.position.z, v.x, v.z, this._flight, 0.15);
       if (e.alive) this.model.body.position.y = st.offset; // a body stays where it fell
       this.model.world = this.world;
-      this.model.feetWeight = e.alive ? st.amount : 0;
-      this.state.stairs = e.alive ? st.amount : 0;
-      this.state.stairDir = st.dir;
+      this.model.feetWeight += ((e.alive && (flight.zone || st.amount > 0.5) ? 1 : 0) - this.model.feetWeight) * Math.min(1, dt * 8);
+      this.state.stairs = e.alive ? flight.on : 0;
+      this.state.stairDir = flight.dir;
       this.animator.update(dt, soldierState(e, this.state));
       this.model.update(dt, characters);
       e.visualMuzzle = this.model.muzzleWorld(e.visualMuzzle ?? new Vector3());

@@ -103,6 +103,7 @@ export class Game {
     this.flashes = new FlashLights(this.scene, this.quality.flashLights);
     this._blastHit = { point: new Vector3(), normal: new Vector3(), distance: 0 };
     this.collision = new CollisionWorld().build(level.collisionRoots);
+    this.collision.stairZones = level.stairZones ?? []; // flights (src/world/stairs.js)
 
     // Player
     this.player = new PlayerController(this.collision);
