@@ -46,11 +46,19 @@ export class Hud {
     this.debug.dir = 'rtl';
     this.debug.hidden = !showDebug;
 
-    parent.append(this.root, this.debug);
+    // The FPS counter (Settings > Graphics), in a corner, in the menus too.
+    this.fps = document.createElement('div');
+    this.fps.className = 'fps-counter';
+    this.fps.dir = 'ltr';
+    this.fps.hidden = true;
+
+    parent.append(this.root, this.debug, this.fps);
 
     this._frames = 0;
     this._time = 0;
     this._worstFrame = 0;
+    this._fpsFrames = 0;
+    this._fpsTime = 0;
 
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Backquote' && !e.repeat) this.debug.hidden = !this.debug.hidden;
@@ -64,6 +72,8 @@ export class Hud {
 
   setPlaying(playing) {
     this.root.hidden = !playing;
+    // The readout belongs to the game, not the menus.
+    this.debug.style.visibility = playing ? '' : 'hidden';
   }
 
   /** @param {number} gapPx distance of the ticks from the center @param {number} opacity */
@@ -123,7 +133,20 @@ export class Hud {
    * @param {number} frameSeconds real time since the previous frame
    * @param {{ player: import('../player/PlayerController.js').PlayerController, drawCalls: number }} stats
    */
+  setFpsVisible(on) {
+    this.fps.hidden = !on;
+  }
+
   update(frameSeconds, { player, drawCalls, extra = null }) {
+    if (!this.fps.hidden) {
+      this._fpsFrames++;
+      this._fpsTime += frameSeconds;
+      if (this._fpsTime >= 0.5) {
+        this.fps.textContent = `${Math.round(this._fpsFrames / this._fpsTime)} FPS`;
+        this._fpsFrames = 0;
+        this._fpsTime = 0;
+      }
+    }
     this._frames++;
     this._time += frameSeconds;
     this._worstFrame = Math.max(this._worstFrame, frameSeconds);

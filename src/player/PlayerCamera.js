@@ -22,7 +22,13 @@ export class PlayerCamera {
     this.camera = camera;
     this.player = player;
     this.cfg = config;
+    // The player's settings: mouse sensitivity, times `aimSensitivity` while aiming (by `aim`,
+    // 0..1, set by the weapon), inverted vertical look, the field of view.
     this.sensitivity = 1;
+    this.aimSensitivity = 1;
+    this.invertY = false;
+    this.aim = 0;
+    this.baseFov = config.fov;
 
     this.yaw = player.yaw;
     this.pitch = 0;
@@ -58,9 +64,9 @@ export class PlayerCamera {
   }
 
   look(dx, dy) {
-    const k = this.cfg.lookRadiansPerPixel * this.sensitivity * this.lookScale;
+    const k = this.cfg.lookRadiansPerPixel * this.sensitivity * this.lookScale * (1 + (this.aimSensitivity - 1) * this.aim);
     this.yaw = (this.yaw - dx * k) % TWO_PI;
-    this.pitch = MathUtils.clamp(this.pitch - dy * k, -MAX_PITCH, MAX_PITCH);
+    this.pitch = MathUtils.clamp(this.pitch - dy * k * (this.invertY ? -1 : 1), -MAX_PITCH, MAX_PITCH);
   }
 
   /** Reset all smoothing (spawn / teleport). */
@@ -128,7 +134,7 @@ export class PlayerCamera {
 
     // Wider FOV while actually sprinting.
     const sprintFov = p.sprinting && speed > pc.walkSpeed ? cfg.sprintFovBoost : 0;
-    this.fov = damp(this.fov, cfg.fov + sprintFov, cfg.fovSmoothing, dt);
+    this.fov = damp(this.fov, this.baseFov + sprintFov, cfg.fovSmoothing, dt);
 
     this.prevEye.copy(this.eye);
     this._computeEye(bobX, bobY);

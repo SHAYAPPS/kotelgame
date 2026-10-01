@@ -61,6 +61,13 @@ A browser-based 3D first-person story shooter.
        walking down stairs on the walk + foot IK (upright), calmer skirts on stairs, head wear
        fitted to each model's real head (kippot, hats, headbands, headscarves), the squad's
        added vest fitted to the torso
+7. [x] Game shell: loading screen (progress, lines about the Kotel), main menu over the plaza
+   at dawn (camera drifts, the early prayer, calm music; Continue / New Game / Settings /
+   Credits / Quit in the desktop version), pause menu (Resume / Restart from checkpoint /
+   Settings / Quit to the main menu), settings saved between sessions (mouse and aiming
+   sensitivity, invert Y, key rebinding, quality, field of view, FPS counter, volumes,
+   difficulty easy / normal / hard, subtitles), the last checkpoint saved for Continue,
+   scrolling credits built from CREDITS.md
 
 ## Commands
 
@@ -106,10 +113,40 @@ A browser-based 3D first-person story shooter.
 
 ## Architecture
 
-- `src/main.js` -> `src/core/Game.js`: renderer, scene, fixed-timestep loop (physics at 120 Hz,
-  rendering interpolated between steps), pause/resume tied to pointer lock.
+- `src/main.js` -> `src/core/Game.js`: `new Game()` makes the settings and the shell (the
+  loading screen shows at once); `await game.init()` builds the world (yielding between the
+  heavy parts so the progress bar moves) and waits for every load (textures, characters and
+  their fitted gear, weapon models, sounds), drawing the menu's scene behind the loading screen
+  meanwhile (shaders compile there). Renderer, scene, fixed-timestep loop (physics at 120 Hz,
+  rendering interpolated between steps). Modes: `loading` -> `title` (click to continue: it
+  unlocks the sound) -> `menu` (`toMenu()`: dawn, the menu camera, the story's `menuScene()`)
+  -> `playing` <-> `paused` (the pointer lock: losing it while playing pauses; Resume asks for
+  it again). `newGame(chapter)` / `continueGame()` set what `_beginPlay()` starts once the
+  mouse locks. Dev automation: `__game.setActive(true)` plays straight from any mode.
 - `src/core/Input.js`: keyboard by `event.code`, mouse deltas, pointer lock (raw mouse input when
-  the browser supports it). Key presses are edges consumed by the first physics step.
+  the browser supports it). Key presses are edges consumed by the first physics step. Game
+  reads actions through the player's bindings: `anyDown(codes)` / `consumeAny(codes)`.
+- `src/core/Bindings.js` (pure): the rebindable actions (move, jump, sprint, crouch, fire, aim,
+  reload, grenade, interact, weapon 1 / 2), each one key the player can change plus fixed
+  alternates (arrows, right Shift) that step aside when taken; rebinding a used key swaps;
+  Esc, `, P, F1, F2 are reserved; `keyLabel(code)`.
+- `src/core/Settings.js` (pure, storage passed in): every player setting in one localStorage
+  object (`kotelgame.settings`): controls, graphics, volumes, difficulty, subtitles; checked
+  and clamped on load; the old separate keys are taken over once. `Game.setSetting(key, v)`
+  applies one live and saves.
+- `src/core/MenuCamera.js` (pure): the main menu's background, slow drifts through the level's
+  `menu.shots` (kotel `config.js`: from / to, look / lookTo, seconds) with black between them.
+- `src/story/SaveGame.js` (pure): the last checkpoint (`kotelgame.save`: step id, stats,
+  difficulty), written on every checkpoint (`StoryDirector.onCheckpoint`), cleared when the
+  mission is complete or a new game starts; `chapterOf()` names it for Continue.
+- `src/ui/menu/`: the shell (Hebrew, RTL, the HUD's palette; `menu.css`). `Shell.js` (main
+  menu, pause menu, new game: difficulty + start or a chapter, yes / no questions; arrow keys
+  and Enter, Esc backs out of a panel), `SettingsPanel.js` (tabs: controls with key capture,
+  graphics, audio, gameplay), `LoadingScreen.js`, `CreditsScreen.js` (the roll: the game's own
+  credits from `src/ui/gameCredits.he.js` (fill in the names there), then
+  `creditsRoll.js` (pure): CREDITS.md's sections and tables -> entries, CC notices kept word
+  for word), `kit.js` (DOM helpers). Quit shows only when the page has
+  `window.kotelDesktop.quit` (a desktop wrapper).
 - `src/player/PlayerController.js`: kinematic character controller. Pure logic (no DOM), unit-tested.
   - "Floating capsule": on the ground, the capsule's lower `stepHeight` is left out of collision,
     and a ring of 9 downward rays (the feet) holds the player on the ground. That handles stairs,
@@ -132,9 +169,8 @@ A browser-based 3D first-person story shooter.
 - `src/core/Models.js`: `models.load(path)` loads a GLB once (meshopt, KTX2 via the
   TextureLibrary's loader, set by Game).
 - `src/core/Graphics.js`: the `QUALITY` presets (low / medium / high: pixel ratio, MSAA, shadow
-  cascades / map size / distance, AO, bloom, flash-light count, anisotropy), saved in
-  localStorage (`kotelgame.graphics`); picked on the start/pause screen, `Game.setQuality()`
-  applies one live.
+  cascades / map size / distance, AO, bloom, flash-light count, anisotropy), picked in
+  Settings > Graphics; `Game.setQuality()` applies one live.
 - `src/core/PostFX.js`: EffectComposer chain: world (half-float, MSAA) -> GTAO (half-res on
   medium) -> the viewmodel on top (depth cleared) -> bloom (threshold 3.2: only HDR-bright
   flashes, fire, the sun) -> OutputPass (ACES filmic) -> color grade (contrast, split tone,
@@ -218,13 +254,15 @@ A browser-based 3D first-person story shooter.
     (343 m/s). Near misses: real supersonic cracks + whizzes, and suppression. Footsteps by
     surface (`footstep(level, stair, surface)`), casings, reload sounds on the animation's
     marks (`VIEWMODEL.reload`). `speaking(s)` ducks the rest under dialogue; `setMusic(mood)`;
-    `update(dt)` drives muffle / ducking; `blur` (suppression) goes to PostFX. `unlock()` must
-    be called from a user gesture (the start click); then every sound is fetched and decoded.
+    `update(dt)` drives muffle / ducking; `blur` (suppression) goes to PostFX. `init()` makes
+    the AudioContext and decodes every sound during the loading screen; `unlock()` (from a
+    user gesture: the title click) lets it play; `setPaused()` for the pause menu.
 - `src/audio/`: the sound system.
   - `Mixer.js`: buses: effects (-> muffle lowpass -> duck -> volume), ambience (into effects),
     reverb (a convolver with the plaza IR, returns into effects), music, voice (never ducked),
-    a limiter on the master. Volumes (master / music / effects / voice, the overlay's sliders)
-    saved in localStorage (`kotelgame.volume`).
+    a limiter on the master. Volumes (master / music / effects / voice: Settings > Audio).
+    `setPaused()`: the world and the voices dulled and dimmed under the pause menu, the music
+    as it was.
   - `SoundBank.js`: `public/assets/audio/manifest.json` -> decoded variants; `buffer(id)`
     never repeats the last variant.
   - `reverb.js` (pure): the plaza impulse response (early slaps off the wall and buildings, a
@@ -485,7 +523,7 @@ A browser-based 3D first-person story shooter.
   shows a model as converted, `cam=face` / `faces` close-ups, `lip=<y>|auto` draws a lip
   line on the face (check / measure `face.lipY`), `ruler=1` height marks.
   `window.__preview.models[i].face.mouth = 0.7` opens a mouth.
-- Start screen: chapter buttons (`MISSION1.chapters`) start the mission at a part (`story.startAt`).
+- New Game: chapter buttons (`MISSION1.chapters`) start the mission at a part (`story.startAt`).
 - Weapons: 1 = rifle, 2 = launcher (once owned), or the mouse wheel (`Game._updateWeapons`: lower,
   swap the viewmodel, raise). `src/weapons/Launcher.js` (pure: one loaded, auto reload, ADS) +
   `Rockets.js` (`RocketSim` flight/impacts, `RocketView` bodies + smoke trail); tuning in
@@ -502,9 +540,15 @@ A browser-based 3D first-person story shooter.
 - Game loop order per fixed step: player -> camera -> rifle (shots hit enemies, then NPCs
   (friendly fire), then the world; shots are heard) -> enemies (hostiles and the squad's combat
   AI) -> story -> health. Death: fade out, `Game.restart()` after 3.2 s.
-- `src/ui/`: Hebrew strings (`strings.he.js`), start/pause overlay (mouse sensitivity, saved in
-  localStorage), HUD (spread-sized crosshair, ammo counter, debug readout; toggle the readout
-  with the backquote key, shown by default in dev).
+- `src/ui/`: Hebrew strings (`strings.he.js`: the menus, settings, loading lines too), HUD
+  (spread-sized crosshair, ammo counter, the FPS counter (Settings), debug readout; toggle the
+  readout with the backquote key, shown by default in dev while playing).
+- Difficulty: `story/difficulty.js` `LEVELS` (easy / normal / hard: multipliers on the
+  attackers' accuracy, damage, reaction and grenades, and the truck's gun) over the tuned
+  values; `setDifficulty()`; attackers spawned after a change use it.
+- `src/world/Environment.js` `setTime('HH:MM')`: the sun at another clock time on the level's
+  day (the menu's sunrise, the mission's 11:40); sky, haze, fill and image light follow
+  (a dawn palette near the horizon).
 - `src/ui/Screenshot.js`: P saves the 3D view (with the weapon, no HUD) as a PNG, read back
   right after `post.render()`. The dev server writes it to `screenshots/game/` (the
   `/__screenshot` endpoint in `vite.config.js`); a production build downloads it.

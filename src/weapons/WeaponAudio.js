@@ -1,4 +1,4 @@
-import { Mixer, loadVolumes, saveVolumes } from '../audio/Mixer.js';
+import { DEFAULT_VOLUMES, Mixer } from '../audio/Mixer.js';
 import { SoundBank } from '../audio/SoundBank.js';
 import { Music } from '../audio/Music.js';
 import { Suppression } from '../audio/Suppression.js';
@@ -8,8 +8,9 @@ import { LAUNCHER, VIEWMODEL } from './config.js';
 // The game's sound: recorded effects (public/assets/audio/, see scripts/assets/audio.mjs)
 // through the mixer (src/audio/Mixer.js). This class keeps the old WeaponAudio interface the
 // rest of the game calls (shot, shotAt, crack, explosion, footstep, reload, ...) and owns the
-// mix, the music and the suppression state. The AudioContext can only start after a user
-// gesture: call unlock() from a click.
+// mix, the music and the suppression state. init() makes the AudioContext and loads every
+// sound (during the loading screen); it can only start playing after a user gesture: call
+// unlock() from a click.
 
 const SOUND_SPEED = 343;
 const BASE = `${import.meta.env?.BASE_URL ?? '/'}assets/audio/`;
@@ -20,7 +21,8 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const EVENT = { mag_out: 0.055, mag_in: 0.215, bolt: 0.03, launcher_load: 0.42 };
 
 export class WeaponAudio {
-  constructor() {
+  /** @param {{ master, music, sfx, voice }} volumes the player's (Settings) */
+  constructor(volumes = DEFAULT_VOLUMES) {
     this.ctx = null;
     this.mixer = null;
     this.bank = null;
@@ -28,25 +30,42 @@ export class WeaponAudio {
     this.suppression = new Suppression();
     /** Flat walls that throw a slap-back echo: [{ n: [x, y, z], d, absorb?, reach? }] (Game sets them per level). */
     this.walls = [];
-    this.volumes = loadVolumes();
+    this.volumes = { ...DEFAULT_VOLUMES, ...volumes };
     this._listener = { x: 0, y: 0, z: 0 };
     this._speakUntil = 0;
+    this.loaded = null; // Promise: every sound decoded
   }
 
+  /**
+   * The AudioContext (suspended until unlock()) and every sound fetched and decoded.
+   * @param {(done: number, total: number) => void} [onProgress]
+   */
+  init(onProgress) {
+    if (this.ctx) return this.loaded;
+    const Ctx = globalThis.AudioContext || globalThis.webkitAudioContext;
+    if (!Ctx) return (this.loaded = Promise.resolve());
+    const ctx = new Ctx({ latencyHint: 'interactive' });
+    this.ctx = ctx;
+    this.mixer = new Mixer(ctx, this.volumes);
+    this.bank = new SoundBank(ctx, BASE);
+    this.loaded = this.bank.load(onProgress).then(
+      () => {
+        this.music = new Music(this.mixer, BASE, this.bank.manifest.music);
+      },
+      (e) => console.warn('Sounds did not load.', e),
+    );
+    return this.loaded;
+  }
+
+  /** From a user gesture (a click or a key): the sound may start. */
   unlock() {
-    if (!this.ctx) {
-      const Ctx = window.AudioContext || window.webkitAudioContext;
-      if (!Ctx) return;
-      const ctx = new Ctx({ latencyHint: 'interactive' });
-      this.ctx = ctx;
-      this.mixer = new Mixer(ctx, this.volumes);
-      this.bank = new SoundBank(ctx, BASE);
-      this.bank.load().then(
-        () => (this.music = new Music(this.mixer, BASE, this.bank.manifest.music)),
-        (e) => console.warn('Sounds did not load.', e),
-      );
-    }
-    if (this.ctx.state === 'suspended') this.ctx.resume();
+    if (!this.ctx) this.init();
+    if (this.ctx?.state === 'suspended') this.ctx.resume();
+  }
+
+  /** The pause menu: the world's sound dulled under it. */
+  setPaused(paused) {
+    this.mixer?.setPaused(paused);
   }
 
   get ready() {
@@ -78,7 +97,6 @@ export class WeaponAudio {
 
   setVolumes(v) {
     this.volumes = { ...this.volumes, ...v };
-    saveVolumes(this.volumes);
     this.mixer?.setVolumes(this.volumes);
   }
 

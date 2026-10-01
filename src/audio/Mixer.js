@@ -1,3 +1,4 @@
+import { DEFAULT_SETTINGS } from '../core/Settings.js';
 import { plazaImpulse } from './reverb.js';
 
 // The mix: every sound goes to a bus; the buses meet in a limiter.
@@ -6,28 +7,11 @@ import { plazaImpulse } from './reverb.js';
 //     reverb (the plaza)          <- sends; returns into effects                     +-> master -> limiter
 //   music                         -> duck -> volume ----------------------------------+
 //   voice (dialogue, radio)       -> volume ------------------------------------------+
-// Dialogue ducks the rest a little while someone speaks; heavy fire muffles the world.
+// Dialogue ducks the rest a little while someone speaks; heavy fire muffles the world; the
+// pause menu dulls and dims the world and the voices (the music plays on).
 
-const STORAGE = 'kotelgame.volume';
-export const DEFAULT_VOLUMES = { master: 0.85, music: 0.55, sfx: 0.9, voice: 1 };
-
-export function loadVolumes() {
-  try {
-    const v = JSON.parse(localStorage.getItem(STORAGE) ?? 'null');
-    if (v && typeof v === 'object') return { ...DEFAULT_VOLUMES, ...v };
-  } catch {
-    // no storage (private mode, tests): defaults
-  }
-  return { ...DEFAULT_VOLUMES };
-}
-
-export function saveVolumes(v) {
-  try {
-    localStorage.setItem(STORAGE, JSON.stringify(v));
-  } catch {
-    // ignore
-  }
-}
+// The sliders' defaults (Settings saves the player's).
+export const DEFAULT_VOLUMES = DEFAULT_SETTINGS.volumes;
 
 // How far each bus dips under dialogue (gain at full ducking).
 const DUCK = { sfx: 0.72, amb: 0.55, music: 0.45 };
@@ -59,7 +43,11 @@ export class Mixer {
     this.muffle.Q.value = 0.5;
     this.sfxDuck = g();
     this.sfxVol = g();
-    this.sfx.connect(this.muffle).connect(this.sfxDuck).connect(this.sfxVol).connect(this.master);
+    this.pauseFilter = ctx.createBiquadFilter();
+    this.pauseFilter.type = 'lowpass';
+    this.pauseFilter.frequency.value = 20000;
+    this.sfxPause = g();
+    this.sfx.connect(this.muffle).connect(this.pauseFilter).connect(this.sfxPause).connect(this.sfxDuck).connect(this.sfxVol).connect(this.master);
 
     this.amb = g();
     this.ambDuck = g();
@@ -82,7 +70,8 @@ export class Mixer {
 
     this.voice = g();
     this.voiceVol = g();
-    this.voice.connect(this.voiceVol).connect(this.master);
+    this.voicePause = g();
+    this.voice.connect(this.voiceVol).connect(this.voicePause).connect(this.master);
 
     this._duck = 0;
     this._muffle = 0;
@@ -109,6 +98,14 @@ export class Mixer {
     this.sfxDuck.gain.setTargetAtTime(1 - (1 - DUCK.sfx) * amount, t, tc);
     this.ambDuck.gain.setTargetAtTime(1 - (1 - DUCK.amb) * amount, t, tc);
     this.musicDuck.gain.setTargetAtTime(1 - (1 - DUCK.music) * amount, t, tc);
+  }
+
+  /** The pause menu: the world (and voices) dulled and dimmed under it, the music as it was. */
+  setPaused(paused) {
+    const t = this.ctx.currentTime;
+    this.pauseFilter.frequency.setTargetAtTime(paused ? 900 : 20000, t, 0.12);
+    this.sfxPause.gain.setTargetAtTime(paused ? 0.25 : 1, t, 0.12);
+    this.voicePause.gain.setTargetAtTime(paused ? 0.3 : 1, t, 0.12);
   }
 
   /** 0..1: hearing dulled by heavy fire (a lowpass closing over the world, a slight dip). */

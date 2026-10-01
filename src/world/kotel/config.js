@@ -135,6 +135,19 @@ export const KOTEL = {
   // The shift starts at the checkpoint, just inside (north of) the screening lanes.
   spawn: { x: -67.5, z: 78 },
 
+  // The main menu's background: the plaza just after sunrise (the sun behind the wall, the
+  // early prayer), slow camera drifts (core/MenuCamera.js): from / to the camera's path, look
+  // / lookTo what it looks at, time seconds.
+  menu: {
+    time: '06:50',
+    shots: [
+      { from: [-58, 5, 22], to: [-44, 4.2, 12], look: [0, 13, -8], lookTo: [0, 11, -4], time: 18 },
+      { from: [-7.5, 1.6, 34], to: [-8, 1.7, 21], look: [-2, 2.2, -18], lookTo: [-1.5, 2.4, -22], time: 16 },
+      { from: [-98, 15, 44], to: [-84, 13, 30], look: [-18, 5, -6], lookTo: [-14, 5, -10], time: 18 },
+      { from: [-14, 1.5, -2], to: [-11.5, 1.6, -11], look: [-1, 1.7, -12], lookTo: [-0.5, 1.9, -20], time: 15 },
+    ],
+  },
+
   environment: {
     // The title card: Friday 11:40. Real sun position for the Kotel on a spring Friday
     // (11 April 2025, Israel summer time): high in the south-east, so the west-facing

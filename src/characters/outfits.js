@@ -62,3 +62,28 @@ export function applyOutfit(model, o) {
     model.attach('Head', kippah(head, { style, knit, rim: o.head.rim, fit }), { hideBeyond: 32 });
   }
 }
+
+/**
+ * Every fitted shape this character type can need (head wear by its role and sex, the vest),
+ * computed now: they're cached per type, so the crowd later dresses without a hitch (the
+ * loading screen calls this).
+ */
+export function prepareFits(type) {
+  const info = type.info;
+  const head = info.head;
+  if (info.role === 'squad') {
+    if (info.vest) type.fitted('vest', (pts, t) => vestFit(t.torsoSurface()));
+    return;
+  }
+  if (!head) return;
+  if (info.role === 'enemy') {
+    type.fitted('headband', (pts) => headbandFit(head, pts));
+    return;
+  }
+  if (info.sex === 'f') {
+    type.fitted('scarf', (pts, t) => scarfFit(head, t.headSurface(PART.fixed), t.headSurface(PART.hair)));
+    return;
+  }
+  type.fitted('hat', (pts) => hatFit(head, pts));
+  for (const [style, k] of Object.entries(KIPPAH)) type.fitted(`kippah:${style}`, (pts) => kippahFit(head, pts, k.arc));
+}

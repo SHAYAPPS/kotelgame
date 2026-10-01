@@ -6,7 +6,7 @@ import { NpcManager } from './Npc.js';
 import { NpcView } from './NpcView.js';
 import { COUNTERS, SPEAKERS, STORY_UI } from './text.he.js';
 import { AmmoCrate } from './AmmoCrate.js';
-import { DIFFICULTY, attackerConfig, expandWave } from './difficulty.js';
+import { DIFFICULTY, attackerConfig, expandWave, truckConfig } from './difficulty.js';
 
 const _t = new Vector3();
 const KILL_LINES = { yonatan: 'down_1', noam: 'down_2', cmd: 'down_3' };
@@ -214,6 +214,8 @@ export class StoryDirector {
         this.player.spawnYaw = yaw;
         // No toast for the starting checkpoint (it would sit on the title card).
         if (!fast && this.mission.index > 0) this.hud.flashCheckpoint();
+        // Game saves it (Continue in the main menu).
+        if (!fast) this.onCheckpoint?.(this.mission.checkpointIndex);
       },
     };
   }
@@ -328,7 +330,7 @@ export class StoryDirector {
   /** The armed pickup (`ensure`: only if there isn't one yet; it then starts parked). */
   _spawnTruck(a) {
     if (a.ensure && (this.truck || this.truckDown)) return;
-    const cfg = this.difficulty.truck;
+    const cfg = truckConfig(this.difficulty);
     const path = cfg.path.map(([x, z]) => {
       const n = this.nav.nodeAt(x, z);
       return new Vector3(x, n >= 0 ? this.nav.y[n] : 0, z);
@@ -564,6 +566,29 @@ export class StoryDirector {
 
   restartFromCheckpoint() {
     this.jumpTo(this.mission.checkpointIndex);
+  }
+
+  /**
+   * Out of the mission, for the main menu's background: everything reset, the early prayer
+   * at the wall just after sunrise (`groups`: the script's crowd groups), birds and the city
+   * waking up. `start()` / `startAt()` begin the mission from here.
+   */
+  menuScene(groups = ['worshippers']) {
+    this.mission.ctx.reset();
+    this.mission.index = -1;
+    this.mission.finished = false;
+    this.started = false;
+    this.fade = 0;
+    this.fadeTarget = 0;
+    this.timeScale = 1;
+    this.hud.hideStats?.();
+    for (const g of groups) if (this.script.groups?.[g]) this.npcs.populate(this.script.groups[g]);
+    this.ambient.set({ crowd: 0.12, birds: 1, siren: 0, panic: false, city: 0.55 });
+  }
+
+  /** The menu's people, between frames (praying, breathing). */
+  menuUpdate(dt, playerInfo) {
+    this.npcs.update(dt, playerInfo, this.player);
   }
 
   /** An NPC was shot: friendly fire fails the mission. */

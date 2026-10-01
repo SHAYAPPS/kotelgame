@@ -141,6 +141,7 @@ export class Rifle {
     this.view.offsetYaw = this.recoil.yaw;
     this.view.fovScale = MathUtils.lerp(1, this.cfg.adsZoom, aim);
     this.view.lookScale = MathUtils.lerp(1, this.cfg.adsLookScale, aim);
+    this.view.aim = aim;
   }
 
   /** Per rendered frame: the flash light is shown for at least one frame per shot. */

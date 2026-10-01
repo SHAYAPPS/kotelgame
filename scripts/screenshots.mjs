@@ -20,9 +20,10 @@ const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--ena
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 page.on('pageerror', (e) => console.log(`[pageerror] ${e.message}`));
 page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') console.log(`[${m.type()}] ${m.text()}`); });
-await page.addInitScript((q) => localStorage.setItem('kotelgame.graphics', q), quality);
+await page.addInitScript((q) => localStorage.setItem('kotelgame.settings', JSON.stringify({ quality: q })), quality);
 await page.goto('http://localhost:5173/');
-await page.waitForFunction(() => window.__game, null, { timeout: 90000 });
+// The world is built (Game.init: the loading screen still shows; setActive(true) plays at once).
+await page.waitForFunction(() => window.__game?.input, null, { timeout: 120000, polling: 500 });
 await page.evaluate(() => {
   const g = window.__game;
   g.setActive(true);

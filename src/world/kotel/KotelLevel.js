@@ -315,6 +315,7 @@ export function createKotelLevel() {
     collisionRoots: [root, collisionOnly, b.blockers],
     spawn: { position: new Vector3(s.x, spawnY, s.z), yaw },
     environment: KOTEL.environment,
+    menu: KOTEL.menu, // the main menu's background (time of day, camera shots)
     navBounds: KOTEL.ai.navBounds,
     stairZones: stairZones(),
     // Big flat surfaces that throw a gunshot back (WeaponAudio's slap-back echoes): the
@@ -328,7 +329,7 @@ export function createKotelLevel() {
     enemySpawns: KOTEL.ai.enemySpawns.map((e) => ({ position: new Vector3(e.x, groundY(e.x, e.z), e.z), yaw: e.yaw })),
     stats: { stones },
     /** Stream the stone textures in (the level shows plain colors until they arrive). */
-    applyTextures(library) {
+    applyTextures(library, onProgress = null) {
       const jobs = [];
       for (const [key, mat] of m.cache) {
         const s = SURFACES[key];
@@ -337,7 +338,8 @@ export function createKotelLevel() {
         jobs.push(library.apply(mat, s.set, { scale: s.scale ?? 1, normalScale: s.normalScale ?? 1, offset: s.offset }));
       }
       for (const w of wallMaterials) jobs.push(w.applyTextures(library));
-      return Promise.all(jobs);
+      let done = 0;
+      return Promise.all(jobs.map((j) => Promise.resolve(j).finally(() => onProgress?.(++done, jobs.length))));
     },
   };
 }

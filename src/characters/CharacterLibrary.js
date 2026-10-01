@@ -6,7 +6,7 @@ import { CharacterModel } from './CharacterModel.js';
 import { CHARACTER } from './config.js';
 import { SoldierAnimator } from './SoldierAnimator.js';
 import { CivilianAnimator } from './CivilianAnimator.js';
-import { dressCharacter } from './outfits.js';
+import { dressCharacter, prepareFits } from './outfits.js';
 
 const _a = new Vector3();
 const _b = new Vector3();
@@ -206,21 +206,28 @@ export class CharacterLibrary {
     this._loading = null;
   }
 
-  load() {
+  /** @param {(done: number, total: number) => void} [onProgress] the files loaded so far */
+  load(onProgress = null) {
     if (this._loading) return this._loading;
     this._loading = (async () => {
       const manifest = await fetch(`${this.base}manifest.json`).then((r) => {
         if (!r.ok) throw new Error(`manifest ${r.status}`);
         return r.json();
       });
+      const entries = Object.entries(manifest.characters);
+      const total = entries.length + 2;
+      let done = 1;
+      onProgress?.(done, total);
       await MeshoptDecoder.ready;
       const bin = await fetch(`${this.base}${manifest.anims.file}`).then((r) => r.arrayBuffer());
       const clips = decodeClips(manifest.anims, bin, MeshoptDecoder);
+      onProgress?.(++done, total);
       const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).setKTX2Loader(this.ktx2);
       await Promise.all(
-        Object.entries(manifest.characters).map(async ([id, info]) => {
+        entries.map(async ([id, info]) => {
           const gltf = await loader.loadAsync(`${this.base}${info.file}`);
           this.types.set(id, new CharacterType(id, info, gltf, clips, manifest.anims));
+          onProgress?.(++done, total);
         }),
       );
       this.manifest = manifest;
@@ -232,6 +239,24 @@ export class CharacterLibrary {
       return this;
     });
     return this._loading;
+  }
+
+  /**
+   * Fit every type's head wear and vest now, one type at a time between frames (the loading
+   * screen): the crowd dresses later without a hitch.
+   * @param {(done: number, total: number) => void} [onProgress]
+   */
+  async prepareFits(onProgress = null) {
+    const types = [...this.types.values()];
+    for (let i = 0; i < types.length; i++) {
+      try {
+        prepareFits(types[i]);
+      } catch (e) {
+        console.warn(`Fitting ${types[i].id}'s gear failed.`, e);
+      }
+      onProgress?.(i + 1, types.length);
+      await new Promise((r) => setTimeout(r, 0));
+    }
   }
 
   has(id) {

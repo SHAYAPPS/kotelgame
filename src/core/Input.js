@@ -1,6 +1,7 @@
 // Keyboard + mouse input with pointer lock.
 // Bindings use KeyboardEvent.code (physical key position), so WASD works the
-// same on Hebrew and English keyboard layouts.
+// same on Hebrew and English keyboard layouts. Game reads actions through the player's
+// bindings (core/Bindings.js): anyDown(codes) / consumeAny(codes).
 
 const NO_DEFAULT = new Set([
   'Space',
@@ -12,6 +13,10 @@ const NO_DEFAULT = new Set([
   'ShiftLeft',
   'ShiftRight',
 ]);
+
+// While playing, every other key's browser default is blocked too (a rebound key could open
+// quick find, scroll...), except these.
+const KEEP_DEFAULT = new Set(['F5', 'F11', 'F12']);
 
 // Occasional single-event mouse spikes (browser/OS glitches) are dropped.
 const MAX_MOUSE_EVENT_DELTA = 800;
@@ -39,7 +44,11 @@ export class Input {
     document.addEventListener('mousemove', (e) => this._onMouseMove(e));
     // Mouse buttons share the key sets as 'Mouse0' (left), 'Mouse1', 'Mouse2' (right).
     document.addEventListener('mousedown', (e) => this._onMouseDown(e));
-    document.addEventListener('mouseup', (e) => this.held.delete(`Mouse${e.button}`));
+    document.addEventListener('mouseup', (e) => {
+      this.held.delete(`Mouse${e.button}`);
+      // The side buttons would go back / forward in the browser's history.
+      if (this.enabled && e.button > 2) e.preventDefault();
+    });
     // Mouse wheel: one press of 'WheelUp' / 'WheelDown' per notch (weapon switching).
     document.addEventListener(
       'wheel',
@@ -66,6 +75,19 @@ export class Input {
     if (!this.pressed.has(code)) return false;
     this.pressed.delete(code);
     return true;
+  }
+
+  /** Any of `codes` held (an action's keys). */
+  anyDown(codes) {
+    for (const c of codes) if (this.held.has(c)) return true;
+    return false;
+  }
+
+  /** A press of any of `codes` since the last check (consumed). */
+  consumeAny(codes) {
+    let hit = false;
+    for (const c of codes) if (this.pressed.delete(c)) hit = true;
+    return hit;
   }
 
   /** Mouse movement since the last call, in pixels (raw counts when supported). */
@@ -109,7 +131,7 @@ export class Input {
 
   _onKeyDown(e) {
     if (!this.enabled) return;
-    if (NO_DEFAULT.has(e.code)) e.preventDefault();
+    if (NO_DEFAULT.has(e.code) || (this.locked && !KEEP_DEFAULT.has(e.code))) e.preventDefault();
     if (!e.repeat && !this.held.has(e.code)) this.pressed.add(e.code);
     this.held.add(e.code);
   }
@@ -117,6 +139,7 @@ export class Input {
   _onMouseDown(e) {
     if (!this.enabled || !this.locked) return;
     const code = `Mouse${e.button}`;
+    if (e.button > 2) e.preventDefault();
     if (!this.held.has(code)) this.pressed.add(code);
     this.held.add(code);
     e.preventDefault();

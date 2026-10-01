@@ -10,7 +10,10 @@ import { TextureLibrary } from '../world/Textures.js';
 import { characters } from '../characters/registry.js';
 import { CHARACTER, FAR_LAYER } from '../characters/config.js';
 import { PostFX } from './PostFX.js';
-import { QUALITY, loadQuality, saveQuality } from './Graphics.js';
+import { QUALITY } from './Graphics.js';
+import { Bindings } from './Bindings.js';
+import { MenuCamera } from './MenuCamera.js';
+import { browserStorage, loadSettings, saveSettings } from './Settings.js';
 import { SkyFx } from '../world/SkyFx.js';
 import { createTestRange } from '../world/TestRange.js';
 import { createKotelLevel } from '../world/kotel/KotelLevel.js';
@@ -28,7 +31,7 @@ import { WeaponAudio } from '../weapons/WeaponAudio.js';
 import { GrenadeSim, GrenadeView } from '../weapons/Grenades.js';
 import { GrenadeThrower } from '../weapons/GrenadeThrower.js';
 import { GrenadeWarning } from '../ui/GrenadeWarning.js';
-import { DIFFICULTY } from '../story/difficulty.js';
+import { DIFFICULTY, setDifficulty } from '../story/difficulty.js';
 import { NavGrid } from '../ai/NavGrid.js';
 import { CoverPoints } from '../ai/CoverPoints.js';
 import { EnemyManager, playerHitTest } from '../ai/EnemyManager.js';
@@ -42,7 +45,8 @@ import { StoryHud } from '../ui/StoryHud.js';
 import { StoryDirector } from '../story/StoryDirector.js';
 import { MISSION1 } from '../story/mission1.js';
 import { VoicePlayer, voiceFiles } from '../story/Voice.js';
-import { Overlay, loadSensitivity } from '../ui/Overlay.js';
+import { chapterOf, clearSave, readSave, writeSave } from '../story/SaveGame.js';
+import { Shell } from '../ui/menu/Shell.js';
 
 // Physics runs at a fixed rate; rendering interpolates between steps, so movement
 // feels identical at 60, 144 or 240 Hz.
@@ -59,12 +63,64 @@ const _c = new Vector3();
 const _down = new Vector3(0, -1, 0);
 const _pv = new Matrix4();
 const _eq = new Quaternion();
+const MENU_FOV = 50; // the main menu's cinematic camera
+// Loading: each part's share of the progress bar.
+const LOAD_WEIGHTS = { level: 0.1, nav: 0.08, textures: 0.17, characters: 0.3, fits: 0.06, weapons: 0.09, sounds: 0.2 };
+const nextFrame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
 export class Game {
+  /**
+   * Only the settings and the shell (the loading screen shows at once); `init()` builds the
+   * world and loads everything.
+   */
   constructor(container) {
+    this.container = container;
+    this.storage = browserStorage();
+    this.settings = loadSettings(this.storage);
+    this.bindings = new Bindings(this.settings.bindings);
+    setDifficulty(this.settings.difficulty);
+    this.range = new URLSearchParams(window.location.search).get('level') === 'range';
+    this.mode = 'loading'; // 'loading' | 'title' (loaded, waiting for a click) | 'menu' | 'playing' | 'paused'
+    this.active = false;
+    this.shell = new Shell(document.body, {
+      settings: this.settings,
+      bindings: this.bindings,
+      onSetting: (key, value) => this.setSetting(key, value),
+      chapters: this.range ? [] : MISSION1.chapters,
+      save: () => this._saveInfo(),
+      onContinue: () => this.continueGame(),
+      onNewGame: (chapter) => this.newGame(chapter),
+      onResume: () => this.input.requestLock(),
+      onRestart: () => {
+        this.restart();
+        this.input.requestLock();
+      },
+      onQuitToMenu: () => this.toMenu(),
+      // Quit only exists in the desktop version (a wrapper that provides it).
+      onQuit: globalThis.kotelDesktop?.quit ? () => globalThis.kotelDesktop.quit() : null,
+    });
+    this._load = Object.fromEntries(Object.keys(LOAD_WEIGHTS).map((k) => [k, 0]));
+  }
+
+  /** One part of the loading done this far (0..1): the loading screen's bar. */
+  _loaded(part, f) {
+    this._load[part] = Math.max(this._load[part], Math.min(1, f));
+    let sum = 0;
+    let total = 0;
+    for (const [k, w] of Object.entries(LOAD_WEIGHTS)) {
+      sum += w * this._load[k];
+      total += w;
+    }
+    this.shell.setProgress(sum / total);
+  }
+
+  /** Build the world and load everything (textures, characters, weapons, sounds), the loading screen showing how far it got. */
+  async init() {
+    const container = this.container;
+    await nextFrame(); // the loading screen first
     // Antialiasing happens in the post chain (MSAA render target), not on the canvas.
     const renderer = new WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
-    this.qualityName = loadQuality();
+    this.qualityName = this.settings.quality;
     this.quality = QUALITY[this.qualityName];
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.quality.pixelRatio));
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -82,7 +138,7 @@ export class Game {
 
     // World
     // Level: the Kotel plaza by default; ?level=range loads the movement test range.
-    const range = new URLSearchParams(window.location.search).get('level') === 'range';
+    const range = this.range;
     const level = range
       ? createTestRange(createGreyboxMaterials(createGridTexture(renderer.capabilities.getMaxAnisotropy())))
       : createKotelLevel();
@@ -92,18 +148,25 @@ export class Game {
     // Stone textures stream in after the level shows (KTX2).
     this.textures = new TextureLibrary(renderer);
     this.textures.anisotropy = this.quality.anisotropy;
-    level.applyTextures?.(this.textures);
+    const loads = [];
+    loads.push(Promise.resolve(level.applyTextures?.(this.textures, (done, total) => this._loaded('textures', done / total))).then(() => this._loaded('textures', 1)));
     // Animated characters stream in too (placeholders until they arrive); the loaders are
-    // their own chunk.
+    // their own chunk. Their head wear and vests are fitted while the loading screen shows.
     characters.camera = this.camera;
     characters.frustum = new Frustum();
     this._applyCharacterQuality();
     this.characters = null;
-    import('../characters/CharacterLibrary.js').then(({ CharacterLibrary }) => {
-      this.characters = new CharacterLibrary({ ktx2Loader: this.textures.loader });
-      characters.library = this.characters;
-      return this.characters.load();
-    });
+    loads.push(
+      import('../characters/CharacterLibrary.js')
+        .then(({ CharacterLibrary }) => {
+          this.characters = new CharacterLibrary({ ktx2Loader: this.textures.loader });
+          characters.library = this.characters;
+          return this.characters.load((done, total) => this._loaded('characters', done / total));
+        })
+        .then(() => this.characters.prepareFits((done, total) => this._loaded('fits', done / total))),
+    );
+    this._loaded('level', 1);
+    await nextFrame();
     this.flashes = new FlashLights(this.scene, this.quality.flashLights);
     this._blastHit = { point: new Vector3(), normal: new Vector3(), distance: 0 };
     this.collision = new CollisionWorld().build(level.collisionRoots);
@@ -113,15 +176,19 @@ export class Game {
     this.player = new PlayerController(this.collision);
     this.player.setSpawn(level.spawn.position, level.spawn.yaw);
     this.view = new PlayerCamera(this.camera, this.player);
-    this.view.sensitivity = loadSensitivity();
+    this._applyView();
 
     // Weapon
     this.viewmodel = new Viewmodel();
     this.viewmodel.setAspect(this.camera.aspect);
     // The real weapon models stream in (greybox ones until then); the truck's too, for later.
     models.ktx2Loader = this.textures.loader;
-    this.viewmodel.load().catch((e) => console.warn('Weapon models did not load; keeping the greybox ones.', e));
-    if (!range) models.load(TRUCK_MODEL).catch(() => {});
+    loads.push(
+      Promise.all([
+        this.viewmodel.load().catch((e) => console.warn('Weapon models did not load; keeping the greybox ones.', e)),
+        range ? null : models.load(TRUCK_MODEL).catch(() => {}),
+      ]).then(() => this._loaded('weapons', 1)),
+    );
     this._sunlit = 1; // is the player's weapon in the sun? (a ray toward the sun, a few times a second)
     this._shadeTimer = 0;
     this._shadeHit = { point: new Vector3(), normal: new Vector3(), distance: 0 };
@@ -138,8 +205,10 @@ export class Game {
       this._ejectVel.copy(v).applyQuaternion(_eq).add(this.player.velocity);
       this.casings.eject(this._ejectPos, this._ejectVel);
     };
-    this.audio = new WeaponAudio();
+    this.audio = new WeaponAudio(this.settings.volumes);
     this.audio.walls = level.acoustics?.walls ?? []; // slap-back echoes off the level's big walls
+    // Every sound decoded now (the context starts playing on the first click).
+    loads.push(Promise.resolve(this.audio.init((done, total) => this._loaded('sounds', total ? done / total : 1))).then(() => this._loaded('sounds', 1)));
     this.casings.onBounce = (p, speed, n) => this.audio.casing?.(p, speed, n);
     this.rifle = new Rifle(
       {
@@ -174,8 +243,10 @@ export class Game {
     this.stats = { shots: 0, hits: 0, kills0: 0, headshots0: 0 };
 
     // Enemies: navmesh + cover points baked from the level's collision.
+    await nextFrame();
     this.nav = new NavGrid(this.collision, level.navBounds).build();
     this.cover = new CoverPoints(this.collision, this.nav).generate();
+    this._loaded('nav', 1);
     this.health = new PlayerHealth();
     this.enemies = new EnemyManager({
       scene: this.scene,
@@ -252,7 +323,11 @@ export class Game {
           }),
         });
     this.storyHud.setVisible(false);
-    if (this.story) this.story.onLauncher = () => this._requestWeapon('launcher');
+    this.storyHud.subtitles = this.settings.subtitles;
+    if (this.story) {
+      this.story.onLauncher = () => this._requestWeapon('launcher');
+      this.story.onCheckpoint = (index) => this._save(index); // Continue picks up there
+    }
     this.deathTime = -1;
     this._forward = new Vector3();
 
@@ -265,7 +340,8 @@ export class Game {
       this.audio.hitmarker(zone === 'head');
     };
     this.screenshot = new Screenshot(renderer.domElement);
-    // Dev tools: F1 = AI debug view + FPS readout, K = spawn an enemy. P = screenshot.
+    // P = screenshot. Dev tools: F1 = AI debug view + FPS readout, F2 = jump to a mission
+    // step, K = spawn an enemy (dev builds).
     window.addEventListener('keydown', (e) => {
       if (e.code === 'KeyP' && !e.repeat) {
         this.screenshot.request();
@@ -274,67 +350,190 @@ export class Game {
         if (e.repeat) return;
         this.debugDraw.toggle();
         this.hud.showDebug(this.debugDraw.visible);
-      } else if (e.code === 'KeyK' && this.active && !e.repeat) {
+      } else if (e.code === 'KeyK' && this.active && !e.repeat && import.meta.env.DEV) {
         this.enemies.spawnNear(this.view.eye);
-      } else if (e.code === 'F2' && this.story) {
+      } else if (e.code === 'F2' && this.story && this.mode === 'playing') {
         e.preventDefault();
         if (!e.repeat) this._toggleStepMenu();
       }
     });
     this.hud = new Hud(document.body, { showDebug: import.meta.env.DEV });
-    this.overlay = new Overlay(document.body, {
-      sensitivity: this.view.sensitivity,
-      onStart: () => {
-        this.audio.unlock(); // audio may only start from a user gesture
-        this.story?.voices?.preload();
-        this.input.requestLock();
-      },
-      onSensitivity: (v) => {
-        this.view.sensitivity = v;
-      },
-      quality: this.qualityName,
-      onQuality: (q) => this.setQuality(q),
-      volumes: this.audio.volumes,
-      onVolume: (key, v) => this.audio.setVolumes({ [key]: v }),
-      // Chapter select: start (or restart) the mission at one of its parts.
-      chapters: this.story ? MISSION1.chapters : [],
-      onChapter: (i) => {
-        this._pendingChapter = this.story.mission.indexOf(MISSION1.chapters[i].step);
-        this.audio.unlock();
-        if (this.active) this._startChapter();
-        else this.input.requestLock();
-      },
-    });
+    this.hud.setFpsVisible(this.settings.showFps);
     this.input.onLockChange = (locked) => this.setActive(locked);
-    this.input.onLockError = () => this.overlay.showError();
+    this.input.onLockError = () => this.shell.showError(HE.lockError);
 
-    this.active = false;
     this.accumulator = 0;
     this.lastTime = null;
     this._mouse = { x: 0, y: 0 };
     this._controls = { forward: 0, right: 0, jump: false, sprint: false, crouch: false, moveScale: 1 };
     this._weaponInput = { trigger: false, aim: false, reload: false, blocked: false };
 
+    // The main menu's background: slow drifts across the level (else around the spawn).
+    const sp = level.spawn.position;
+    this.menuCam = new MenuCamera(level.menu?.shots ?? [{ from: [sp.x - 9, sp.y + 3, sp.z + 9], to: [sp.x + 9, sp.y + 3, sp.z + 9], look: [sp.x, sp.y + 1, sp.z - 15], time: 20 }]);
+
     window.addEventListener('resize', () => this.resize());
+
+    // The menu's scene, drawn behind the loading screen from now on (shaders compile, textures
+    // upload while it's covered).
+    this._menuScene();
+    this.start();
+    // Everything streaming in: wait for it (a part that fails keeps its placeholder).
+    await Promise.all(loads.map((l) => l.catch((e) => console.warn(e))));
+    for (let i = 0; i < 3; i++) await nextFrame();
+    if (this.mode !== 'loading') return; // (dev: automated checks started playing already)
+    this.mode = 'title';
+    this.shell.loaded(() => {
+      this.audio.unlock(); // sound may only start from a user gesture
+      this.story?.voices?.preload();
+      this.toMenu();
+    });
   }
 
   start() {
-    this.renderer.setAnimationLoop((t) => this.frame(t));
+    if (!this._looping) this.renderer.setAnimationLoop((t) => this.frame(t));
+    this._looping = true;
   }
 
-  /** Playing (pointer locked) vs paused (overlay shown). */
+  /**
+   * Playing (the mouse locked) or not: the pointer lock changed (or, in dev, automated checks
+   * call setActive(true) to play without it). Losing the lock while playing pauses.
+   */
   setActive(active) {
-    if (active === this.active) return;
+    if (active === this.active || !this.input) return;
     this.active = active;
     this.input.setEnabled(active);
     this.hud.setPlaying(active);
     this.storyHud.setVisible(active);
-    if (active && this.story) {
-      if (this._pendingChapter !== undefined) this._startChapter();
-      else this.story.start();
+    if (active) {
+      const resuming = this.mode === 'paused';
+      this.mode = 'playing';
+      this.shell.hide();
+      this.audio.unlock();
+      this.audio.setPaused(false);
+      this.viewmodel.scene.visible = true;
+      if (!resuming) this._beginPlay();
+    } else if (this.mode === 'playing') {
+      this.mode = 'paused';
+      this.audio.setPaused(true);
+      // (The F2 step menu frees the mouse too: no pause menu over it.)
+      if (!this.storyHud.menu) this.shell.showPause({ done: !!this.story?.mission.finished });
     }
-    if (active) this.overlay.hide();
-    else this.overlay.show({ paused: true });
+  }
+
+  /** New Game (main menu): from the start, or from chapter `chapter` of the mission's list. */
+  newGame(chapter = null) {
+    clearSave(this.storage);
+    const c = chapter === null ? null : MISSION1.chapters[chapter];
+    this._pending = { step: c && this.story ? Math.max(0, this.story.mission.indexOf(c.step)) : 0 };
+    this.input.requestLock();
+  }
+
+  /** Continue (main menu): back at the last checkpoint saved. */
+  continueGame() {
+    const save = this.story ? readSave(this.storage) : null;
+    if (!save) return;
+    this._pending = { step: Math.max(0, this.story.mission.indexOf(save.step)), stats: save.stats };
+    this.input.requestLock();
+  }
+
+  /** Into the mission (the mouse just locked from the menu): a new game, Continue, or (dev) its start. */
+  _beginPlay() {
+    if (this.level.environment?.sun) this.environment.setTime(this.level.environment.sun.time);
+    this._completed = false;
+    if (!this.story) return;
+    const p = this._pending;
+    this._pending = undefined;
+    if (!p) {
+      this.story.start();
+      return;
+    }
+    this._resetCombat();
+    const s = p.stats;
+    this.stats = { shots: s?.shots ?? 0, hits: s?.hits ?? 0, kills0: this.enemies.kills - (s?.kills ?? 0), headshots0: this.enemies.headshots - (s?.headshots ?? 0) };
+    this.story.startAt(p.step);
+    if (s) {
+      // The mission clock goes on from where the save left it.
+      this.story.missionStart = this.story.time - s.time;
+      this._save(this.story.mission.checkpointIndex);
+    }
+    this.view.snap();
+  }
+
+  /** Back to the main menu (from the pause menu; after loading): the plaza at dawn behind it. */
+  toMenu() {
+    this.mode = 'menu';
+    this._pending = undefined;
+    this.input.exitLock();
+    this.active = false;
+    this.input.setEnabled(false);
+    this.hud.setPlaying(false);
+    this.storyHud.setVisible(false);
+    this._resetCombat();
+    this._menuScene();
+    this.audio.setPaused(false);
+    this.audio.setMusic('calm');
+    this.shell.showMain();
+  }
+
+  /** The menu's scene: sunrise, the early prayer at the wall, the camera drifting. */
+  _menuScene() {
+    this.environment.setTime(this.level.menu?.time);
+    this.story?.menuScene();
+    this.menuCam.reset();
+    this.viewmodel.scene.visible = false;
+    this.deathTime = -1;
+    this._fadeIn = undefined;
+  }
+
+  /** The menu camera this frame (instead of the player's view). */
+  _menuCamera(dt) {
+    const c = this.menuCam.update(dt);
+    this.camera.position.fromArray(c.position);
+    this.camera.lookAt(_c.fromArray(c.target));
+    if (this.camera.fov !== MENU_FOV) {
+      this.camera.fov = MENU_FOV;
+      this.camera.updateProjectionMatrix();
+    }
+    this.shell.setFade(this.mode === 'menu' ? c.fade : 0);
+  }
+
+  /** A setting changed (Settings screen): apply it now and save it. */
+  setSetting(key, value) {
+    this.settings[key] = value;
+    saveSettings(this.settings, this.storage);
+    if (key === 'sensitivity' || key === 'aimSensitivity' || key === 'invertY' || key === 'fov') this._applyView();
+    else if (key === 'quality') this.setQuality(value);
+    else if (key === 'showFps') this.hud.setFpsVisible(value);
+    else if (key === 'volumes') this.audio.setVolumes(value);
+    else if (key === 'difficulty') setDifficulty(value);
+    else if (key === 'subtitles') this.storyHud.subtitles = value;
+    // 'bindings': the Bindings object (the settings panel's) already changed.
+  }
+
+  _applyView() {
+    const v = this.view;
+    const s = this.settings;
+    v.sensitivity = s.sensitivity;
+    v.aimSensitivity = s.aimSensitivity;
+    v.invertY = s.invertY;
+    v.baseFov = s.fov;
+  }
+
+  /** A checkpoint reached: saved for Continue. */
+  _save(index) {
+    const step = this.story?.steps[index];
+    if (!step || this.mode !== 'playing') return;
+    const st = this.story.stats();
+    writeSave({ mission: 'mission1', step: step.id, difficulty: this.settings.difficulty, stats: { ...st, time: this.story.time - this.story.missionStart } }, this.storage);
+  }
+
+  /** What the main menu's Continue shows (null: nothing saved). */
+  _saveInfo() {
+    if (this.range) return null;
+    const s = readSave(this.storage);
+    if (!s) return null;
+    return { chapter: chapterOf(MISSION1, s.step)?.label ?? '' };
   }
 
   resize() {
@@ -359,7 +558,6 @@ export class Game {
     if (!QUALITY[name]) return;
     this.qualityName = name;
     this.quality = QUALITY[name];
-    saveQuality(name);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.quality.pixelRatio));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.environment.setQuality(this.quality);
@@ -398,7 +596,11 @@ export class Game {
       this._updateDeath(dt);
     }
 
-    this.view.render(this.active ? this.accumulator / FIXED_DT : 1);
+    // In the mission the player's view; in the menus (and behind the loading screen) the
+    // menu's slow camera drifts.
+    const inMission = this.mode === 'playing' || this.mode === 'paused';
+    if (inMission) this.view.render(this.active ? this.accumulator / FIXED_DT : 1);
+    else this._menuCamera(dt);
     this.environment.update(this.camera, dt);
     this.flashes.update(dt);
     const L = this.weapon === 'launcher';
@@ -442,7 +644,10 @@ export class Game {
     this.audio.setListener(this.camera, this.view.getAimDirection(this._forward));
     this.audio.update(dt);
     this.post.setSuppression?.(this.audio.blur);
-    if (this.story) this.story.frameUpdate(dt, this.camera, this.view.eye, this._forward);
+    if (this.story) {
+      if (!inMission) this.story.menuUpdate(dt, this._playerInfo);
+      this.story.frameUpdate(dt, this.camera, this.view.eye, this._forward);
+    }
     const fade = this.deathTime < 0 ? 0 : MathUtils.clamp((this.deathTime - 0.4) / 1.2, 0, 1);
     this.damage.update(dt, this.health, this.player.position, this.view.viewYaw, this._fadeIn ?? fade);
     this._updateHud(dt);
@@ -484,10 +689,10 @@ export class Game {
     this._footsteps();
     this._updateWeapons(dt, dead);
     this.thrower.enabled = !this.rifle.lowered && !this.rifle.state.reloading && !this.launcher.state.reloading && this._switchTime === 0;
-    this.thrower.update(dt, !dead && this.input.isDown('KeyG'), this.view.eye, this.view.getAimDirection(this._forward), this.player.velocity);
+    this.thrower.update(dt, !dead && this.input.anyDown(this.bindings.codes('grenade')), this.view.eye, this.view.getAimDirection(this._forward), this.player.velocity);
     this.grenadeSim.update(dt);
     this.rockets.update(dt);
-    if (this.story && !dead && this.input.consumePress('KeyE')) {
+    if (this.story && !dead && this.input.consumeAny(this.bindings.codes('interact'))) {
       this.story.interact(this.view.eye, this.view.getAimDirection(this._forward));
     }
 
@@ -500,6 +705,11 @@ export class Game {
     this.enemies.update(dt, info, p);
     if (this.story) this.story.update(dt, info);
     this.health.update(dt);
+    // Mission complete: nothing left to continue.
+    if (this.story?.mission.finished && !this._completed) {
+      this._completed = true;
+      clearSave(this.storage);
+    }
   }
 
   _noControls() {
@@ -535,15 +745,6 @@ export class Game {
     this._fadeIn = 1;
     if (this.story) this.story.restartFromCheckpoint();
     else this.player.respawn();
-    this.view.snap();
-  }
-
-  _startChapter() {
-    const i = this._pendingChapter;
-    this._pendingChapter = undefined;
-    this._resetCombat();
-    this.stats = { shots: 0, hits: 0, kills0: this.enemies.kills, headshots0: this.enemies.headshots };
-    this.story.startAt(i);
     this.view.snap();
   }
 
@@ -584,8 +785,8 @@ export class Game {
   _updateWeapons(dt, dead) {
     const i = this.input;
     if (!dead && !this.rifle.lowered) {
-      if (i.consumePress('Digit1')) this._requestWeapon('rifle');
-      if (i.consumePress('Digit2')) this._requestWeapon('launcher');
+      if (i.consumeAny(this.bindings.codes('weapon1'))) this._requestWeapon('rifle');
+      if (i.consumeAny(this.bindings.codes('weapon2'))) this._requestWeapon('launcher');
       if (i.consumePress('WheelUp') || i.consumePress('WheelDown')) {
         this._requestWeapon((this._switchTime > 0 ? this._switchTo : this.weapon) === 'rifle' ? 'launcher' : 'rifle');
       }
@@ -612,6 +813,7 @@ export class Game {
       const a = this.launcher.aim;
       this.view.fovScale = MathUtils.lerp(1, LAUNCHER.adsZoom, a);
       this.view.lookScale = MathUtils.lerp(1, LAUNCHER.adsLookScale, a);
+      this.view.aim = a;
     } else {
       this.rifle.fixedUpdate(dt, input, this.player);
     }
@@ -756,24 +958,26 @@ export class Game {
 
   _readWeaponInput() {
     const w = this._weaponInput;
-    w.trigger = this.input.isDown('Mouse0');
-    w.aim = this.input.isDown('Mouse2');
-    w.reload = this.input.consumePress('KeyR');
+    const b = this.bindings;
+    w.trigger = this.input.anyDown(b.codes('fire'));
+    w.aim = this.input.anyDown(b.codes('aim'));
+    w.reload = this.input.consumeAny(b.codes('reload'));
     w.blocked = this.player.sprinting || this.thrower.aiming || this.thrower.busy > 0;
     return w;
   }
 
   _readControls() {
     const i = this.input;
+    const b = this.bindings;
     const c = this._controls;
-    c.forward = (i.isDown('KeyW') || i.isDown('ArrowUp') ? 1 : 0) - (i.isDown('KeyS') || i.isDown('ArrowDown') ? 1 : 0);
-    c.right = (i.isDown('KeyD') || i.isDown('ArrowRight') ? 1 : 0) - (i.isDown('KeyA') || i.isDown('ArrowLeft') ? 1 : 0);
+    c.forward = (i.anyDown(b.codes('forward')) ? 1 : 0) - (i.anyDown(b.codes('back')) ? 1 : 0);
+    c.right = (i.anyDown(b.codes('right')) ? 1 : 0) - (i.anyDown(b.codes('left')) ? 1 : 0);
     // Firing or aiming ends a sprint; aiming also slows you down.
-    const firing = i.isDown('Mouse0') || i.isDown('Mouse2');
-    c.sprint = !firing && (i.isDown('ShiftLeft') || i.isDown('ShiftRight'));
+    const firing = i.anyDown(b.codes('fire')) || i.anyDown(b.codes('aim'));
+    c.sprint = !firing && i.anyDown(b.codes('sprint'));
     c.moveScale = MathUtils.lerp(1, this.weapon === 'launcher' ? LAUNCHER.adsMoveScale : RIFLE.adsMoveScale, this._aim);
-    c.jump = i.consumePress('Space');
-    c.crouch = i.consumePress('KeyC');
+    c.jump = i.consumeAny(b.codes('jump'));
+    c.crouch = i.consumeAny(b.codes('crouch'));
     return c;
   }
 }

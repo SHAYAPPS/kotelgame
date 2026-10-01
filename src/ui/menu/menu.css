@@ -1,0 +1,547 @@
+/* The game shell: loading screen, main menu, pause menu, settings, credits (Hebrew, RTL).
+   Same palette as the HUD: cream text, the gold accent, dark olive-black panels. */
+
+.shell {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  color: #f2ead8;
+  font-family: var(--ui-font);
+  user-select: none;
+}
+
+.shell[hidden],
+.shell [hidden] {
+  display: none !important;
+}
+
+/* Main and pause menus: a column on the right (the start side in RTL). */
+.menu-screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 8vh 7vw;
+}
+
+.menu-main {
+  background: linear-gradient(to left, rgb(8 10 9 / 84%) 0%, rgb(8 10 9 / 58%) 30%, rgb(8 10 9 / 0%) 62%);
+}
+
+.menu-fade {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.menu-pause {
+  background: radial-gradient(ellipse at 70% 50%, rgb(10 13 11 / 58%), rgb(5 7 6 / 86%));
+  backdrop-filter: blur(5px);
+}
+
+.menu-brand {
+  position: relative; /* above the fade */
+  margin-bottom: 4vh;
+}
+
+.menu-eyebrow {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #e2cf9c;
+}
+
+.menu-title {
+  margin: 0;
+  font-size: clamp(40px, 6vw, 72px);
+  font-weight: 800;
+  line-height: 1;
+  color: #f6efdd;
+  text-shadow: 0 3px 24px rgb(0 0 0 / 55%);
+}
+
+.menu-list {
+  position: relative;
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  width: min(440px, 100%);
+}
+
+.menu-item {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 11px 20px 11px 12px;
+  font: inherit;
+  font-size: 23px;
+  font-weight: 700;
+  text-align: start;
+  color: rgb(242 234 216 / 78%);
+  background: transparent;
+  border: 0;
+  border-inline-start: 3px solid transparent;
+  cursor: pointer;
+  transition: color 120ms ease, background 120ms ease, border-color 120ms ease, padding 120ms ease;
+}
+
+.menu-item small {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #b9c2a5;
+}
+
+.menu-item:hover,
+.menu-item:focus-visible,
+.menu-item:focus {
+  outline: none;
+  color: #fff;
+  background: linear-gradient(to left, rgb(226 207 156 / 20%), rgb(226 207 156 / 0%));
+  border-inline-start-color: #e2cf9c;
+  padding-inline-start: 26px;
+}
+
+.menu-item:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.menu-footer {
+  position: absolute;
+  inset-inline-start: 7vw;
+  bottom: 4vh;
+  font-size: 13px;
+  color: rgb(242 234 216 / 55%);
+}
+
+.menu-error {
+  position: relative;
+  margin: 14px 0 0;
+  font-size: 15px;
+  color: #ffb4a3;
+}
+
+/* Panels opened from a menu: settings, new game, a question. */
+.menu-panel {
+  position: absolute;
+  inset-block: 6vh;
+  inset-inline-start: 6vw;
+  display: flex;
+  flex-direction: column;
+  width: min(640px, 88vw);
+  max-height: 88vh;
+  padding: 26px 30px 20px;
+  background: rgb(18 22 19 / 95%);
+  border-inline-start: 3px solid #e2cf9c;
+  box-shadow: 0 24px 70px rgb(0 0 0 / 50%);
+}
+
+.menu-panel.small {
+  inset-block: auto;
+  top: 50%;
+  transform: translateY(-50%);
+  width: min(480px, 88vw);
+}
+
+.menu-panel h2 {
+  margin: 0 0 16px;
+  font-size: 28px;
+  font-weight: 800;
+}
+
+.menu-panel h3 {
+  margin: 22px 0 6px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #e2cf9c;
+}
+
+.menu-panel p {
+  margin: 0 0 12px;
+  font-size: 16px;
+  line-height: 1.5;
+  color: #ddd5c1;
+}
+
+.menu-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding-inline-end: 6px;
+  margin-inline-end: -6px;
+}
+
+.menu-panel-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.menu-button {
+  padding: 10px 22px;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  color: #f2ead8;
+  background: rgb(255 255 255 / 7%);
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.menu-button.primary {
+  color: #16140f;
+  background: #e2cf9c;
+  border-color: #e2cf9c;
+}
+
+.menu-button:hover,
+.menu-button:focus-visible {
+  outline: none;
+  border-color: #e2cf9c;
+}
+
+.menu-button.primary:hover,
+.menu-button.primary:focus-visible {
+  background: #efdcaa;
+}
+
+/* Settings */
+.menu-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid rgb(255 255 255 / 10%);
+}
+
+.menu-tab {
+  padding: 10px 14px;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  color: rgb(242 234 216 / 62%);
+  background: transparent;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+}
+
+.menu-tab[aria-selected='true'] {
+  color: #fff;
+  border-bottom-color: #e2cf9c;
+}
+
+.menu-tab:hover,
+.menu-tab:focus-visible {
+  outline: none;
+  color: #fff;
+}
+
+.menu-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 11px 0;
+  border-bottom: 1px solid rgb(255 255 255 / 6%);
+  font-size: 16px;
+}
+
+.menu-row-label small {
+  display: block;
+  margin-top: 3px;
+  font-size: 12.5px;
+  color: #a9b096;
+}
+
+.menu-slider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(260px, 46vw);
+}
+
+.menu-slider input {
+  flex: 1;
+  accent-color: #e2cf9c;
+}
+
+.menu-slider output {
+  min-width: 4.5ch;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+  color: #d9d2bf;
+}
+
+.menu-switch {
+  min-width: 82px;
+  padding: 7px 14px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  color: #d9d2bf;
+  background: rgb(255 255 255 / 6%);
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.menu-switch[aria-checked='true'] {
+  color: #16140f;
+  background: #e2cf9c;
+  border-color: #e2cf9c;
+}
+
+.menu-segments {
+  display: inline-flex;
+  padding: 3px;
+  background: rgb(255 255 255 / 6%);
+  border-radius: 9px;
+}
+
+.menu-segment {
+  padding: 7px 14px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  color: #d9d2bf;
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.menu-segment[aria-checked='true'] {
+  color: #16140f;
+  background: #e2cf9c;
+}
+
+.menu-switch:focus-visible,
+.menu-segment:focus-visible,
+.menu-key:focus-visible {
+  outline: 2px solid #9fc2ff;
+  outline-offset: 2px;
+}
+
+.menu-key {
+  min-width: 132px;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  color: #f2ead8;
+  background: rgb(255 255 255 / 8%);
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-bottom-width: 2px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.menu-key.listening {
+  color: #16140f;
+  background: #e2cf9c;
+  animation: menu-pulse 1s ease-in-out infinite;
+}
+
+.menu-key.flash {
+  border-color: #e2cf9c;
+  box-shadow: 0 0 0 2px rgb(226 207 156 / 45%);
+}
+
+.menu-fixed-keys kbd {
+  display: inline-block;
+  min-width: 28px;
+  padding: 3px 7px;
+  margin-inline-start: 4px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  background: rgb(255 255 255 / 6%);
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 6px;
+}
+
+.menu-chapters {
+  display: grid;
+  gap: 6px;
+}
+
+.menu-chapters .menu-button {
+  text-align: start;
+}
+
+@keyframes menu-pulse {
+  50% { opacity: 0.65; }
+}
+
+/* Loading screen */
+.loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  justify-items: center;
+  padding: 0 24px 9vh;
+  background: radial-gradient(ellipse at 50% 40%, #1a1d17, #050605 70%);
+}
+
+.loading-brand {
+  align-self: center;
+  text-align: center;
+}
+
+.loading-bottom {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  width: min(560px, 90vw);
+}
+
+.loading-bar {
+  width: 100%;
+  height: 4px;
+  overflow: hidden;
+  background: rgb(255 255 255 / 12%);
+  border-radius: 2px;
+}
+
+.loading-fill {
+  width: 0;
+  height: 100%;
+  background: #e2cf9c;
+  transition: width 200ms ease-out;
+}
+
+.loading-status {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: rgb(242 234 216 / 60%);
+}
+
+.loading-fact {
+  min-height: 3.2em;
+  max-width: 640px;
+  font-size: 17px;
+  line-height: 1.6;
+  text-align: center;
+  color: #d4ccb6;
+  transition: opacity 500ms ease;
+}
+
+.loading-fact.out {
+  opacity: 0;
+}
+
+.loading-continue {
+  font-size: 18px;
+  font-weight: 700;
+  color: #e2cf9c;
+  animation: menu-pulse 1.6s ease-in-out infinite;
+}
+
+.loading.ready {
+  cursor: pointer;
+}
+
+/* Credits */
+.credits {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: rgb(4 5 5 / 93%);
+  cursor: pointer;
+}
+
+.credits-roll {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  margin: 0 auto;
+  width: min(680px, 92vw);
+  text-align: center;
+  will-change: transform;
+}
+
+.credits-title {
+  margin: 0 0 6vh;
+  font-size: 54px;
+  font-weight: 800;
+}
+
+.credits-heading {
+  margin: 7vh 0 14px;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: #e2cf9c;
+}
+
+.credits-entry {
+  margin: 0 0 14px;
+}
+
+.credits-entry b {
+  display: block;
+  font-size: 19px;
+  color: #f2ead8;
+}
+
+.credits-entry span {
+  display: block;
+  font-size: 15px;
+  color: #c9c1ad;
+}
+
+.credits-entry i {
+  display: block;
+  font-size: 12.5px;
+  font-style: normal;
+  color: #a99d74;
+}
+
+.credits-notice {
+  max-width: 600px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #a9a291;
+}
+
+.credits-thanks {
+  margin: 14vh 0 40vh;
+  font-size: 30px;
+  font-weight: 800;
+}
+
+.credits-hint {
+  position: absolute;
+  bottom: 3vh;
+  inset-inline-end: 4vw;
+  font-size: 13px;
+  color: rgb(242 234 216 / 50%);
+}
+
+/* FPS counter (Settings > Graphics) */
+.fps-counter {
+  position: fixed;
+  top: 10px;
+  left: 12px;
+  z-index: 6;
+  padding: 2px 7px;
+  font: 600 13px/1.4 ui-monospace, Menlo, Consolas, monospace;
+  color: #cfe8c0;
+  background: rgb(0 0 0 / 38%);
+  border-radius: 4px;
+  pointer-events: none;
+}

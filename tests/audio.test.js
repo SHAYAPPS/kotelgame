@@ -5,7 +5,8 @@ import assert from 'node:assert/strict';
 import { BoxGeometry, Group, Mesh, Vector3 } from 'three';
 import { plazaImpulse, wallEcho, PLAZA } from '../src/audio/reverb.js';
 import { Suppression, SUPPRESSION } from '../src/audio/Suppression.js';
-import { loadVolumes, DEFAULT_VOLUMES } from '../src/audio/Mixer.js';
+import { DEFAULT_VOLUMES } from '../src/audio/Mixer.js';
+import { loadSettings } from '../src/core/Settings.js';
 import { CollisionWorld } from '../src/world/CollisionWorld.js';
 import { makeWorld } from './helpers.js';
 
@@ -76,7 +77,7 @@ test('suppression: near misses pile up, hearing dulls and the edges blur, then i
 });
 
 test('volumes fall back to defaults without storage', () => {
-  assert.deepEqual(loadVolumes(), DEFAULT_VOLUMES);
+  assert.deepEqual(loadSettings(null).volumes, DEFAULT_VOLUMES);
 });
 
 test('the collision world knows what a ray hit is made of', () => {

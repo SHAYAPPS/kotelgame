@@ -8,6 +8,9 @@ import { ATTACKER } from '../ai/config.js';
 const DEG = Math.PI / 180;
 
 export const DIFFICULTY = {
+  // The player's difficulty setting (Settings > Gameplay): one of LEVELS below.
+  level: 'normal',
+
   // Global multipliers on every attacker (1 = as tuned below).
   accuracy: 1, // > 1 = tighter aim (spread divided by this)
   damage: 1, // damage per bullet that hits you
@@ -144,17 +147,45 @@ export const DIFFICULTY = {
   },
 };
 
-/** The AI config for an attacker of this role, with the global multipliers applied. */
+// The difficulty levels: multipliers on top of everything above (normal = as tuned). Easy
+// forgives more: attackers aim worse, hit softer, open fire later and throw fewer grenades
+// (and the armed truck's gun likewise); hard the other way.
+export const LEVELS = {
+  easy: { accuracy: 0.72, damage: 0.6, reaction: 1.35, grenades: 0.5 },
+  normal: { accuracy: 1, damage: 1, reaction: 1, grenades: 1 },
+  hard: { accuracy: 1.25, damage: 1.35, reaction: 0.8, grenades: 1.4 },
+};
+
+/** Set the difficulty level ('easy' | 'normal' | 'hard'); attackers spawned after it use it. */
+export function setDifficulty(level, d = DIFFICULTY) {
+  if (LEVELS[level]) d.level = level;
+}
+
+function level(d) {
+  return LEVELS[d.level] ?? LEVELS.normal;
+}
+
+/** The AI config for an attacker of this role, with the global multipliers and the level applied. */
 export function attackerConfig(role, d = DIFFICULTY) {
   const r = d.roles[role];
   if (!r) throw new Error(`Unknown attacker role "${role}"`);
+  const L = level(d);
   const c = { ...ATTACKER, ...r, role };
-  c.maxSpread /= d.accuracy;
-  c.minSpread /= d.accuracy;
-  c.damage *= d.damage;
-  c.reactionTime *= d.reaction;
-  c.grenades = d.grenades.enemy;
+  c.maxSpread /= d.accuracy * L.accuracy;
+  c.minSpread /= d.accuracy * L.accuracy;
+  c.damage *= d.damage * L.damage;
+  c.reactionTime *= d.reaction * L.reaction;
+  const g = d.grenades.enemy;
+  const k = L.grenades;
+  c.grenades = k === 1 ? g : { ...g, campChance: Math.min(1, g.campChance * k), otherChance: g.otherChance * k, minInterval: g.minInterval / k, cooldown: g.cooldown.map((t) => t / k) };
   return c;
+}
+
+/** The armed truck's config with the level applied to its gun. */
+export function truckConfig(d = DIFFICULTY) {
+  const L = level(d);
+  const t = d.truck;
+  return { ...t, gun: { ...t.gun, damage: t.gun.damage * d.damage * L.damage, spread: t.gun.spread / (d.accuracy * L.accuracy), reactionTime: t.gun.reactionTime * d.reaction * L.reaction } };
 }
 
 /** Expands a wave into individual spawns: [{ at: [x, z], role, delay, via, from }]. */

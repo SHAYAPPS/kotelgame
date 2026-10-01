@@ -31,7 +31,7 @@ const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--ena
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 page.setDefaultTimeout(240000);
 page.on('pageerror', (e) => console.log(`[pageerror] ${e.message}`));
-await page.addInitScript(() => localStorage.setItem('kotelgame.graphics', 'medium'));
+await page.addInitScript(() => localStorage.setItem('kotelgame.settings', JSON.stringify({ quality: 'medium' })));
 await page.goto('http://localhost:5173/', { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => window.__game?.characters?.ready && window.__game.viewmodel.models, null, { timeout: 240000, polling: 1000 });
 

@@ -19,6 +19,16 @@ import { solarPosition, sunDirection } from './sun.js';
 const SKY_ZENITH = new Color(0x3f78c4);
 const SKY_HORIZON = new Color(0xc6d8e6);
 const GROUND_BELOW = new Color(0x9c9a92);
+// Just after sunrise (the main menu): a deeper sky, a warm horizon and haze, dimmer fill.
+const DAWN = {
+  zenith: new Color(0x45679c),
+  horizon: new Color(0xf0c79f),
+  fog: new Color(0xe3c4a2),
+  hemiSky: new Color(0x9cafcf),
+  hemiGround: new Color(0xb9977a),
+  sun: new Color(1, 0.78, 0.55),
+};
+const _c = new Color();
 
 /**
  * Sky, sunlight and haze.
@@ -48,15 +58,12 @@ export class Environment {
     this.sunDir = new Vector3();
     if (o.sun) sunDirection(solarPosition(o.sun), this.sunDir);
     else this.sunDir.set(...(o.sunOffset ?? [35, 70, 45])).normalize();
+    this.sunColor = new Color();
+    this.sunIntensity = 1;
+    this.dawn = 0; // 0 = day .. 1 = sunrise (the palette)
 
-    // Sun color/strength by elevation: warmer and dimmer near the horizon.
-    const el = Math.asin(this.sunDir.y);
-    const warm = Math.max(0, 1 - el / 0.6);
-    this.sunColor = new Color(1, 0.96 - warm * 0.12, 0.9 - warm * 0.3);
-    this.sunIntensity = (o.sunIntensity ?? 3.2) * Math.min(1, 0.35 + el * 1.2);
-
-    const fogColor = SKY_HORIZON.clone().lerp(new Color(0xe6dccb), 0.25);
-    scene.fog = new FogExp2(fogColor, o.fogDensity ?? 0.0021);
+    this._dayFog = SKY_HORIZON.clone().lerp(new Color(0xe6dccb), 0.25);
+    scene.fog = new FogExp2(this._dayFog.clone(), o.fogDensity ?? 0.0021);
 
     this.sky = new Mesh(new SphereGeometry(500, 48, 24), this._skyMaterial());
     this.sky.frustumCulled = false;
@@ -68,10 +75,58 @@ export class Environment {
     // bounces onto everything (it's what keeps the shaded wall glowing cream, not grey).
     this.hemi = new HemisphereLight(0xc4d8ee, 0xe9d3a6, 1.35);
     scene.add(this.hemi);
+    this._hemiBase = 1.35;
+    this._envBase = o.envIntensity ?? 0.55;
 
     this.csm = null;
+    this._sunFromElevation();
     this.setQuality(quality);
+    this._applySky();
     this._loadHDRI(o.hdri ?? 'assets/hdri/sky_512.exr');
+  }
+
+  /**
+   * Move the sun to another local clock time ('HH:MM') on the level's day and place: the main
+   * menu's sunrise, the mission's 11:40. Light, sky, haze and fill follow.
+   */
+  setTime(time) {
+    if (!this.o.sun || !time) return;
+    sunDirection(solarPosition({ ...this.o.sun, time }), this.sunDir);
+    this._sunFromElevation();
+    if (this.csm) {
+      this.csm.lightDirection.copy(this.sunDir).negate();
+      for (const light of this.csm.lights) {
+        light.color.copy(this.sunColor);
+        light.intensity = this.sunIntensity;
+      }
+    }
+    this._applySky();
+  }
+
+  /** Sun color / strength by elevation: warmer and dimmer near the horizon. */
+  _sunFromElevation() {
+    const el = Math.asin(this.sunDir.y);
+    const warm = Math.max(0, 1 - el / 0.6);
+    this.sunColor.setRGB(1, 0.96 - warm * 0.12, 0.9 - warm * 0.3);
+    this.sunIntensity = (this.o.sunIntensity ?? 3.2) * Math.min(1, 0.35 + Math.max(0, el) * 1.2);
+    const t = Math.min(1, Math.max(0, (el - 0.06) / (0.5 - 0.06)));
+    this.dawn = 1 - t * t * (3 - 2 * t);
+  }
+
+  /** Sky colors, haze, the fill light and the image-based light for the sun's height. */
+  _applySky() {
+    const d = this.dawn;
+    const u = this.sky?.material.uniforms;
+    if (u) {
+      u.zenith.value.copy(SKY_ZENITH).lerp(DAWN.zenith, d);
+      u.horizon.value.copy(SKY_HORIZON).lerp(DAWN.horizon, d);
+      u.sunColor.value.setRGB(1, 0.97, 0.9).lerp(DAWN.sun, d);
+    }
+    this.scene.fog.color.copy(this._dayFog).lerp(DAWN.fog, d);
+    this.hemi.color.set(0xc4d8ee).lerp(DAWN.hemiSky, d);
+    this.hemi.groundColor.set(0xe9d3a6).lerp(_c.copy(DAWN.hemiGround), d);
+    this.hemi.intensity = this._hemiBase * (1 - 0.4 * d);
+    if (this.envMap) this.scene.environmentIntensity = this._envBase * (1 - 0.45 * d);
   }
 
   _skyMaterial() {
@@ -80,8 +135,8 @@ export class Environment {
       depthWrite: false,
       fog: false,
       uniforms: {
-        zenith: { value: SKY_ZENITH },
-        horizon: { value: SKY_HORIZON },
+        zenith: { value: SKY_ZENITH.clone() },
+        horizon: { value: SKY_HORIZON.clone() },
         below: { value: GROUND_BELOW },
         sunDir: { value: this.sunDir },
         sunColor: { value: new Color(1, 0.97, 0.9) },
@@ -160,8 +215,8 @@ export class Environment {
         pmrem.dispose();
         tex.dispose();
         this.scene.environment = this.envMap;
-        this.scene.environmentIntensity = this.o.envIntensity ?? 0.55;
-        this.hemi.intensity = this.o.bounce ?? 0.9;
+        this._hemiBase = this.o.bounce ?? 0.9;
+        this._applySky();
       },
       undefined,
       () => this._loadHDRI(list.slice(1)), // missing or unreadable: try the next one

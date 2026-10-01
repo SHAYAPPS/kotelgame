@@ -84,7 +84,7 @@ for (const s of SHOTS) {
 
 const game = GAME_SHOTS.filter((s) => !only || only.test(s.name));
 if (game.length) {
-  await page.addInitScript(() => localStorage.setItem('kotelgame.graphics', 'medium'));
+  await page.addInitScript(() => localStorage.setItem('kotelgame.settings', JSON.stringify({ quality: 'medium' })));
   await page.goto('http://localhost:5173/', { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window.__game?.characters?.ready, null, { timeout: 240000, polling: 1000 });
   for (const s of game) {

@@ -76,6 +76,7 @@ export class StoryHud {
     parent.append(this.fadeLayer, this.root, this.card, this.fail, this.statsPanel);
 
     this.menu = null;
+    this.subtitles = true; // Settings > Gameplay
     this._objectiveKey = null;
     this._subtitleId = null;
     this._cardTimer = 0;
@@ -130,8 +131,9 @@ export class StoryHud {
     this.prompt.append(k, el('span', null, label));
   }
 
-  /** @param {{ id, name, color, radio, text } | null} line */
+  /** @param {{ id, name, color, radio, text } | null} line (none at all with subtitles off) */
   setSubtitle(line) {
+    if (!this.subtitles) line = null;
     const id = line ? line.id : null;
     if (id === this._subtitleId) return;
     this._subtitleId = id;

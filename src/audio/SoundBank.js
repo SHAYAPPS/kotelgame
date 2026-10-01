@@ -13,7 +13,8 @@ export class SoundBank {
     this.ready = false;
   }
 
-  async load() {
+  /** @param {(done: number, total: number) => void} [onProgress] */
+  async load(onProgress) {
     const res = await fetch(`${this.base}manifest.json`);
     this.manifest = await res.json();
     const jobs = [];
@@ -22,9 +23,15 @@ export class SoundBank {
       this.buffers.set(id, list);
       s.files.forEach((f, i) => jobs.push(() => this._decode(f).then((b) => (list[i] = b))));
     }
+    const total = jobs.length;
+    let done = 0;
+    onProgress?.(0, total);
     // A few at a time: decoding everything at once stalls the main thread.
     const next = async () => {
-      while (jobs.length) await jobs.shift()().catch((e) => console.warn('sound', e));
+      while (jobs.length) {
+        await jobs.shift()().catch((e) => console.warn('sound', e));
+        onProgress?.(++done, total);
+      }
     };
     await Promise.all([next(), next(), next(), next()]);
     this.ready = true;
