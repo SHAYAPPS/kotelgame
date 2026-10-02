@@ -17,9 +17,18 @@ function el(tag, className, text) {
  * screen and the F2 step menu (dev tool).
  */
 export class StoryHud {
-  constructor(parent) {
+  /**
+   * @param {HTMLElement} parent
+   * @param {{ touch?: boolean }} o touch: hints in their touch wording, and the prompt's
+   *   actions are buttons (`onPromptTap(key)`: 'E' / 'F')
+   */
+  constructor(parent, { touch = false } = {}) {
     this.root = el('div', 'story-hud');
     this.root.dir = 'rtl';
+    this.touch = touch;
+    this.promptActions = null; // [[key, label], ...] while a prompt shows
+    /** @type {(key: string) => void} */
+    this.onPromptTap = () => {};
 
     this.objective = el('div', 'objective');
     this.objectiveLabel = el('span', 'objective-label', STORY_UI.objectivePrefix);
@@ -126,6 +135,10 @@ export class StoryHud {
     if (!id) return;
     const h = HINTS[id];
     this.hint.replaceChildren();
+    if (this.touch) {
+      this.hint.append(el('span', null, h.touch ?? h.text));
+      return;
+    }
     const keys = el('span', 'story-hint-keys');
     keys.dir = 'ltr';
     for (const k of h.keys) keys.append(el('kbd', null, k));
@@ -141,9 +154,24 @@ export class StoryHud {
     if (key === this._promptLabel) return;
     this._promptLabel = key;
     this.prompt.hidden = !label;
+    this.promptActions = label ? (Array.isArray(label) ? label : [['E', label]]) : null;
     if (!label) return;
     this.prompt.replaceChildren();
-    for (const [k, text] of Array.isArray(label) ? label : [['E', label]]) this.prompt.append(el('kbd', null, k), el('span', null, text));
+    for (const [k, text] of this.promptActions) {
+      if (!this.touch) {
+        this.prompt.append(el('kbd', null, k), el('span', null, text));
+        continue;
+      }
+      // Touch: each action is a button (the key's action pressed on touch-down).
+      const b = el('button', 'prompt-button', text);
+      b.type = 'button';
+      b.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.onPromptTap(k);
+      });
+      this.prompt.append(b);
+    }
   }
 
   /**

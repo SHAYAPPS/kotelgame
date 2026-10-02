@@ -23,6 +23,12 @@ export const NPC = {
   stairUpSpeed: 0.6,
   stairDownSpeed: 0.72,
   settle: 0.6, // s standing still before the physics sleeps
+  // Far from the player the body may step less often, with the time it skipped (a slow
+  // device: the low preset sets 4; 1 = every step). Beyond `farFrom` m every 2nd, beyond
+  // `farther` every 4th (at most farStep).
+  farStep: 1,
+  farFrom: 24,
+  farther: 40,
   // Small talk: each turn lasts this long (s), now and then a pause with nobody talking.
   chatTurn: [1.6, 5.5],
   chatPause: 0.2,
@@ -420,6 +426,16 @@ export class Npc {
     if (this._still > NPC.settle) {
       this.speed = 0;
       return;
+    }
+    if (NPC.farStep > 1 && this.escort === 0) {
+      const d2 = (player.position.x - this.position.x) ** 2 + (player.position.z - this.position.z) ** 2;
+      const every = Math.min(NPC.farStep, d2 > NPC.farther * NPC.farther ? 4 : d2 > NPC.farFrom * NPC.farFrom ? 2 : 1);
+      this._farDt = (this._farDt ?? 0) + dt;
+      this._farN = (this._farN ?? 0) + 1;
+      if (this._farN < every) return;
+      dt = this._farDt;
+      this._farDt = 0;
+      this._farN = 0;
     }
     this.body.update(dt, ctl);
     this.speed = this.body.horizontalSpeed;

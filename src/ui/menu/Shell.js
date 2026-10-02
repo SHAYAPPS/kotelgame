@@ -32,7 +32,7 @@ export class Shell {
     this._buildPause();
     this._buildNewGame();
     this._buildConfirm();
-    this.settings = new SettingsPanel({ settings: o.settings, bindings: o.bindings, onChange: o.onSetting, onBack: () => this.closePanel() });
+    this.settings = new SettingsPanel({ settings: o.settings, bindings: o.bindings, onChange: o.onSetting, onBack: () => this.closePanel(), touch: !!o.touch });
     this.root.append(this.settings.root);
     this.credits = new CreditsScreen(this.root, { onClose: () => this.closePanel() });
 

@@ -58,6 +58,7 @@ export const HE = {
     title: 'הגדרות',
     tabs: { controls: 'שליטה', graphics: 'גרפיקה', audio: 'שמע', gameplay: 'משחק' },
     sensitivity: 'רגישות עכבר',
+    lookSensitivity: 'רגישות מבט',
     aimSensitivity: 'רגישות בכינון',
     invertY: 'היפוך ציר אנכי',
     bindingsTitle: 'מקשים',

@@ -380,19 +380,20 @@ export const COUNTERS = {
   enemies: 'מחבלים שנותרו',
 };
 
-// Hints show a key and a text; keys stay LTR.
+// Hints show a key and a text; keys stay LTR. `touch`: the text on a phone or tablet (the
+// on-screen controls, no keys shown).
 export const HINTS = {
-  move: { keys: ['W', 'A', 'S', 'D'], text: 'תנועה, והעכבר להסתכלות' },
-  talk: { keys: ['E'], text: 'שיחה' },
-  screen: { keys: ['E', 'F'], text: 'הסתכל על המסך, התיק והאדם · E פעולה · F עצירה / החרמה' },
-  people: { keys: ['E'], text: 'שיחה עם אנשים ברחבה' },
-  sprint: { keys: ['Shift'], text: 'החזק לריצה' },
-  crouch: { keys: ['C'], text: 'התכופפות' },
-  mag: { keys: ['R'], text: 'בדיקת מחסנית (הנשק מונמך במשמרת)' },
-  shelter: { keys: ['E'], text: 'ליד אזרח שקפא: שלח אותו למחסה' },
-  fire: { keys: ['LMB', 'RMB'], text: 'ירי / כוונת' },
-  grenade: { keys: ['G'], text: 'רימון: החזק לכיוון, שחרר לזריקה' },
-  switch: { keys: ['1', '2'], text: 'החלפת נשק (או גלגלת העכבר). כוונת עם המקש הימני.' },
+  move: { keys: ['W', 'A', 'S', 'D'], text: 'תנועה, והעכבר להסתכלות', touch: 'ג׳ויסטיק בצד שמאל לתנועה, גרירה בצד ימין להסתכלות' },
+  talk: { keys: ['E'], text: 'שיחה', touch: 'הקישו על כפתור השיחה' },
+  screen: { keys: ['E', 'F'], text: 'הסתכל על המסך, התיק והאדם · E פעולה · F עצירה / החרמה', touch: 'הסתכלו על המסך, התיק והאדם, והקישו על הפעולה או על עצירה / החרמה' },
+  people: { keys: ['E'], text: 'שיחה עם אנשים ברחבה', touch: 'הסתכלו על אדם ברחבה והקישו על כפתור השיחה' },
+  sprint: { keys: ['Shift'], text: 'החזק לריצה', touch: 'דחפו את הג׳ויסטיק עד הסוף קדימה לריצה' },
+  crouch: { keys: ['C'], text: 'התכופפות', touch: 'כפתור ההתכופפות' },
+  mag: { keys: ['R'], text: 'בדיקת מחסנית (הנשק מונמך במשמרת)', touch: 'כפתור הטעינה: בדיקת מחסנית (הנשק מונמך במשמרת)' },
+  shelter: { keys: ['E'], text: 'ליד אזרח שקפא: שלח אותו למחסה', touch: 'ליד אזרח שקפא: הקישו כדי לשלוח אותו למחסה' },
+  fire: { keys: ['LMB', 'RMB'], text: 'ירי / כוונת', touch: 'כפתור הירי, וכפתור הכוונת להפעלה ולכיבוי' },
+  grenade: { keys: ['G'], text: 'רימון: החזק לכיוון, שחרר לזריקה', touch: 'רימון: החזיקו את הכפתור לכיוון, שחררו לזריקה' },
+  switch: { keys: ['1', '2'], text: 'החלפת נשק (או גלגלת העכבר). כוונת עם המקש הימני.', touch: 'כפתור החלפת הנשק' },
 };
 
 export const CARDS = {

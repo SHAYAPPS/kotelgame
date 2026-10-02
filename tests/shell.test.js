@@ -11,6 +11,7 @@ import { SAVE_KEY, chapterOf, clearSave, readSave, writeSave } from '../src/stor
 import { buildRoll, parseCredits, plain } from '../src/ui/menu/creditsRoll.js';
 import { DIFFICULTY, LEVELS, attackerConfig, setDifficulty, truckConfig } from '../src/story/difficulty.js';
 import { MISSION1 } from '../src/story/mission1.js';
+import { isTouchDevice } from '../src/core/device.js';
 
 /** localStorage's interface over a Map. */
 function memory(entries = {}) {
@@ -55,6 +56,27 @@ test('settings: defaults, saved and loaded, bad values checked, the old keys tak
   assert.equal(migrated.quality, 'low');
   assert.equal(migrated.volumes.master, 0.5);
   assert.equal(migrated.volumes.music, DEFAULT_SETTINGS.volumes.music);
+});
+
+test('a phone starts on its own defaults (low graphics); what the player saved wins', () => {
+  assert.equal(loadSettings(memory(), { quality: 'low' }).quality, 'low');
+  assert.equal(loadSettings(null, { quality: 'low' }).quality, 'low');
+  const store = memory({ [SETTINGS_KEY]: JSON.stringify({ quality: 'high' }) });
+  assert.equal(loadSettings(store, { quality: 'low' }).quality, 'high');
+  // A bad saved value falls back to the device's default, not the desktop's.
+  const bad = memory({ [SETTINGS_KEY]: JSON.stringify({ quality: 'insane' }) });
+  assert.equal(loadSettings(bad, { quality: 'low' }).quality, 'low');
+  assert.equal(loadSettings(memory()).quality, DEFAULT_SETTINGS.quality);
+});
+
+test('touch devices: a coarse pointer and no mouse; ?touch / ?notouch force it', () => {
+  const media = (coarse, fine) => (q) => ({ matches: q === '(pointer: coarse)' ? coarse : q === '(any-pointer: fine)' ? fine : false });
+  assert.equal(isTouchDevice('', media(true, false)), true); // a phone
+  assert.equal(isTouchDevice('', media(true, true)), false); // a touchscreen laptop with a trackpad
+  assert.equal(isTouchDevice('', media(false, true)), false); // a desktop
+  assert.equal(isTouchDevice('?touch', media(false, true)), true);
+  assert.equal(isTouchDevice('?notouch', media(true, false)), false);
+  assert.equal(isTouchDevice('', undefined), false); // (Node)
 });
 
 test('key bindings: rebinding swaps, alternates step aside, reserved keys refused, saved and restored', () => {

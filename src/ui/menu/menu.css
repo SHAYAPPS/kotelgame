@@ -545,3 +545,86 @@
   border-radius: 4px;
   pointer-events: none;
 }
+
+/* Touch (phones, tablets): no keyboard hints; taps without the double-tap zoom delay. */
+body.touch .menu-footer {
+  display: none;
+}
+
+body.touch .shell button {
+  touch-action: manipulation;
+}
+
+body.touch .menu-panel-body {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* Short screens (a phone on its side): everything tighter. */
+@media (max-height: 520px) {
+  .menu-screen {
+    padding: 4vh 6vw;
+  }
+
+  .menu-brand {
+    margin-bottom: 2.5vh;
+  }
+
+  .menu-eyebrow {
+    font-size: 12px;
+  }
+
+  .menu-title {
+    font-size: clamp(28px, 5vw, 44px);
+  }
+
+  .menu-item {
+    padding: 7px 16px 7px 10px;
+    font-size: 18px;
+  }
+
+  .menu-panel {
+    inset-block: 3vh;
+    max-height: 94vh;
+    padding: 12px 18px 10px;
+  }
+
+  .menu-panel h2 {
+    margin-bottom: 8px;
+    font-size: 20px;
+  }
+
+  .menu-panel h3 {
+    margin-top: 12px;
+  }
+
+  .menu-panel p {
+    font-size: 14px;
+  }
+
+  .menu-tab {
+    padding: 6px 10px;
+    font-size: 14px;
+  }
+
+  .menu-row {
+    padding: 6px 0;
+    font-size: 14px;
+  }
+
+  .menu-panel-actions {
+    margin-top: 10px;
+  }
+
+  .loading {
+    padding-bottom: 5vh;
+  }
+
+  .loading-fact {
+    font-size: 14px;
+  }
+
+  .credits-title {
+    font-size: 34px;
+  }
+}

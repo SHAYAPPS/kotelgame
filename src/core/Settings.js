@@ -47,9 +47,13 @@ function read(storage, key) {
   }
 }
 
-/** Settings from storage (or the defaults), every value checked. */
-export function loadSettings(storage = browserStorage()) {
-  const s = structuredClone(DEFAULT_SETTINGS);
+/**
+ * Settings from storage (or the defaults), every value checked. `defaults`: the device's own
+ * starting values over DEFAULT_SETTINGS (a phone starts on low graphics); what the player saved
+ * still wins.
+ */
+export function loadSettings(storage = browserStorage(), defaults = {}) {
+  const s = { ...structuredClone(DEFAULT_SETTINGS), ...defaults };
   if (!storage) return s;
   let saved = null;
   try {
@@ -70,12 +74,11 @@ export function loadSettings(storage = browserStorage()) {
       // ignore
     }
   }
-  return sanitize({ ...s, ...saved, volumes: { ...s.volumes, ...(saved.volumes ?? {}) } });
+  return sanitize({ ...s, ...saved, volumes: { ...s.volumes, ...(saved.volumes ?? {}) } }, s);
 }
 
 /** Clamp numbers into range, unknown names to the defaults (a hand-edited or old save). */
-export function sanitize(s) {
-  const d = DEFAULT_SETTINGS;
+export function sanitize(s, d = DEFAULT_SETTINGS) {
   const num = (v, [lo, hi], def) => (Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : def);
   const out = {
     sensitivity: num(s.sensitivity, LIMITS.sensitivity, d.sensitivity),

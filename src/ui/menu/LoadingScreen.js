@@ -58,6 +58,16 @@ export class LoadingScreen {
       if (e.type === 'keydown' && (e.repeat || e.code === 'Tab')) return;
       window.removeEventListener('keydown', go, true);
       this.root.removeEventListener('pointerdown', go);
+      // A tap's click comes after its pointerdown, on whatever the menu now shows under the
+      // finger: swallow it (no tap-through into New Game).
+      if (e.type === 'pointerdown') {
+        const swallow = (c) => {
+          c.preventDefault();
+          c.stopPropagation();
+        };
+        window.addEventListener('click', swallow, { capture: true, once: true });
+        setTimeout(() => window.removeEventListener('click', swallow, { capture: true }), 700);
+      }
       onContinue();
     };
     window.addEventListener('keydown', go, true);

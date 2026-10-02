@@ -26,6 +26,8 @@ export const QUALITY = {
     characterLod: 0.7, // scales the character LOD / animation-rate distances
     characterShadows: 10, // only characters this close cast shadows (m)
     characterShadowCount: 4, // and only the nearest so many
+    crowdDensity: 0.4, // share of the far crowd drawn (the near crowd always is)
+    npcFarStep: 4, // far-off people's physics steps less often (story/Npc.js NPC.farStep)
     aoScale: 0.5,
     aoSamples: 8,
     hazeSteps: 10,

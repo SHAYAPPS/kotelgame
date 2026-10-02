@@ -16,6 +16,12 @@ export const CROWD = {
   walkSpeed: [1.0, 1.35],
   runSpeed: [2.4, 3.8],
   near: 16, // m from the camera: drawn in more detail (the renderer)
+  // Drawn share of the far crowd (graphics presets: low draws fewer; the people near the
+  // player are all drawn, all of them still count): from `thinFrom` m out it eases down to
+  // `density` by `thinTo`.
+  density: 1,
+  thinFrom: 20,
+  thinTo: 36,
   arriveView: 26, // m: arrivals closer than this to the player walk in from an entrance
   fadeTime: 1.6, // s to fade in / out
   personal: 0.42, // m: radius each person keeps clear

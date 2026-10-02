@@ -2,6 +2,9 @@
 // Bindings use KeyboardEvent.code (physical key position), so WASD works the
 // same on Hebrew and English keyboard layouts. Game reads actions through the player's
 // bindings (core/Bindings.js): anyDown(codes) / consumeAny(codes).
+// On a touch device (`touch`) the on-screen controls (ui/TouchControls.js) press the same
+// codes, move the analog `axisX` / `axisY` (the stick) and add look deltas; there is no
+// pointer lock: requestLock() / exitLock() just start and stop playing.
 
 const NO_DEFAULT = new Set([
   'Space',
@@ -32,6 +35,10 @@ export class Input {
     this.mouseDX = 0;
     this.mouseDY = 0;
     this._skipMouseEvents = 0;
+    this.touch = false; // on-screen controls, no pointer lock (set by Game)
+    // The touch stick: right / forward, -1..1 (added to the movement keys).
+    this.axisX = 0;
+    this.axisY = 0;
 
     /** @type {(locked: boolean) => void} */
     this.onLockChange = () => {};
@@ -45,6 +52,7 @@ export class Input {
     // Mouse buttons share the key sets as 'Mouse0' (left), 'Mouse1', 'Mouse2' (right).
     document.addEventListener('mousedown', (e) => this._onMouseDown(e));
     document.addEventListener('mouseup', (e) => {
+      if (this.touch) return; // (the touch buttons hold Mouse0 / Mouse2 themselves)
       this.held.delete(`Mouse${e.button}`);
       // The side buttons would go back / forward in the browser's history.
       if (this.enabled && e.button > 2) e.preventDefault();
@@ -109,10 +117,19 @@ export class Input {
     this.pressed.clear();
     this.mouseDX = 0;
     this.mouseDY = 0;
+    this.axisX = 0;
+    this.axisY = 0;
   }
 
-  /** Must be called from a user gesture (click). */
+  /** Must be called from a user gesture (click). On touch: just playing. */
   async requestLock() {
+    if (this.touch) {
+      if (!this.locked) {
+        this.locked = true;
+        this.onLockChange(true);
+      }
+      return;
+    }
     try {
       // Raw mouse input (no OS acceleration) where the browser supports it.
       await this.lockTarget.requestPointerLock({ unadjustedMovement: true });
@@ -126,6 +143,13 @@ export class Input {
   }
 
   exitLock() {
+    if (this.touch) {
+      if (this.locked) {
+        this.locked = false;
+        this.onLockChange(false);
+      }
+      return;
+    }
     if (document.pointerLockElement) document.exitPointerLock();
   }
 
@@ -137,7 +161,8 @@ export class Input {
   }
 
   _onMouseDown(e) {
-    if (!this.enabled || !this.locked) return;
+    // (On touch the on-screen buttons press the codes; a tap's emulated mouse events don't.)
+    if (!this.enabled || !this.locked || this.touch) return;
     const code = `Mouse${e.button}`;
     if (e.button > 2) e.preventDefault();
     if (!this.held.has(code)) this.pressed.add(code);
@@ -146,7 +171,7 @@ export class Input {
   }
 
   _onMouseMove(e) {
-    if (!this.locked || !this.enabled) return;
+    if (!this.locked || !this.enabled || this.touch) return;
     if (this._skipMouseEvents > 0) {
       this._skipMouseEvents--;
       return;
@@ -159,6 +184,7 @@ export class Input {
   }
 
   _onLockChange() {
+    if (this.touch) return;
     this.locked = document.pointerLockElement === this.lockTarget;
     // The first event after locking can carry a stale jump; ignore it.
     if (this.locked) this._skipMouseEvents = 1;

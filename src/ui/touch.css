@@ -1,0 +1,296 @@
+/* Touch controls (phones and tablets: body.touch, ui/TouchControls.js) and the HUD's touch
+   layout. Sizes follow the screen's height (a landscape phone is short): --u is ~1% of it. */
+
+body.touch {
+  --u: clamp(3.2px, min(1vh, 0.6vw), 5px);
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body.touch canvas {
+  touch-action: none;
+}
+
+.touch-controls {
+  --safe-l: env(safe-area-inset-left, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  position: fixed;
+  inset: 0;
+  z-index: 4; /* under the HUD (which lets touches through) */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.touch-controls[hidden],
+.touch-btn[hidden] {
+  display: none;
+}
+
+/* Buttons: --d diameter, --r / --b from the right / bottom edge, in --u. */
+.touch-btn {
+  position: absolute;
+  right: calc(var(--r) * var(--u) + var(--safe-r));
+  bottom: calc(var(--b) * var(--u) + var(--safe-b));
+  display: grid;
+  place-items: center;
+  width: calc(var(--d) * var(--u));
+  height: calc(var(--d) * var(--u));
+  color: #f2ead8;
+  background: rgb(14 18 16 / 42%);
+  border: 1.5px solid rgb(242 234 216 / 45%);
+  border-radius: 50%;
+  box-shadow: 0 2px 10px rgb(0 0 0 / 30%);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  transition: background 0.08s, transform 0.08s;
+}
+
+.touch-btn svg {
+  width: 52%;
+  height: 52%;
+  pointer-events: none;
+}
+
+.touch-btn.down {
+  background: rgb(242 234 216 / 32%);
+  transform: scale(0.94);
+}
+
+.touch-btn.on {
+  color: #1b1a14;
+  background: rgb(226 207 156 / 88%);
+  border-color: #e2cf9c;
+}
+
+.touch-fire {
+  --d: 23;
+  --r: 6;
+  --b: 9;
+  background: rgb(120 30 24 / 45%);
+  border-color: rgb(255 190 170 / 55%);
+}
+
+.touch-fire.down {
+  background: rgb(200 60 40 / 60%);
+}
+
+.touch-aim {
+  --d: 15;
+  --r: 32;
+  --b: 25;
+}
+
+.touch-jump {
+  --d: 15;
+  --r: 9;
+  --b: 36;
+}
+
+.touch-crouch {
+  --d: 14;
+  --r: 33;
+  --b: 5;
+}
+
+.touch-reload {
+  --d: 13;
+  --r: 50;
+  --b: 9;
+}
+
+.touch-grenade {
+  --d: 13;
+  --r: 49;
+  --b: 30;
+}
+
+.touch-swap {
+  --d: 12;
+  --r: 27;
+  --b: 45;
+}
+
+.touch-pause {
+  --d: 11;
+  right: auto;
+  bottom: auto;
+  top: calc(2.5 * var(--u) + env(safe-area-inset-top, 0px));
+  left: calc(3 * var(--u) + var(--safe-l));
+}
+
+/* The stick: a ring where the thumb landed (faint at its usual place until then). */
+.touch-stick {
+  position: absolute;
+  left: calc(24 * var(--u) + var(--safe-l));
+  bottom: calc(10 * var(--u) + var(--safe-b));
+  width: calc(32 * var(--u));
+  height: calc(32 * var(--u));
+  margin: calc(-16 * var(--u)) 0 0 calc(-16 * var(--u));
+  border: 1.5px solid rgb(242 234 216 / 40%);
+  border-radius: 50%;
+  background: rgb(14 18 16 / 22%);
+  pointer-events: none;
+}
+
+.touch-stick.idle {
+  margin-bottom: calc(-16 * var(--u));
+  margin-top: 0;
+  opacity: 0.45;
+}
+
+.touch-stick-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 44%;
+  height: 44%;
+  margin: -22% 0 0 -22%;
+  border-radius: 50%;
+  background: rgb(242 234 216 / 55%);
+  box-shadow: 0 1px 6px rgb(0 0 0 / 35%);
+}
+
+.touch-stick.sprint {
+  border-color: #e2cf9c;
+}
+
+.touch-stick.sprint .touch-stick-knob {
+  background: #e2cf9c;
+}
+
+/* Portrait: please turn the device (over everything, the menus too). */
+.touch-rotate {
+  display: none;
+}
+
+@media (orientation: portrait) {
+  body.touch .touch-rotate {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    color: #f2ead8;
+    background: #0b0d0c;
+    font-family: var(--ui-font, system-ui, sans-serif);
+    font-size: 19px;
+    font-weight: 700;
+    text-align: center;
+  }
+
+  .touch-rotate-icon {
+    width: 72px;
+    height: 72px;
+    animation: touch-rotate 2.4s ease-in-out infinite;
+  }
+}
+
+@keyframes touch-rotate {
+  0%,
+  20% {
+    transform: rotate(0deg);
+  }
+  50%,
+  80% {
+    transform: rotate(-90deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+/* --- The HUD on touch -------------------------------------------------------------------- */
+
+/* The ammo counter moves up out of the buttons' way (by the pause button). */
+body.touch .ammo {
+  right: auto;
+  bottom: auto;
+  left: calc(17 * var(--u) + env(safe-area-inset-left, 0px));
+  top: calc(1.5 * var(--u) + env(safe-area-inset-top, 0px));
+  transform: scale(0.72);
+  transform-origin: top left;
+}
+
+/* (The dev readout would cover the pause button.) */
+body.touch .debug {
+  display: none;
+}
+
+/* The FPS counter leaves the corner to the pause button. */
+body.touch .fps-counter {
+  left: 50%;
+  top: calc(4px + env(safe-area-inset-top, 0px));
+  transform: translateX(-50%);
+}
+
+/* The talk prompt is the button. */
+body.touch .talk-prompt {
+  pointer-events: auto;
+  gap: 10px;
+  padding: 0;
+  background: none;
+  border: none;
+}
+
+.prompt-button {
+  min-height: 44px;
+  padding: 10px 18px;
+  color: #f2ead8;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  background: rgb(14 18 16 / 72%);
+  border: 1.5px solid #e2cf9c;
+  border-radius: 22px;
+  touch-action: manipulation;
+}
+
+.prompt-button:active {
+  background: rgb(226 207 156 / 35%);
+}
+
+/* Short screens (landscape phones): smaller HUD text and panels. */
+@media (max-height: 520px) {
+  body.touch .objective {
+    top: 8px;
+    right: calc(10px + env(safe-area-inset-right, 0px));
+    max-width: 38vw;
+  }
+
+  body.touch .objective-text {
+    font-size: 14px;
+  }
+
+  /* Between the stick and the buttons. */
+  body.touch .subtitle {
+    bottom: 5vh;
+    left: 45%;
+    max-width: 42vw;
+    font-size: 14px;
+  }
+
+  body.touch .story-hint {
+    top: 15vh;
+    max-width: 56vw;
+    font-size: 13px;
+  }
+
+  /* The checkpoint's close-up: on the left under the pause button (the buttons are right). */
+  body.touch .screen-panel {
+    top: calc(25 * var(--u) + env(safe-area-inset-top, 0px));
+    inset-inline-start: auto;
+    left: calc(3 * var(--u) + env(safe-area-inset-left, 0px));
+    width: min(230px, 30vw);
+    font-size: 12px;
+  }
+
+  body.touch .low-ammo {
+    bottom: 40vh;
+  }
+}

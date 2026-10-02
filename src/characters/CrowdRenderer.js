@@ -460,7 +460,10 @@ export class CrowdRenderer {
     for (const T of this.types) {
       for (const wear of Object.keys(T.meshes)) T.members[wear] = [];
     }
+    let i = 0;
     for (const m of field.members) {
+      // Who stays drawn when the far crowd is thinned (CROWD.density): spread evenly.
+      m.drawRank = (i++ * 0.6180339887) % 1;
       const T = this.types[m.type];
       let wear = T.outfits[m.outfit].wear;
       if (!T.meshes[wear]) wear = 'none';
@@ -503,6 +506,8 @@ export class CrowdRenderer {
     const cx = camera.position.x;
     const cz = camera.position.z;
     const near2 = CROWD.near * CROWD.near;
+    const thin = CROWD.density < 1;
+    const thinFrom2 = CROWD.thinFrom * CROWD.thinFrom;
     for (const T of this.types) {
       for (const [wear, lods] of Object.entries(T.meshes)) {
         const list = T.members[wear];
@@ -510,6 +515,10 @@ export class CrowdRenderer {
         for (const m of list) {
           if (m.fade <= 0) continue;
           const d2 = (m.x - cx) ** 2 + (m.z - cz) ** 2;
+          if (thin && d2 > thinFrom2) {
+            const t = Math.min(1, (Math.sqrt(d2) - CROWD.thinFrom) / (CROWD.thinTo - CROWD.thinFrom));
+            if (m.drawRank >= 1 - t * (1 - CROWD.density)) continue;
+          }
           const k = d2 < near2 ? 0 : 1;
           const mesh = lods[k].mesh;
           const i = counts[k]++;

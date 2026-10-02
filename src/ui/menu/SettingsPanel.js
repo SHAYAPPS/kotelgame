@@ -16,9 +16,11 @@ const pct = (v) => `${Math.round(v * 100)}%`;
 export class SettingsPanel {
   /**
    * @param {{ settings: object, bindings: import('../../core/Bindings.js').Bindings,
-   *   onChange: (key: string, value: unknown) => void, onBack: () => void }} opts
+   *   onChange: (key: string, value: unknown) => void, onBack: () => void, touch?: boolean }} opts
+   *   touch: a phone or tablet (no keys to rebind; the sensitivity is the touch look's)
    */
-  constructor({ settings, bindings, onChange, onBack }) {
+  constructor({ settings, bindings, onChange, onBack, touch = false }) {
+    this.touch = touch;
     this.settings = settings;
     this.bindings = bindings;
     this.onChange = onChange;
@@ -121,15 +123,16 @@ export class SettingsPanel {
     this.w = { volumes: {} };
     const f2 = (v) => v.toFixed(2);
     this.w.sensitivity = slider({ min: LIMITS.sensitivity[0], max: LIMITS.sensitivity[1], step: 0.05, value: s.sensitivity, format: f2, onInput: (v) => this.onChange('sensitivity', v) });
-    page.append(row(S.sensitivity, this.w.sensitivity));
+    page.append(row(this.touch ? S.lookSensitivity : S.sensitivity, this.w.sensitivity));
     this.w.aimSensitivity = slider({ min: LIMITS.aimSensitivity[0], max: LIMITS.aimSensitivity[1], step: 0.05, value: s.aimSensitivity, format: f2, onInput: (v) => this.onChange('aimSensitivity', v) });
     page.append(row(S.aimSensitivity, this.w.aimSensitivity));
     this.w.invertY = toggle(s.invertY, { on: S.on, off: S.off }, (v) => this.onChange('invertY', v));
     page.append(row(S.invertY, this.w.invertY));
 
+    this.keyButtons = {};
+    if (this.touch) return; // (the on-screen controls: no keys)
     page.append(el('h3', null, S.bindingsTitle));
     page.append(el('p', null, S.bindingsHint));
-    this.keyButtons = {};
     for (const a of ACTIONS) {
       const b = el('button', 'menu-key');
       b.type = 'button';
@@ -216,7 +219,7 @@ export class SettingsPanel {
   }
 
   _keyLabels() {
-    for (const a of ACTIONS) this.keyButtons[a.id].textContent = keyLabel(this.bindings.key(a.id));
+    for (const a of ACTIONS) if (this.keyButtons[a.id]) this.keyButtons[a.id].textContent = keyLabel(this.bindings.key(a.id));
   }
 
   _capture(id, b) {

@@ -1,5 +1,6 @@
 import { ACESFilmicToneMapping, Color, Frustum, Material, MathUtils, Matrix4, Node, PCFShadowMap, PerspectiveCamera, Quaternion, Scene, Vector2, Vector3, WebGPURenderer } from 'three/webgpu';
 import { Input } from './Input.js';
+import { enterFullscreen, isTouchDevice } from './device.js';
 import { PlayerController } from '../player/PlayerController.js';
 import { PlayerCamera } from '../player/PlayerCamera.js';
 import { VIEW } from '../player/config.js';
@@ -46,9 +47,12 @@ import { HE } from '../ui/strings.he.js';
 import { Hud, num } from '../ui/Hud.js';
 import { Screenshot } from '../ui/Screenshot.js';
 import { StoryHud } from '../ui/StoryHud.js';
+import { TouchControls } from '../ui/TouchControls.js';
 import { StoryDirector } from '../story/StoryDirector.js';
 import { viewFx } from '../story/NpcView.js';
 import { MISSION1 } from '../story/mission1.js';
+import { CROWD } from '../story/crowd/CrowdField.js';
+import { NPC } from '../story/Npc.js';
 import { VoicePlayer, voiceFiles } from '../story/Voice.js';
 import { chapterOf, clearSave, readSave, writeSave } from '../story/SaveGame.js';
 import { Shell } from '../ui/menu/Shell.js';
@@ -84,7 +88,10 @@ export class Game {
   constructor(container) {
     this.container = container;
     this.storage = browserStorage();
-    this.settings = loadSettings(this.storage);
+    // A phone or tablet: on-screen controls, no pointer lock, and lighter graphics to start with.
+    this.touch = isTouchDevice();
+    document.body.classList.toggle('touch', this.touch);
+    this.settings = loadSettings(this.storage, this.touch ? { quality: 'low' } : {});
     this.bindings = new Bindings(this.settings.bindings);
     setDifficulty(this.settings.difficulty);
     this.range = new URLSearchParams(window.location.search).get('level') === 'range';
@@ -98,6 +105,7 @@ export class Game {
       bindings: this.bindings,
       onSetting: (key, value) => this.setSetting(key, value),
       chapters: this.range ? [] : MISSION1.chapters,
+      touch: this.touch,
       save: () => this._saveInfo(),
       onContinue: () => this.continueGame(),
       onNewGame: (chapter) => this.newGame(chapter),
@@ -348,7 +356,7 @@ export class Game {
     this.debugDraw = new DebugDraw(this.scene, this.camera, this.enemies);
 
     // Story: the mission on the Kotel level (the test range has none).
-    this.storyHud = new StoryHud(document.body);
+    this.storyHud = new StoryHud(document.body, { touch: this.touch });
     this.story = range
       ? null
       : new StoryDirector({
@@ -386,6 +394,7 @@ export class Game {
 
     // Input + UI
     this.input = new Input(renderer.domElement);
+    this.input.touch = this.touch;
     this.damage = new DamageOverlay(document.body);
     this.grenadeWarning = new GrenadeWarning(document.body);
     this.enemies.onEnemyHit = ({ zone, killed }) => {
@@ -414,6 +423,14 @@ export class Game {
     this.hud.setFpsVisible(this.settings.showFps);
     this.input.onLockChange = (locked) => this.setActive(locked);
     this.input.onLockError = () => this.shell.showError(HE.lockError);
+    if (this.touch) {
+      this.touchControls = new TouchControls(document.body, { input: this.input, bindings: this.bindings, onPause: () => this.input.exitLock() });
+      this.storyHud.onPromptTap = (key) => this.touchControls.tapKey(key);
+      // The app going to the background pauses (on a computer, losing the mouse lock does).
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden && this.mode === 'playing') this.input.exitLock();
+      });
+    }
 
     this.accumulator = 0;
     this.lastTime = null;
@@ -437,6 +454,7 @@ export class Game {
     if (this.mode !== 'loading') return; // (dev: automated checks started playing already)
     this.mode = 'title';
     this.shell.loaded(() => {
+      if (this.touch) enterFullscreen(); // (a tap: fullscreen and landscape where the browser allows)
       this.audio.unlock(); // sound may only start from a user gesture
       this.story?.voices?.preload();
       this.toMenu();
@@ -458,6 +476,8 @@ export class Game {
     this.input.setEnabled(active);
     this.hud.setPlaying(active);
     this.storyHud.setVisible(active);
+    this.touchControls?.setVisible(active);
+    if (active && this.touch) enterFullscreen(); // (from the menu's tap)
     if (active) {
       const resuming = this.mode === 'paused';
       this.mode = 'playing';
@@ -631,9 +651,12 @@ export class Game {
   }
 
   _applyCharacterQuality() {
-    CHARACTER.lodScale = this.quality.characterLod ?? 1;
+    // (A phone's CPU: people farther than a few meters animate at a lower rate.)
+    CHARACTER.lodScale = (this.quality.characterLod ?? 1) * (this.touch ? 0.75 : 1);
     CHARACTER.shadowDistance = this.quality.characterShadows ?? 40;
     characters.shadowBudget = this.quality.characterShadowCount ?? Infinity;
+    CROWD.density = this.quality.crowdDensity ?? 1;
+    NPC.farStep = this.quality.npcFarStep ?? 1;
   }
 
   frame(timeMs) {
@@ -729,7 +752,9 @@ export class Game {
     this._heat(dt);
     const r = this.renderer;
     r.info.reset();
+    characters.sceneWalk = true;
     this.scene.updateMatrixWorld();
+    characters.sceneWalk = false;
     this.post.render(dt);
     this.screenshot.capture();
     this._dynamicResolution(dt);
@@ -1122,6 +1147,8 @@ export class Game {
     hud.setAmmo(L ? this.launcher.state : this.rifle.state);
     hud.setWeaponName?.(this.launcher.owned ? (L ? HE.weapons.launcher : HE.weapons.rifle) : '');
     hud.setGrenades(this.thrower.count, lowered ? 0 : this.thrower.cfg.max);
+    // The touch buttons the moment has (no fire / aim / grenade with the weapon lowered).
+    this.touchControls?.update({ armed: !lowered, canReload: this.rifle.mode !== 'slung', launcher: this.launcher.owned, grenades: this.thrower.count });
     hud.update(dt, {
       player: this.player,
       drawCalls: this.renderer.info.render.drawCalls ?? this.renderer.info.render.calls,
@@ -1149,8 +1176,9 @@ export class Game {
     const i = this.input;
     const b = this.bindings;
     const c = this._controls;
-    c.forward = (i.anyDown(b.codes('forward')) ? 1 : 0) - (i.anyDown(b.codes('back')) ? 1 : 0);
-    c.right = (i.anyDown(b.codes('right')) ? 1 : 0) - (i.anyDown(b.codes('left')) ? 1 : 0);
+    // Keys, plus the touch stick (analog: a small push walks slowly).
+    c.forward = MathUtils.clamp((i.anyDown(b.codes('forward')) ? 1 : 0) - (i.anyDown(b.codes('back')) ? 1 : 0) + i.axisY, -1, 1);
+    c.right = MathUtils.clamp((i.anyDown(b.codes('right')) ? 1 : 0) - (i.anyDown(b.codes('left')) ? 1 : 0) + i.axisX, -1, 1);
     // Firing or aiming ends a sprint; aiming also slows you down.
     const firing = i.anyDown(b.codes('fire')) || i.anyDown(b.codes('aim'));
     c.sprint = !firing && i.anyDown(b.codes('sprint'));

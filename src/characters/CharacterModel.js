@@ -81,10 +81,13 @@ export class CharacterModel {
     // The scene's per-frame matrix update walks every bone (a hundred people: ~11,000): a
     // skeleton is walked only when the pose or the body's placement changed since its last walk.
     this._bonesWorld = new Matrix4();
+    // Nor while nobody can see them (off screen, no shadow): they're walked once they show.
+    // (The hit zones read their own bones in update(): gameplay never waits for this walk.)
     for (const b of skeleton.bones.filter((x) => !x.parent?.isBone)) {
       const walk = b.updateMatrixWorld;
       b.updateMatrixWorld = (force) => {
         if (!this._skinDirty && this.body.matrixWorld.equals(this._bonesWorld)) return;
+        if (characters.sceneWalk && !this._drawable && !this.lods[0].castShadow) return;
         walk.call(b, force);
         this._bonesWorld.copy(this.body.matrixWorld);
       };
@@ -151,6 +154,7 @@ export class CharacterModel {
     this._frame = Math.floor(Math.random() * 8); // stagger throttled updates
     this.distance = 0;
     this.onScreen = true;
+    this._drawable = true; // in view with a margin (the renderer's own bounds are wider than onScreen's)
 
     // Hit zones in root-local space (the owner maps them with its position / yaw).
     this.hit = { valid: false, yaw: 0, head: new Vector3(), a: new Vector3(), b: new Vector3() };
@@ -400,6 +404,7 @@ export class CharacterModel {
         _v.copy(_w);
         _v.y += 0.9;
         this.onScreen = ctx.frustum.containsPoint(_v) || this.distance < 3 || sphereVisible(ctx.frustum, _v);
+        this._drawable = this.onScreen || this.distance < 6 || sphereVisible(ctx.frustum, _v, 3);
       }
     }
     if (this.frozen) return;
@@ -733,8 +738,9 @@ export class CharacterModel {
   }
 }
 
-function sphereVisible(frustum, center) {
+function sphereVisible(frustum, center, radius = 1.3) {
   _sphere.center.copy(center);
+  _sphere.radius = radius;
   return frustum.intersectsSphere(_sphere);
 }
 const _sphere = new Sphere(new Vector3(), 1.3);

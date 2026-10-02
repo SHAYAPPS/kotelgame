@@ -4,7 +4,8 @@
  * `frustum` are the view each frame (LOD and animation rates). Kept apart from
  * CharacterLibrary.js so the loaders stay in their own lazily loaded chunk.
  */
-export const characters = { library: null, camera: null, frustum: null, frame: 0, shadowBudget: Infinity, casters: [] };
+// sceneWalk: Game's per-frame scene matrix update is running (characters out of view skip their bones).
+export const characters = { library: null, camera: null, frustum: null, frame: 0, shadowBudget: Infinity, casters: [], sceneWalk: false };
 
 /**
  * Per frame, after every character's update: of those close enough to cast a shadow

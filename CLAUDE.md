@@ -45,6 +45,7 @@ A browser-based 3D first-person story shooter.
 - Keep the code modular: `src/player`, `src/weapons`, `src/world`, `src/ai`, `src/story`, `src/ui`,
   `src/characters` (animated people). (`src/core` holds engine plumbing: renderer, game loop, input.)
 - Target a smooth **60 FPS**: high on a mid-range gaming PC, medium on an average laptop.
+  Phones and tablets play too (touch controls, the low preset); keep both working.
 
 ## Roadmap
 
@@ -116,12 +117,18 @@ A browser-based 3D first-person story shooter.
      (paving polished where people walk, grime at wall feet, the wall darkened where hands touch)
    - [x] Presets low / medium / high / ultra, every effect switchable on its own, dynamic
      resolution
+10. [x] Mobile: phones and tablets in landscape. Touch controls (a stick where the left thumb
+    lands, drag to look, fire / aim / jump / crouch / reload / grenade / weapon swap / pause
+    buttons, the talk prompt is a button), no pointer lock, fullscreen, "Add to Home Screen"
+    (manifest, icons), menus and HUD for a short screen, a turn-your-phone notice, and the low
+    preset by default (thinner far crowd, far-off people's physics stepped less often)
 
 ## Commands
 
 - `npm install`: install dependencies (Node >= 20.19)
 - `npm run dev`: dev server at http://localhost:5173 (Kotel plaza; add `?level=range` for the
-  movement/gun test range)
+  movement/gun test range; `?touch` / `?notouch` force the touch controls on / off, e.g. to
+  try them with a mouse)
 - `npm test`: physics, collision, weapon, grenade, level-route, AI and mission tests (Node's built-in test runner, no browser needed; the scripted Mission 1 playthrough takes ~1 min)
 - `npm run build`: production build into `dist/`
 - `npm run preview`: serve the production build locally
@@ -191,6 +198,27 @@ A browser-based 3D first-person story shooter.
 - `src/core/Input.js`: keyboard by `event.code`, mouse deltas, pointer lock (raw mouse input when
   the browser supports it). Key presses are edges consumed by the first physics step. Game
   reads actions through the player's bindings: `anyDown(codes)` / `consumeAny(codes)`.
+  `touch` (a phone or tablet): no pointer lock (`requestLock()` / `exitLock()` just start and
+  stop playing), raw mouse events ignored (a tap's emulated ones would fire), the stick's
+  analog `axisX` / `axisY` added to the movement keys in `Game._readControls`.
+- `src/core/device.js`: `isTouchDevice()` (a coarse pointer and no fine one; `?touch` /
+  `?notouch`), `enterFullscreen()` (fullscreen + landscape lock from a tap where allowed: not
+  on an iPhone, where "Add to Home Screen" with `public/manifest.webmanifest` is the way).
+  On touch Game adds `body.touch`, starts the settings on low (`loadSettings(storage,
+  defaults)`), animates far people a bit less (`lodScale` x0.75), and pauses when the page is
+  hidden.
+- `src/ui/TouchControls.js` + `touch.css`: the on-screen controls, shown while playing. The
+  left 42% of the screen: a stick where the thumb lands (dead zone, analog; pushed past its
+  rim straight ahead = sprint, which drops the aim toggle); the rest drags the view (a drag
+  across the screen's width ~170 degrees at sensitivity 1). Buttons press the player's bound
+  codes into `input` (`held` / `pressed`): fire and grenade (hold; dragging them turns the view
+  too), aim (a toggle), jump, crouch, reload (also the magazine check), weapon swap
+  (`WheelDown`), pause (`exitLock`). `update()` shows only what the moment has (no fire / aim /
+  grenade with the weapon lowered, no reload when slung, swap with the launcher). Sizes follow
+  the screen's height (`--u`), safe areas respected; the touch layer is under the HUD (which
+  lets touches through). `StoryHud` (touch) shows hints' `touch` wording (text.he.js HINTS) and
+  makes the prompt's actions buttons (`onPromptTap('E' | 'F')`). Portrait: a turn-your-device
+  notice over everything.
 - `src/core/Bindings.js` (pure): the rebindable actions (move, jump, sprint, crouch, fire, aim,
   reload, grenade, interact, `deny` (F: stop / confiscate at the checkpoint), weapon 1 / 2),
   each one key the player can change plus fixed
@@ -237,7 +265,10 @@ A browser-based 3D first-person story shooter.
 - `src/core/Graphics.js`: the `QUALITY` presets (low / medium / high / ultra: pixel ratio,
   shadow cascades / map size / distance, flash-light count, anisotropy, character LOD scale,
   character shadows (`characterShadows` m and `characterShadowCount`: only the nearest so many),
-  AO / SSGI / haze / reflection resolution and samples, dynamic resolution's floor) and each
+  AO / SSGI / haze / reflection resolution and samples, dynamic resolution's floor; low also:
+  `crowdDensity` (share of the far crowd drawn: CrowdField `CROWD.density`, thinned from 20 to
+  36 m out, the near crowd always whole) and `npcFarStep` (story/Npc.js `NPC.farStep`: people
+  beyond 24 / 40 m step their physics every 2nd / 4th fixed step with the time skipped)) and each
   preset's `effects`. `EFFECTS`: aa, motionBlur (`MOTION_BLUR` off / low / high), ao,
   contactShadows, ssgi, ssr, dof, eyeAdaptation, bloom, lensFlare, grain, vignette, haze, heat,
   parallax, detail, dynamicRes. `effectsFor(preset, overrides)`: the player's switches
@@ -582,7 +613,9 @@ A browser-based 3D first-person story shooter.
     `characterShadows` and only the nearest `characterShadowCount` (Graphics.js;
     `registry.js` `assignCharacterShadows()` each frame); characters beyond 20 m on
     `FAR_LAYER` (drawn, but not in the shadow maps); bone matrices uploaded, and the bones'
-    world matrices walked, only when the pose or placement changed. The material is a node
+    world matrices walked, only when the pose or placement changed (and not while the
+    character is out of view without a shadow: `characters.sceneWalk`, set around Game's
+    scene update; the hit zones read their own bones in `update()`). The material is a node
     material whose graph every character shares (one shader program): per-part arrays come
     from each mesh's `userData` (`reference()`); motion vectors from the placement only
     (`positionPrevious`, see Notes). Tuning: `config.js`.
@@ -808,6 +841,15 @@ A browser-based 3D first-person story shooter.
   ~2.6, not 6, and hides what's behind it (alpha) instead of adding to a lit wall.
 - Bloom: a hard threshold makes lights pop in and out of the glow as the exposure moves; the
   bright pass has a soft knee.
+- Touch: a tap fires pointerdown, then (unless prevented) emulated mouse events, then a click
+  on whatever is under the finger by then. The touch layer prevents pointerdown's default;
+  the title screen continues on pointerdown, so it swallows that tap's click (else it opened
+  New Game under the finger). iOS ignores `user-scalable=no` for pinch zoom; the canvas and the
+  touch layer are `touch-action: none`.
+- Test on a phone without one: Playwright with `isMobile: true, hasTouch: true` (a landscape
+  viewport, e.g. 844x390) and CDP `Input.dispatchTouchEvent` for drags and multi-touch;
+  `Emulation.setCPUThrottlingRate` (4x ~ a mid-range phone's CPU) for a performance estimate
+  (the GPU stays the computer's).
 - KTX2: three's `KTX2Loader` loads its Basis transcoder from three's own folder (Vite bundles
   it); don't set a transcoder path. Normal maps are UASTC (ETC1S artifacts
   show badly in lighting); color and ORM are ETC1S. Textures ship at 1024 px.
