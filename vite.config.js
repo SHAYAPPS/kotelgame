@@ -56,12 +56,16 @@ function voiceEndpoint() {
           return;
         }
         const file = join(dir, `${id}.webm`);
-        if (req.method === 'DELETE') {
-          try {
-            unlinkSync(file);
-          } catch {
-            // (not there)
+        // One recording per line: a new take or a delete removes the line's other files too
+        // (e.g. a generated .ogg; they are in git).
+        const removeOthers = (keep) => {
+          for (const f of existsSync(dir) ? readdirSync(dir) : []) {
+            const m = f.match(/^([\w-]+)\.(ogg|mp3|wav|m4a|webm)$/);
+            if (m && m[1] === id && f !== keep) unlinkSync(join(dir, f));
           }
+        };
+        if (req.method === 'DELETE') {
+          removeOthers(null);
           res.end('{}');
           return;
         }
@@ -75,6 +79,7 @@ function voiceEndpoint() {
         req.on('end', () => {
           mkdirSync(dir, { recursive: true });
           writeFileSync(file, Buffer.concat(chunks));
+          removeOthers(`${id}.webm`);
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify({ path: `src/assets/voice/${id}.webm` }));
         });

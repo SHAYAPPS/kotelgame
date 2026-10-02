@@ -8,6 +8,7 @@ const HEADINGS = {
   'characters and animations': 'דמויות ואנימציות',
   'weapons and vehicles': 'נשק וכלי רכב',
   'sounds and music': 'צלילים ומוזיקה',
+  voices: 'קולות',
   'other files': 'רכיבים נוספים',
 };
 
@@ -98,10 +99,14 @@ export function buildRoll(sections) {
       const lic = h.indexOf('license');
       const character = h.indexOf('mixamo character');
       const anim = h.indexOf('mixamo animation');
+      const voice = h.indexOf('elevenlabs voice');
       if (character >= 0) {
         add({ title: 'Mixamo (Adobe)', by: t.rows.map((r) => plain(r[character] ?? '')).filter(Boolean).join(', '), license: 'Mixamo' });
       } else if (anim >= 0) {
         add({ title: 'Mixamo (Adobe)', by: `${t.rows.length} animations`, license: 'Mixamo' });
+      } else if (voice >= 0) {
+        // Generated voices: each part with the voice that speaks it.
+        for (const r of t.rows) add({ title: plain(r[0] ?? ''), by: `${plain(r[voice] ?? '')} (ElevenLabs)`, license: 'ElevenLabs' });
       } else if (src >= 0) {
         for (const r of t.rows) {
           const raw = r[src] ?? '';

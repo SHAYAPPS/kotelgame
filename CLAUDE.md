@@ -122,6 +122,14 @@ A browser-based 3D first-person story shooter.
     buttons, the talk prompt is a button), no pointer lock, fullscreen, "Add to Home Screen"
     (manifest, icons), menus and HUD for a short screen, a turn-your-phone notice, and the low
     preset by default (thinner far crowd, far-off people's physics stepped less often)
+11. [ ] Voices and sound
+   - [x] The scripted lines of the squad, the operations room and the lookout (106 lines:
+     the commander, Yonatan, Noam, control, lookout 3) voiced with ElevenLabs (Eleven v4,
+     Hebrew library voices), imported as Ogg Opus at an even loudness (`assets:voices`)
+   - [ ] The rest: the player's lines, the checkpoint's people, the guard, the guide, the
+     crowd's chats and greetings, combat barks (ElevenLabs credits or the booth)
+   - [ ] The crowd's Selichot prayer (`crowd_prayer_1..3`) and blessings: CC0 / CC-BY
+     recordings or the booth (no copyrighted recordings)
 
 ## Commands
 
@@ -148,7 +156,13 @@ A browser-based 3D first-person story shooter.
   `screenshots/before/` holds the set from before the graphics upgrade.
 - Recording booth: `npm run dev`, then http://localhost:5173/dev/booth.html: every line of
   the mission (and the crowd-prayer loops), record from the microphone (space), play back,
-  delete; saved as `src/assets/voice/<lineId>.webm` (vite.config.js `/__voice`)
+  delete; saved as `src/assets/voice/<lineId>.webm` (vite.config.js `/__voice`; a new take or
+  a delete also removes the line's other file, e.g. a generated `.ogg`)
+- `npm run assets:voices -- <folder> [lineId ...]`: import voice takes named `<lineId>.<ext>`
+  (any format ffmpeg reads, e.g. MP3s saved from ElevenLabs) into `src/assets/voice/` as Ogg
+  Opus: silence trimmed at both ends, loudness matched (-18 LUFS, peaks under -1.5 dBFS),
+  mono 48 kbps. Only ids of `text.he.js` lines (and `crowd_prayer_*`); a line with a booth
+  `.webm` is left alone. Needs ffmpeg with libopus.
 - `npm run assets:characters [id ... | anims]`: rebuild the characters (`public/assets/characters/`)
   from the Mixamo FBX files in `assets-src/mixamo/` (git-ignored; see `DOWNLOADS.md` for how to
   get them). ~15 s per character; rewrites the manifest and `public/assets/CREDITS.md`
@@ -668,8 +682,11 @@ A browser-based 3D first-person story shooter.
   - Talking in the story: `Dialogue` -> StoryDirector `onLine` sets `npc.speech` (text,
     duration, recording level) on the speaker; `_updateLooks` sets `npc.lookAt` (the speaker
     at the one addressed: the line's `to`, else the player when near; people within 7 m at
-    the speaker). Recorded lines: `src/assets/voice/<lineId>.ogg|mp3|wav|m4a` (see the README
-    there, `story/Voice.js`): played from the speaker, the mouth follows the loudness.
+    the speaker). Recorded lines: `src/assets/voice/<lineId>.ogg|mp3|wav|m4a|webm` (see the
+    README there, `story/Voice.js`): played from the speaker (radio lines through a band-pass,
+    not positional), the mouth follows the loudness. The squad's, control's and lookout 3's
+    lines are ElevenLabs takes (voices in `CREDITS.md`); the rest keep their subtitles until
+    recorded.
   - `wardrobe.js` (pure): the civilians' looks. Men: Kotel visitors (white shirts, dark
     trousers or jeans; bare legs dressed as trousers), haredim (black suit, white shirt, black
     hat), suits, tourists' t-shirts; every man has a black hat or a kippah (black velvet,

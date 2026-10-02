@@ -166,6 +166,7 @@ test('the credits roll is built from CREDITS.md: every source with its author an
   assert.ok(all.some((e) => /Kevin MacLeod/.test(e.by)), 'the music');
   assert.ok(roll.some((s) => s.notices.some((n) => /Creative Commons/.test(n))), 'the CC-BY notice word for word');
   assert.ok(roll.some((s) => s.entries.some((e) => e.title === 'Mixamo (Adobe)')), 'the characters');
+  assert.match(find('Yonatan')?.by ?? '', /Itai .*\(ElevenLabs\)/, 'the voices, part by part');
   // Every CC-BY work in the file is on the roll.
   const ccby = [...md.matchAll(/\| \[([^\]]+)\]\([^)]*\) by ([^|]+) \| \[CC-BY/g)].map((m) => m[1]);
   assert.ok(ccby.length >= 4);
