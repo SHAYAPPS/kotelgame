@@ -2,7 +2,8 @@
 // traffic, a street crowd and the murmur of people on the plaza, birds, a little wind; the
 // real Israeli civil-defense siren from far off across the city once the attack starts;
 // a panicking crowd and screams; distant booms; radio transmissions (real Hebrew words,
-// cut up and squeezed through a radio, under static) and the story's one-shot sounds.
+// cut up and squeezed through a radio, under static) and the story's one-shot sounds; the
+// loudspeakers set up for the midnight service, carrying a cantor (public-domain recordings).
 
 // Bed levels (linear) at full intensity, per mission setting 0..1.
 const BEDS = {
@@ -21,6 +22,11 @@ const SIRENS = [
   { dir: [-0.3, 0.1, 0.95], dist: 1300, rate: 1.012, gain: 0.5 },
 ];
 
+// The PA: `pa_cantor` (streamed pieces) from every loudspeaker (the level's `loudspeakers`).
+// gain at full level, the panners' reference distance (m), the pause between pieces (s), the
+// cut's fade (s).
+const PA = { gain: 0.3, ref: 9, gap: [6, 14], fade: 0.2 };
+
 // Radio distortion: soft clipping.
 const RADIO_CURVE = (() => {
   const n = 1024;
@@ -34,9 +40,12 @@ const RADIO_CURVE = (() => {
 
 export class AmbientAudio {
   /** @param {import('../weapons/WeaponAudio.js').WeaponAudio} audio the game's sound (mixer, bank) */
-  constructor(audio, voices = null) {
+  constructor(audio, voices = null, speakers = []) {
     this.audio = audio;
     this.voices = voices; // recorded slots (story/Voice.js): crowd_prayer_1..3 replace the synthesized prayer
+    this.speakers = speakers; // the PA's loudspeakers: [x, y, z] each
+    this.pa = null; // { el, input, files, index, wait } (built on first use)
+    this._paLevel = 0;
     this.levels = { crowd: 0, birds: 0, siren: 0, panic: false, city: 1 };
     this.prayer = null; // the crowd's prayer (built on first use)
     this._prayerLevel = 0;
@@ -187,6 +196,7 @@ export class AmbientAudio {
       const l = this.audio._listener;
       for (const { h, s } of this.sirens) h?.setPosition({ x: l.x + s.dir[0] * s.dist, y: l.y + s.dir[1] * s.dist, z: l.z + s.dir[2] * s.dist });
     }
+    this._updatePA(dt);
     // Screams from the crowd while it panics.
     if (this.levels.panic) {
       this._screamTimer -= dt;
@@ -202,9 +212,9 @@ export class AmbientAudio {
 
   /**
    * The crowd praying: a murmur of many voices that swells as the plaza fills (0..1). Recorded
-   * slots `crowd_prayer_1..3` (src/assets/voice/, the recording booth) are looped and layered
-   * when present; otherwise it is synthesized: voices with drifting pitch through vowel
-   * formants, syllables and phrases, into the plaza's echo.
+   * slots `crowd_prayer_1..4` (src/assets/voice/: generated loops, or the recording booth's) are
+   * looped and layered when present; otherwise it is synthesized: voices with drifting pitch
+   * through vowel formants, syllables and phrases, into the plaza's echo.
    */
   setPrayer(level) {
     const ctx = this.ctx;
@@ -227,20 +237,22 @@ export class AmbientAudio {
     const send = ctx.createGain();
     send.gain.value = 0.6;
     out.connect(send).connect(a.echoBus ?? a.mixer.sfx);
-    const rec = ['crowd_prayer_1', 'crowd_prayer_2', 'crowd_prayer_3'].filter((id) => this.voices?.has(id));
+    const rec = ['crowd_prayer_1', 'crowd_prayer_2', 'crowd_prayer_3', 'crowd_prayer_4'].filter((id) => this.voices?.has(id));
     if (rec.length) {
-      // The booth's recordings: each looped a few times over, out of step, slightly detuned.
+      // The recordings (generated loops or the booth's): each looped over a few times, out of
+      // step, slightly detuned (fewer copies when there are more takes).
+      const copies = rec.length >= 3 ? 2 : 3;
       const start = async () => {
         for (const id of rec) {
-          const buf = await this.voices._load(id);
+          const buf = await this.voices._load(id, true);
           if (!buf) continue;
-          for (let k = 0; k < 3; k++) {
+          for (let k = 0; k < copies; k++) {
             const src = ctx.createBufferSource();
             src.buffer = buf;
             src.loop = true;
             src.playbackRate.value = 0.96 + Math.random() * 0.08;
             const g = ctx.createGain();
-            g.gain.value = 1.6 / (rec.length * 3);
+            g.gain.value = 1.6 / (rec.length * copies);
             src.connect(g).connect(out);
             src.start(ctx.currentTime + 0.05, Math.random() * buf.duration);
           }
@@ -304,6 +316,64 @@ export class AmbientAudio {
       for (const n of [osc, glide, vowel, syl, phrase, base]) n.start(t);
     }
     return { out };
+  }
+
+  /** The loudspeakers (0..1): a piece plays while > 0, the next one after a pause; 0 cuts them. */
+  setPA(level) {
+    if (level === this._paLevel) return;
+    this._paLevel = level;
+    const ctx = this.ctx;
+    if (ctx && this.pa) this.pa.input.gain.setTargetAtTime(level * PA.gain, ctx.currentTime, level > 0 ? 0.8 : PA.fade);
+  }
+
+  _buildPA() {
+    const ctx = this.ctx;
+    const a = this.audio;
+    const files = a.bank?.meta('pa_cantor')?.files;
+    if (!ctx || !files?.length || !this.speakers.length) return null;
+    const input = ctx.createGain();
+    input.gain.value = 0;
+    input.gain.setTargetAtTime(this._paLevel * PA.gain, ctx.currentTime, 0.8);
+    // The same signal from every loudspeaker; their distances do the rest.
+    for (const [x, y, z] of this.speakers) input.connect(a._panner({ x, y, z }, PA.ref, false)).connect(a.mixer.amb);
+    const send = ctx.createGain();
+    send.gain.value = 0.5;
+    input.connect(send).connect(a.echoBus ?? a.mixer.reverb);
+    // Streamed (minutes long: decoded they'd take tens of MB each).
+    const el = new Audio();
+    el.crossOrigin = 'anonymous';
+    el.preload = 'auto';
+    ctx.createMediaElementSource(el).connect(input);
+    const pa = { el, input, files, index: Math.floor(Math.random() * files.length), wait: 1.5, stopAt: 0 };
+    el.onended = () => {
+      pa.index = (pa.index + 1) % files.length;
+      pa.wait = PA.gap[0] + Math.random() * (PA.gap[1] - PA.gap[0]);
+    };
+    return pa;
+  }
+
+  _updatePA(dt) {
+    if (this._paLevel > 0) {
+      if (!this.pa) this.pa = this._buildPA();
+      const pa = this.pa;
+      if (!pa) return;
+      pa.stopAt = 0;
+      if (!pa.el.paused) return;
+      // Cut mid-piece (the sirens, a restart): it picks up where it was. Else, the next one.
+      if (pa.el.src && !pa.el.ended && pa.el.currentTime > 0) {
+        pa.el.play().catch(() => {});
+        return;
+      }
+      pa.wait -= dt;
+      if (pa.wait > 0) return;
+      pa.wait = Infinity;
+      pa.el.src = `${this.audio.bank.base}${pa.files[pa.index]}`;
+      pa.el.play().catch(() => (pa.wait = 5));
+    } else if (this.pa && !this.pa.el.paused) {
+      // Faded out by setPA: stop the stream a moment later.
+      this.pa.stopAt += dt;
+      if (this.pa.stopAt > PA.fade * 5) this.pa.el.pause();
+    }
   }
 
   /** Electronic beeps (the checkpoint's gate, the hand detector): [freq, start, length] each. */

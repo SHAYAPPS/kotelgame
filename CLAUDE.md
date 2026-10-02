@@ -122,14 +122,17 @@ A browser-based 3D first-person story shooter.
     buttons, the talk prompt is a button), no pointer lock, fullscreen, "Add to Home Screen"
     (manifest, icons), menus and HUD for a short screen, a turn-your-phone notice, and the low
     preset by default (thinner far crowd, far-off people's physics stepped less often)
-11. [ ] Voices and sound
-   - [x] The scripted lines of the squad, the operations room and the lookout (106 lines:
-     the commander, Yonatan, Noam, control, lookout 3) voiced with ElevenLabs (Eleven v4,
-     Hebrew library voices), imported as Ogg Opus at an even loudness (`assets:voices`)
-   - [ ] The rest: the player's lines, the checkpoint's people, the guard, the guide, the
-     crowd's chats and greetings, combat barks (ElevenLabs credits or the booth)
-   - [ ] The crowd's Selichot prayer (`crowd_prayer_1..3`) and blessings: CC0 / CC-BY
-     recordings or the booth (no copyrighted recordings)
+11. [x] Voices and sound
+   - [x] Every line voiced with ElevenLabs (Eleven v4): the squad, control and lookout 3
+     (Hebrew library voices), then the player, the guard, the guide, the checkpoint's people,
+     the crowd's greetings / chats / special people, combat barks: 16 library voices, some
+     shifted in pitch and formants to play another person (`scripts/assets/voices.config.mjs`),
+     imported as Ogg Opus at an even loudness (`assets:voices`); 250 recordings, 6 MB
+   - [x] The crowd's prayer: four seamless 11 s loops (ElevenLabs Sound Effects) layered under
+     the plaza; the loudspeakers carry a cantor through the quiet part (public-domain
+     recordings: David Roitman's 78s from 1922, cleaned; a cantor practicing Yom Kippur
+     Musaf), cut by the sirens
+   - [x] Voices decoded on demand (a 90 s cache), long pieces streamed: memory for phones
 
 ## Commands
 
@@ -160,9 +163,11 @@ A browser-based 3D first-person story shooter.
   a delete also removes the line's other file, e.g. a generated `.ogg`)
 - `npm run assets:voices -- <folder> [lineId ...]`: import voice takes named `<lineId>.<ext>`
   (any format ffmpeg reads, e.g. MP3s saved from ElevenLabs) into `src/assets/voice/` as Ogg
-  Opus: silence trimmed at both ends, loudness matched (-18 LUFS, peaks under -1.5 dBFS),
-  mono 48 kbps. Only ids of `text.he.js` lines (and `crowd_prayer_*`); a line with a booth
-  `.webm` is left alone. Needs ffmpeg with libopus.
+  Opus: silence trimmed at both ends, the speaker's pitch shift (`voices.config.mjs` `CAST`:
+  who voices whom, with formants: a library voice playing another person), loudness matched
+  (-18 LUFS, peaks under -1.5 dBFS), mono 48 kbps. Only ids of `text.he.js` lines and the
+  `crowd_prayer_*` loops (those not trimmed: they must keep their length to loop); a line with
+  a booth `.webm` is left alone. Needs ffmpeg with libopus. (zsh: pass many ids with `xargs`.)
 - `npm run assets:characters [id ... | anims]`: rebuild the characters (`public/assets/characters/`)
   from the Mixamo FBX files in `assets-src/mixamo/` (git-ignored; see `DOWNLOADS.md` for how to
   get them). ~15 s per character; rewrites the manifest and `public/assets/CREDITS.md`
@@ -172,8 +177,10 @@ A browser-based 3D first-person story shooter.
   (git-ignored) and are fetched again when missing. Rewrites the manifest and `CREDITS.md`.
 - `npm run assets:audio [id ... | music]`: rebuild `public/assets/audio/` (Ogg Opus + manifest)
   from free recordings (CC0 / public domain / CC-BY; sources, slices and processing in
-  `scripts/assets/audio.config.mjs`; raw files in `assets-src/sfx/<pack>/`, git-ignored, fetched
-  when missing). Needs ffmpeg with libopus. Rewrites `CREDITS.md`.
+  `scripts/assets/audio.config.mjs`, e.g. `clean`: an ffmpeg declick / denoise run first, for
+  the 1922 records; `stream`: long pieces the game streams; raw files in
+  `assets-src/sfx/<pack>/`, git-ignored, fetched when missing). Needs ffmpeg with libopus.
+  Rewrites `CREDITS.md`.
 - `npm run weapon-shots -- [outDir] [name filter]`: Playwright screenshots of the weapon in the
   game (hip, aimed, in shade, firing, reload out / in, sprint, casings, launcher; GPU, env
   `QUALITY=low|medium|high|ultra`, `SOFTWARE=1`). The weapon on
@@ -570,8 +577,12 @@ A browser-based 3D first-person story shooter.
     interception booms), radio lines (squelch, static, real Hebrew words through a radio's
     band and distortion: `radioLine`), the story's one-shots (`play`; the checkpoint's beeps
     and zips are synthesized). `setPrayer(level)`: the crowd's prayer, swelling with the
-    crowd's fill: the booth's `crowd_prayer_1..3` loops layered when recorded, else
-    synthesized (voices through vowel formants, syllables, phrases, into the plaza echo).
+    crowd's fill: the `crowd_prayer_1..4` loops (generated, or the booth's) layered out of
+    step, else synthesized (voices through vowel formants, syllables, phrases, into the plaza
+    echo). `setPA(level)`: the loudspeakers (the level's `loudspeakers`: the screens' speaker
+    columns and the poles, from `kotel/night.js`) carry `pa_cantor` (public-domain cantorial
+    recordings, streamed through an `<audio>` element: `stream` sounds aren't decoded by the
+    SoundBank) one piece after another during the quiet part; the sirens cut them.
   - `StoryDirector.js`: the mission context; tutorial events (move/sprint/crouch/mag check),
     E to talk / send a frozen civilian off, friendly fire -> fail -> restart at the last
     checkpoint, F2 jumps, the objective counters, kill callouts, booms + camera shake timed by
@@ -684,9 +695,13 @@ A browser-based 3D first-person story shooter.
     at the one addressed: the line's `to`, else the player when near; people within 7 m at
     the speaker). Recorded lines: `src/assets/voice/<lineId>.ogg|mp3|wav|m4a|webm` (see the
     README there, `story/Voice.js`): played from the speaker (radio lines through a band-pass,
-    not positional), the mouth follows the loudness. The squad's, control's and lookout 3's
-    lines are ElevenLabs takes (voices in `CREDITS.md`); the rest keep their subtitles until
-    recorded.
+    not positional), the mouth follows the loudness. Every line is an ElevenLabs take (the
+    cast: `scripts/assets/voices.config.mjs`, also in `CREDITS.md`). `VoicePlayer` fetches all
+    of them compressed at the start (~6 MB) but decodes on demand into a ~90 s cache (least
+    recently used dropped; decoded, the whole mission would be ~170 MB of float PCM): the
+    dialogue warms each line as it's queued (`Dialogue` `onQueue`), and a line not decoded
+    yet starts a few ms late (`handle.ready` / `onReady`: StoryDirector stretches the line and
+    the speaker's speech to the recording). `_load(id, true)` pins (the prayer loops).
   - `wardrobe.js` (pure): the civilians' looks. Men: Kotel visitors (white shirts, dark
     trousers or jeans; bare legs dressed as trousers), haredim (black suit, white shirt, black
     hat), suits, tourists' t-shirts; every man has a black hat or a kippah (black velvet,
@@ -874,6 +889,9 @@ A browser-based 3D first-person story shooter.
   soft (`generate.mjs` `aoFromHeight`).
 - Poly Haven / ambientCG may be blocked by a sandbox network policy (HTTP 403); `assets:fetch`
   then leaves the generated textures in place.
+- Audio memory: a decoded AudioBuffer is float32 at the context's rate (~190 KB a second, mono),
+  whatever the file's size: decode short sounds, decode voices on demand (Voice.js), stream
+  minutes-long pieces through `<audio>` elements (music, the PA).
 - Headless Chromium is very slow at compositing full-screen CSS overlays (damage vignette,
   death fade); game time crawls in those tests. Real GPUs are fine.
 - Characters, retargeting: all Mixamo rigs share bone names and axis conventions, so clips made

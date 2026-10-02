@@ -192,6 +192,26 @@ export const PACKS = {
       'YaronSh_17.wav': `${COMMONS}${encodeURIComponent('LL-Q9288 (heb)-YaronSh-בקרוב.wav')}`, // בקרוב
     },
   },
+  cantor: {
+    title: 'Ashamnu Mikol Am and Hayom Teamtzenu (78 rpm records, 1922)',
+    author: 'David Roitman',
+    license: 'Public domain',
+    page: 'https://commons.wikimedia.org/wiki/File:Oshamnu_Mikol_Om_by_David_Roitman.ogg',
+    files: {
+      'ashamnu.ogg': `${COMMONS}Oshamnu_Mikol_Om_by_David_Roitman.ogg`,
+      'hayom.ogg': `${COMMONS}Hayom_Teamtzenu_by_David_Roitman.ogg`,
+    },
+  },
+  cantorPractice: {
+    title: 'Yom Kippur Musaf, Avot and Gevurot (Nusach Ashkenaz), a cantor practicing',
+    author: 'Daniel Zvi (דניאל צבי)',
+    license: 'Public domain',
+    page: 'https://commons.wikimedia.org/wiki/File:YK_musaf_avot_ashkenaz_s.ogg',
+    files: {
+      'yk_avot.ogg': `${COMMONS}YK_musaf_avot_ashkenaz_s.ogg`,
+      'yk_gevurot.ogg': `${COMMONS}YK_musaf_gevurut_ashkenaz_s.ogg`,
+    },
+  },
   music: {
     title: 'Music by Kevin MacLeod (incompetech.com)',
     author: 'Kevin MacLeod',
@@ -214,8 +234,10 @@ const range = (n, f) => Array.from({ length: n }, (_, i) => f(i));
  * baked), fadeIn / fadeOut (s), pitch (playback-rate factor, 1 = as recorded), sweep ([from, to]
  * pitch over the clip: a Doppler pass), loop (crossfade seconds: a seamless loop), level (dB
  * target for the loudest 50 ms, default -10; beds use their average level: bed: true),
- * kbps (Opus bitrate), concat ([{ file, from, to }, { gap }]: pieces joined).
- * `mix` is the game's playback gain in dB (written to the manifest).
+ * kbps (Opus bitrate), concat ([{ file, from, to }, { gap }]: pieces joined), clean (an ffmpeg
+ * filter chain run on the source first: declicking, denoising).
+ * `mix` is the game's playback gain in dB (written to the manifest). `stream`: long pieces the
+ * game streams through <audio> elements instead of decoding them (SoundBank skips them).
  */
 export const SOUNDS = {
   // --- The player's rifle: close blast, the plaza's slap-back from the mid-distance mic, action.
@@ -346,6 +368,25 @@ export const SOUNDS = {
   amb_wind: { pack: 'wind', file: 'park_ambience_wind.wav', from: 30, to: 62, loop: 3, bed: true, highpass: 60, lowpass: 2500, level: -28 },
   amb_panic: { pack: 'crowdShouting', file: 'crowd_shouting_0.ogg', from: 0.5, to: 26.5, loop: 2, bed: true, highpass: 120, level: -18, stereo: true, kbps: 80 },
   // The real siren: whole rise-and-fall cycles (6.43 s each), crossfaded at the same phase.
+  // The midnight service's loudspeakers: a cantor (public-domain recordings; the 78s' surface
+  // noise taken out), band-limited like a PA horn. Long pieces: `stream` (not decoded up front;
+  // AmbientAudio streams them one after another).
+  pa_cantor: {
+    stream: true,
+    variants: [
+      { pack: 'cantor', file: 'ashamnu.ogg', from: 2, to: 200, clean: 'adeclick=w=55:o=75,afftdn=nr=18:nf=-35' },
+      { pack: 'cantorPractice', file: 'yk_avot.ogg', from: 0, to: 114, clean: 'afftdn=nr=10:nf=-45' },
+      { pack: 'cantor', file: 'hayom.ogg', from: 2, to: 200, clean: 'adeclick=w=55:o=75,afftdn=nr=18:nf=-35' },
+      { pack: 'cantorPractice', file: 'yk_gevurot.ogg', from: 0, to: 80, clean: 'afftdn=nr=10:nf=-45' },
+    ],
+    highpass: 220,
+    lowpass: 5200,
+    fadeIn: 1.5,
+    fadeOut: 3,
+    bed: true,
+    level: -20,
+    kbps: 32,
+  },
   siren: { pack: 'siren', file: 'siren_2026.ogg', from: 16.5, to: 55.08, loop: 0.8, bed: true, level: -14, stereo: true, kbps: 80 },
   truck_engine: { pack: 'engine', file: 'engine-loop/engine-loop-1-normalized.wav', from: 0, to: 3.8, loop: 0.2, bed: true, level: -14 },
 };

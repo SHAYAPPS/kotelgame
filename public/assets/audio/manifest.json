@@ -719,6 +719,27 @@
    "packs": [
     "hebrew"
    ]
+  },
+  "pa_cantor": {
+   "files": [
+    "pa_cantor_0.ogg",
+    "pa_cantor_1.ogg",
+    "pa_cantor_2.ogg",
+    "pa_cantor_3.ogg"
+   ],
+   "duration": [
+    198,
+    114,
+    198,
+    80
+   ],
+   "loop": false,
+   "channels": 1,
+   "packs": [
+    "cantor",
+    "cantorPractice"
+   ],
+   "stream": true
   }
  },
  "credits": {
@@ -966,6 +987,24 @@
    "page": "https://commons.wikimedia.org/wiki/Category:Lingua_Libre_pronunciation-heb",
    "sounds": [
     "radio_words"
+   ]
+  },
+  "cantor": {
+   "title": "Ashamnu Mikol Am and Hayom Teamtzenu (78 rpm records, 1922)",
+   "author": "David Roitman",
+   "license": "Public domain",
+   "page": "https://commons.wikimedia.org/wiki/File:Oshamnu_Mikol_Om_by_David_Roitman.ogg",
+   "sounds": [
+    "pa_cantor"
+   ]
+  },
+  "cantorPractice": {
+   "title": "Yom Kippur Musaf, Avot and Gevurot (Nusach Ashkenaz), a cantor practicing",
+   "author": "Daniel Zvi (דניאל צבי)",
+   "license": "Public domain",
+   "page": "https://commons.wikimedia.org/wiki/File:YK_musaf_avot_ashkenaz_s.ogg",
+   "sounds": [
+    "pa_cantor"
    ]
   },
   "music": {

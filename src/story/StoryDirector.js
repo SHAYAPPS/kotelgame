@@ -31,7 +31,7 @@ export class StoryDirector {
    *   hud: StoryHud; player: PlayerController; enemies: EnemyManager;
    *   sky: SkyFx (interceptions, optional); view: PlayerCamera (camera shake, optional)
    */
-  constructor({ script, scene, world, nav, player, rifle, enemies, audio, hud, sky = null, view = null, grenades = null, launcher = null, stats = null, difficulty = DIFFICULTY, voices = null, seats = [] }) {
+  constructor({ script, scene, world, nav, player, rifle, enemies, audio, hud, sky = null, view = null, grenades = null, launcher = null, stats = null, difficulty = DIFFICULTY, voices = null, seats = [], speakers = [] }) {
     this.script = script;
     this.scene = scene;
     this.nav = nav;
@@ -58,7 +58,7 @@ export class StoryDirector {
     /** @type {Map<string, AmmoCrate>} */
     this.crates = new Map();
     this._lastGrenadeShout = -Infinity;
-    this.ambient = new AmbientAudio(audio, voices);
+    this.ambient = new AmbientAudio(audio, voices, speakers);
     this.shelterSpots = (script.shelter?.spots ?? []).map(([x, z]) => {
       const n = nav.nodeAt(x, z);
       return new Vector3(x, n >= 0 ? nav.y[n] : 0, z);
@@ -108,16 +108,28 @@ export class StoryDirector {
       this.dialogue.bark(Math.random() < 0.5 ? 'collector_ask_1' : 'collector_ask_2', { who: npc.id });
     };
     this.dialogue = new Dialogue({
+      // Recordings are decoded on demand (Voice.js): start on each line as it's queued.
+      onQueue: (id) => this.voices?.warm(id),
       onLine: (line) => {
         // A recording if the line has one (the subtitle stays up as long as it plays), else
         // the generated radio voice for radio lines. The speaker's mouth follows either.
         const npc = line.radio ? null : (line.who ? this.npcs.get(line.who) : null) ?? this.npcs.list.find((n) => n.speaker === line.speaker) ?? null;
         const rec = this.voices?.play(line.id, npc ? npc.position : null, { radio: line.radio }) ?? null;
-        if (rec) line.duration = Math.max(line.duration, rec.duration + 0.3);
-        else if (line.radio) this.ambient.radioLine(line.duration);
-        // Dialogue gets priority: the rest of the mix dips while the line plays.
-        this.audio.speaking?.(line.duration);
-        if (npc) npc.speech = { text: line.text, duration: line.duration, level: rec ? rec.level : null, to: line.to };
+        if (!rec && line.radio) this.ambient.radioLine(line.duration);
+        const speech = npc ? { text: line.text, duration: line.duration, level: rec ? rec.level : null, to: line.to } : null;
+        // The line lasts as long as its recording (known once it starts, a few ms late if it
+        // was still being decoded); dialogue gets priority: the rest of the mix dips meanwhile.
+        const fit = (d) => {
+          line.duration = Math.max(line.duration, line.time + d + 0.3);
+          if (speech) speech.duration = line.duration;
+          this.audio.speaking?.(line.duration - line.time);
+        };
+        if (rec?.ready) fit(rec.duration);
+        else {
+          this.audio.speaking?.(line.duration);
+          if (rec) rec.onReady = fit;
+        }
+        if (npc) npc.speech = speech;
         // A conversation's extras: the speaker's gesture (a salute, a blessing), a photo's flash.
         const fx = line.item;
         if (npc && fx?.act) npc.act = { clip: fx.act, until: npc.time + line.duration + 0.3 };
@@ -927,6 +939,8 @@ export class StoryDirector {
       const fill = f.members.length ? f.present / f.members.length : 0;
       this.ambient.setPrayer(this.started && this.calm && this.crowd.visible ? 0.2 + 0.8 * fill : 0);
     }
+    // The loudspeakers carry a cantor through the quiet part; the sirens cut them.
+    this.ambient.setPA(this.started && this.calm ? 1 : 0);
     const screening = this._screening(eye, dir);
     const crate = screening ? null : this.crateInReach(eye, dir);
     const talk = crate || screening ? null : this.npcs.talkTarget(eye, dir);

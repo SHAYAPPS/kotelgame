@@ -144,9 +144,11 @@ export function buildNight(root, m, groundY) {
   for (const dz of [-W / 2 - 0.9, W / 2 + 0.9]) screen.part(box(0.6, 2.4, 0.6), black, [0, BOTTOM + H - 1.0, dz]);
   // Ballast at the feet.
   for (const dz of [-W / 2 - 0.25, W / 2 + 0.25]) screen.part(box(1.2, 0.5, 1.2), black, [0, 0.25, dz]);
+  const speakers = []; // where the PA's sound comes from: [x, y, z] (AmbientAudio)
   for (const z of [-21, 36]) {
     const x = -prayer.depth - 6;
     screen.add(placement(x, groundY(x, z), z, 0));
+    for (const dz of [-W / 2 - 0.9, W / 2 + 0.9]) speakers.push([x, groundY(x, z) + BOTTOM + H - 1.0, z + dz]);
     lights.push({ position: [x - 1.5, BOTTOM + H / 2, z], direction: [-1, -0.35, 0], cone: 1.05, soft: 0.6, color: SCREEN, intensity: 55, range: 22, volumetric: true });
   }
 
@@ -154,9 +156,12 @@ export function buildNight(root, m, groundY) {
   const speaker = new PropType('speaker-pole', { size: [0.3, 6.5, 0.3] });
   speaker.part(cyl(0.08, 6.4, 8), metal, [0, 3.2, 0]);
   speaker.part(box(0.45, 1.1, 0.5), black, [-0.2, 5.7, 0], [0, 0, 0.12]);
-  for (const [x, z] of [[-48, -32], [-48, 8], [-48, 48], [-74, -20], [-74, 30], [-99, 4]]) speaker.add(placement(x, groundY(x, z), z, 0));
+  for (const [x, z] of [[-48, -32], [-48, 8], [-48, 48], [-74, -20], [-74, 30], [-99, 4]]) {
+    speaker.add(placement(x, groundY(x, z), z, 0));
+    speakers.push([x - 0.2, groundY(x, z) + 5.7, z]);
+  }
 
-  return { lights, glows, props: [pole, up, screen, speaker] };
+  return { lights, glows, props: [pole, up, screen, speaker], speakers };
 }
 
 /** Lit windows at night: a warm glow from inside (the facades' lit share). */

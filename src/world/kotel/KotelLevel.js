@@ -337,6 +337,7 @@ export function createKotelLevel() {
     menu: KOTEL.menu, // the main menu's background (time of day, camera shots)
     seats,
     night: { lights: night.lights, glows: [...night.glows, ...(facades.glows ?? [])] },
+    loudspeakers: night.speakers, // the PA for the midnight service: [x, y, z] each
     navBounds: KOTEL.ai.navBounds,
     stairZones: stairZones(),
     // Big flat surfaces that throw a gunshot back (WeaponAudio's slap-back echoes): the

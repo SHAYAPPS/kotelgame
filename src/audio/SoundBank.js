@@ -1,5 +1,6 @@
 // The recorded sounds (public/assets/audio/, built by scripts/assets/audio.mjs): the manifest
-// lists every sound's variants; all of them are fetched and decoded once the audio unlocks.
+// lists every sound's variants; all of them are fetched and decoded once the audio unlocks
+// (except `stream` ones: long pieces played through <audio> elements, see AmbientAudio's PA).
 // `buffer(id)` hands out a variant, never the same one twice in a row.
 
 export class SoundBank {
@@ -19,6 +20,7 @@ export class SoundBank {
     this.manifest = await res.json();
     const jobs = [];
     for (const [id, s] of Object.entries(this.manifest.sounds ?? {})) {
+      if (s.stream) continue; // long pieces, streamed by whoever plays them (meta(id).files)
       const list = new Array(s.files.length).fill(null);
       this.buffers.set(id, list);
       s.files.forEach((f, i) => jobs.push(() => this._decode(f).then((b) => (list[i] = b))));

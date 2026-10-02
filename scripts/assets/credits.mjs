@@ -3,6 +3,7 @@
 //   node scripts/assets/credits.mjs
 import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { CAST } from './voices.config.mjs';
 
 const ASSETS = new URL('../../public/assets/', import.meta.url);
 
@@ -39,6 +40,7 @@ export async function writeCredits() {
     const lic = s.licenseUrl ? `[${s.license}](${s.licenseUrl})` : s.license;
     return `| \`${m.file}\` | ${WEAPON_USE[id] ?? id} | [${s.title}](${s.url}) by ${s.author} | ${lic} |`;
   });
+  const voiceRows = Object.values(CAST).map((c) => `| ${c.part} | ${c.voice}${c.pitch ? ` (${c.pitch > 0 ? '+' : ''}${c.pitch} semitones)` : ''} |`);
   const clipRows = Object.entries(chars.anims?.clips ?? {}).map(([name, c]) => `| \`${name}\` | ${c.source ?? name} |`);
   const lines = [
     '# Asset credits',
@@ -116,22 +118,25 @@ export async function writeCredits() {
     '',
     '## Voices (`src/assets/voice/`)',
     '',
-    'The squad\'s, the operations room\'s and the lookout\'s scripted lines (`src/story/text.he.js`),',
-    'generated with [ElevenLabs](https://elevenlabs.io) text to speech (model Eleven v4) on the',
-    'project owner\'s account, one MP3 per line, with these voices from the ElevenLabs voice library:',
+    'The mission\'s spoken lines (`src/story/text.he.js`), generated with',
+    '[ElevenLabs](https://elevenlabs.io) text to speech (model Eleven v4) on the project owner\'s',
+    'account with voices from the ElevenLabs voice library, some shifted in pitch to play',
+    'another person (`scripts/assets/voices.config.mjs`):',
     '',
     '| Part | ElevenLabs voice |',
     '| --- | --- |',
-    '| Sgt. Alon, the commander | Omer - Confident, Upbeat Ad |',
-    '| Yonatan | Itai - Upbeat Social Creator |',
-    '| Noam | Tomer - Calm, Curious Narrator |',
-    '| Control (radio) | Dana - Patient Support Agent |',
-    '| Lookout 3 (radio) | Yael - Gentle, Confident Ad |',
+    ...voiceRows,
+    '',
+    '',
+    'The crowd\'s prayer (`crowd_prayer_1..4`, seamless 11 s loops): ElevenLabs Sound Effects',
+    '(text to sound v2) from the prompt "Hundreds of Jewish men praying aloud together at night',
+    'in a huge open stone plaza at the Western Wall in Jerusalem: a dense murmur of Hebrew prayer,',
+    'chanting and swaying, overlapping voices near and far, soft echo off ancient stone walls."',
     '',
     'License: the ElevenLabs Terms of Service. A commercial release needs audio generated on a',
     'paid ElevenLabs plan (the free plan requires attribution and has no commercial license).',
-    'Voiced with ElevenLabs (elevenlabs.io). The other lines are recorded in the booth',
-    '(`dev/booth.html`) or keep their subtitles only.',
+    'Voiced with ElevenLabs (elevenlabs.io). A line recorded in the booth (`dev/booth.html`)',
+    'replaces its generated take.',
     '',
     '## Other files',
     '',

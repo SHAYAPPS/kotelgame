@@ -38,10 +38,11 @@ async function ensurePack(id) {
 }
 
 const decoded = new Map();
-/** A source file as two Float32Array channels at 48 kHz. */
-function decode(file) {
-  if (decoded.has(file)) return decoded.get(file);
-  const raw = execFileSync('ffmpeg', ['-v', 'error', '-i', file, '-ac', '2', '-ar', String(SR), '-f', 'f32le', '-'], { maxBuffer: 2 ** 31 });
+/** A source file as two Float32Array channels at 48 kHz (`clean`: an ffmpeg filter chain first, e.g. a denoise). */
+function decode(file, clean = null) {
+  const key = clean ? `${file}|${clean}` : file;
+  if (decoded.has(key)) return decoded.get(key);
+  const raw = execFileSync('ffmpeg', ['-v', 'error', '-i', file, ...(clean ? ['-af', clean] : []), '-ac', '2', '-ar', String(SR), '-f', 'f32le', '-'], { maxBuffer: 2 ** 31 });
   const x = new Float32Array(raw.buffer, raw.byteOffset, raw.length / 4);
   const n = x.length / 2;
   const L = new Float32Array(n);
@@ -51,7 +52,7 @@ function decode(file) {
     R[i] = x[i * 2 + 1];
   }
   const out = [L, R];
-  decoded.set(file, out);
+  decoded.set(key, out);
   return out;
 }
 
@@ -180,7 +181,7 @@ async function piece(spec, base) {
   const packId = spec.pack ?? base.pack;
   const dir = await ensurePack(packId);
   const file = path(new URL(spec.file ?? base.file, dir));
-  let ch = cut(decode(file), spec.from ?? 0, spec.to ?? Infinity);
+  let ch = cut(decode(file, spec.clean ?? base.clean), spec.from ?? 0, spec.to ?? Infinity);
   const pitch = spec.pitch ?? base.pitch;
   const sweep = spec.sweep ?? base.sweep;
   if (sweep) ch = ch.map((c) => resample(c, sweep[0], sweep[1]));
@@ -242,7 +243,7 @@ async function buildSound(id, s) {
     files.push(name);
     durations.push(Math.round((ch[0].length / SR) * 1000) / 1000);
   }
-  return { files, duration: durations, loop: !!s.loop, channels: s.stereo ? 2 : 1, packs: [...packs] };
+  return { files, duration: durations, loop: !!s.loop, channels: s.stereo ? 2 : 1, packs: [...packs], ...(s.stream ? { stream: true } : {}) };
 }
 
 /** The radio chatter words (Lingua Libre, CC0): the files listed in the hebrew pack. */

@@ -194,6 +194,8 @@ are credited here as their licenses require.
 | `amb_panic` | [Crowd shouting/speaking ambience](https://opengameart.org/content/crowd-shoutingspeaking-ambience) by StarNinjas | CC0 |
 | `truck_engine` | [Car Engine Loop (96kHz 4s)](https://opengameart.org/content/car-engine-loop-96khz-4s) by qubodup | [CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/) |
 | `radio_words` | [Lingua Libre Hebrew word recordings](https://commons.wikimedia.org/wiki/Category:Lingua_Libre_pronunciation-heb) by YaronSh (Lingua Libre) | CC0 |
+| `pa_cantor` | [Ashamnu Mikol Am and Hayom Teamtzenu (78 rpm records, 1922)](https://commons.wikimedia.org/wiki/File:Oshamnu_Mikol_Om_by_David_Roitman.ogg) by David Roitman | Public domain |
+| `pa_cantor` | [Yom Kippur Musaf, Avot and Gevurot (Nusach Ashkenaz), a cantor practicing](https://commons.wikimedia.org/wiki/File:YK_musaf_avot_ashkenaz_s.ogg) by Daniel Zvi (דניאל צבי) | Public domain |
 | `Desert City`, `Drums of the Deep`, `Urban Gauntlet`, `The Escalation`, `Heart of Nowhere` | [Music by Kevin MacLeod (incompetech.com)](https://incompetech.com/music/royalty-free/) by Kevin MacLeod | [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
 
 Music: "Desert City", "Drums of the Deep", "Urban Gauntlet", "The Escalation" and "Heart of
@@ -202,9 +204,10 @@ Nowhere" by Kevin MacLeod (incompetech.com), licensed under Creative Commons: By
 
 ## Voices (`src/assets/voice/`)
 
-The squad's, the operations room's and the lookout's scripted lines (`src/story/text.he.js`),
-generated with [ElevenLabs](https://elevenlabs.io) text to speech (model Eleven v4) on the
-project owner's account, one MP3 per line, with these voices from the ElevenLabs voice library:
+The mission's spoken lines (`src/story/text.he.js`), generated with
+[ElevenLabs](https://elevenlabs.io) text to speech (model Eleven v4) on the project owner's
+account with voices from the ElevenLabs voice library, some shifted in pitch to play
+another person (`scripts/assets/voices.config.mjs`):
 
 | Part | ElevenLabs voice |
 | --- | --- |
@@ -213,11 +216,40 @@ project owner's account, one MP3 per line, with these voices from the ElevenLabs
 | Noam | Tomer - Calm, Curious Narrator |
 | Control (radio) | Dana - Patient Support Agent |
 | Lookout 3 (radio) | Yael - Gentle, Confident Ad |
+| The player | Amit - Calm, Curious Narrator |
+| Shimon, the guard | Tomer - Calm, Curious Narrator (-2.5 semitones) |
+| The tour guide | Noa - Warm, Patient Narrator |
+| Visitors | Omer - Confident, Upbeat Ad (-2.5 semitones) |
+| Visitors (women) | Shira - Cheerful Social Creator |
+| Worshipers | Itai - Upbeat Social Creator (-3 semitones) |
+| Worshipers (women) | Tamar - Gentle, Confident Ad |
+| A father | Amit - Calm, Curious Narrator (-2.5 semitones) |
+| A mother | Michal - Patient Support Agent |
+| A grandfather | Bill - Wise, Mature, Balanced |
+| A grandmother | Dana - Patient Support Agent (-3 semitones) |
+| A boy | Maya - Cheerful, Friendly Creator (+4 semitones) |
+| A girl | Shira - Cheerful Social Creator (+5 semitones) |
+| A teenager | Itai - Upbeat Social Creator (+2.5 semitones) |
+| A tourist | Chris - Charming, Down-to-Earth |
+| A tourist (woman) | Jessica - Playful, Bright, Warm |
+| A yeshiva student | Liam - Energetic, Social Media Creator |
+| An usher | Amit - Calm, Curious Narrator (+2 semitones) |
+| A charity collector | George - Warm, Captivating Storyteller |
+| A soldier visiting | Tomer - Calm, Curious Narrator (+2 semitones) |
+| A Border Police officer | Omer - Confident, Upbeat Ad (+2 semitones) |
+| People fleeing | Roger - Laid-Back, Casual, Resonant |
+| People fleeing (women) | Maya - Cheerful, Friendly Creator |
+
+
+The crowd's prayer (`crowd_prayer_1..4`, seamless 11 s loops): ElevenLabs Sound Effects
+(text to sound v2) from the prompt "Hundreds of Jewish men praying aloud together at night
+in a huge open stone plaza at the Western Wall in Jerusalem: a dense murmur of Hebrew prayer,
+chanting and swaying, overlapping voices near and far, soft echo off ancient stone walls."
 
 License: the ElevenLabs Terms of Service. A commercial release needs audio generated on a
 paid ElevenLabs plan (the free plan requires attribution and has no commercial license).
-Voiced with ElevenLabs (elevenlabs.io). The other lines are recorded in the booth
-(`dev/booth.html`) or keep their subtitles only.
+Voiced with ElevenLabs (elevenlabs.io). A line recorded in the booth (`dev/booth.html`)
+replaces its generated take.
 
 ## Other files
 

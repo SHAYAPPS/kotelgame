@@ -10,10 +10,11 @@ export function lineDuration(text) {
  * HUD shows. `onLine(line)` fires as each line starts (e.g. radio squelch sounds).
  */
 export class Dialogue {
-  constructor({ lines = LINES, speakers = SPEAKERS, onLine = null } = {}) {
+  constructor({ lines = LINES, speakers = SPEAKERS, onLine = null, onQueue = null } = {}) {
     this.lines = lines;
     this.speakers = speakers;
     this.onLine = onLine;
+    this.onQueue = onQueue; // (id) => void as a line is queued (e.g. decode its recording ahead)
     this.queue = [];
     this.current = null; // { id, speaker, name, color, radio, text, time, duration }
   }
@@ -33,6 +34,7 @@ export class Dialogue {
       const line = this.lines[id];
       if (!line) throw new Error(`Unknown dialogue line "${id}"`);
       this.queue.push(item);
+      this.onQueue?.(id);
     }
     if (!this.current) this._next();
   }
@@ -47,7 +49,10 @@ export class Dialogue {
     if (next) {
       // A direct reply: jumps the queue (plays right after the current line).
       if (!this.current) this.play([item]);
-      else if (this.queue[0] !== item) this.queue.unshift(item);
+      else if (this.queue[0] !== item) {
+        this.queue.unshift(item);
+        this.onQueue?.(id);
+      }
       return true;
     }
     if (this.queue.length > 0) return false;

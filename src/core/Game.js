@@ -375,6 +375,7 @@ export class Game {
           launcher: this.launcher,
           voices: new VoicePlayer(this.audio, VOICE_FILES),
           seats: level.seats ?? [],
+          speakers: level.loudspeakers ?? [],
           stats: () => ({
             shots: this.stats.shots,
             hits: this.stats.hits,
